@@ -4,7 +4,7 @@
   "sort_by": "updated",
   "max_expanded_queries": 40,
   "min_bounty_amount": 25.0,
-  "max_sane_amount": 10000000,
+  "max_sane_amount": 50000.0,
   "new_repo_grace_days": 90,
   "semaphore_limit": 15,
   "token_bucket_capacity": 500,

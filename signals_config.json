@@ -51,7 +51,10 @@
     "social media task", "tweet about", "post on twitter", "post on x",
     "engagement task", "community task", "star + compare",
     "star and compare", "compare to another", "write a review of",
-    "rtc bounty", "rtc reward", "earn rtc", "rtc tokens"
+    "rtc bounty", "rtc reward", "earn rtc", "rtc tokens",
+    "editor-in-chief", "sats/day", "sats per day", "salary:", "compensation range",
+    "launch plan:", "project budget", "full audit of", "pm/ux audit",
+    "14 pages", "per month equity"
   ],
   "stale_signals": [
     "bounty expired", "claim invalidated", "work expired", "reward period ended",
@@ -78,7 +81,8 @@
     "bounty-board", "bounty-farm", "bounty-factory", "bounty-hub",
     "bounty-repo", "issue-bounties", "crypto-bounties", "web3-bounties",
     "open-bounties", "github-bounties", "bounty-tracker", "bountyboard",
-    "bountylist", "bountyhub", "bounty-aggregator"
+    "bountylist", "bountyhub", "bounty-aggregator",
+    "bug-bench", "sol-bug-bench", "bug-benchmark", "bench-full"
   ],
   "active_label_signals": [
     "claimed", "in-progress", "in progress",
