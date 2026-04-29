@@ -79,6 +79,8 @@ def main() -> None:
     has_currency = "currency_symbol" in issue_cols
     has_first_seen = "first_seen_at" in issue_cols
     has_raw_display = "raw_display_amount" in issue_cols
+    has_title = "title" in issue_cols
+    has_repo = "repo_name" in issue_cols
 
     # ── Build query ──
     select_cols = []
@@ -93,6 +95,10 @@ def main() -> None:
         select_cols.append("raw_display_amount")
     if has_first_seen:
         select_cols.append("first_seen_at")
+    if has_title:
+        select_cols.append("title")
+    if has_repo:
+        select_cols.append("repo_name")
     select_cols.append("issue_url")
 
     where_clauses = []
@@ -161,15 +167,24 @@ def main() -> None:
             idx += (1 if has_raw_display else 0)
             if has_first_seen:
                 idx += 1
+            db_title = row[idx] if has_title else ""
+            idx += (1 if has_title else 0)
+            db_repo = row[idx] if has_repo else ""
+            idx += (1 if has_repo else 0)
             issue_url = row[idx]
 
             amount_str = raw_disp if raw_disp else (
                 f"${numeric:,.0f}" if numeric and numeric > 0 else "Unknown/Custom"
             )
 
+            # Derive repo from URL as fallback if not stored in DB.
+            if not db_repo and issue_url.startswith("https://github.com/"):
+                db_repo = "/".join(issue_url.replace("https://github.com/", "").split("/")[:2])
+
             if has_score:
                 score_str = f"{score:.1f}" if score else "0.0"
-                print(f"{score_str:>7}  {amount_str:>12}  {str(currency or 'USD'):>8}  | {issue_url}")
+                title_str = f"  {db_title}" if db_title else ""
+                print(f"{score_str:>7}  {amount_str:>12}  {str(currency or 'USD'):>8}  | {issue_url}{title_str}")
             else:
                 print(f"{amount_str:>12}  | {issue_url}")
 
@@ -179,6 +194,8 @@ def main() -> None:
                 "currency": currency or "USD",
                 "display": amount_str,
                 "url": issue_url,
+                "title": db_title or "",
+                "repo_name": db_repo or "",
             })
 
     except sqlite3.OperationalError as exc:
@@ -247,11 +264,8 @@ def main() -> None:
                             "amount": str(r["display"]),
                             "numeric_amount": r["amount"],
                             "currency": r["currency"],
-                            # Parse repo from URL: https://github.com/owner/repo/issues/N
-                            "repo": "/".join(r["url"].replace("https://github.com/", "").split("/")[:2])
-                                if r["url"].startswith("https://github.com/") else "",
-                            # title is not stored in DB; enrich via API if needed
-                            "title": "",
+                            "repo": r.get("repo_name", ""),
+                            "title": r.get("title", ""),
                             "labels": "",
                             "link": r["url"],
                         }

@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-04-29
+
+### Fixed (Critical)
+1. **pyproject.toml version out of sync** — Version was stuck at `"2.0.1"`. Bumped directly to `"2.0.3"`.
+2. **db.py + core.py — title/repo_name not persisted** — Added `title TEXT` and `repo_name TEXT` columns to `issue_stats` schema, migration loop, and `upsert_issue_stats()`. `core.py` now passes both values. `p.py` reads them from DB for console output and JSON export instead of empty strings / URL parsing.
+3. **bounty.py — crypto keyword false positives** — Replaced naive `kw in text_upper` substring matching with a compiled word-boundary regex (`_CRYPTO_KEYWORD_RE`). Prevents false positives like 'OPERATION' matching 'OP'.
+4. **graphql.py — timelineItems never paginated** — Added `_TIMELINE_PAGE_QUERY` and a 5-page pagination loop (500 events max) in `run_graphql_audit()` for issues with >100 timeline events.
+5. **signals.py — lane_blocked has no age cap** — Added `active_signal_max_age_days` parameter (default 90) to `_is_lane_blocked()`. Claims older than the cap are treated as stale. Wired through `ScraperConfig`, `scraper_config.json`, and `compute_soft_signals()`.
+
+### Fixed (Medium)
+6. **discovery.py — query explosion guard** — Capped expanded queries at 40 with a warning. Added estimated API call count to discovery log.
+7. **config.py — scoring weight validation** — `build_config()` now warns if `weight_*` values don't sum to ~1.0.
+8. **bounty.py + config.py — proximity_window configurable** — Added `proximity_window: int = 300` to `ScraperConfig`, `scraper_config.json`, and `extract_bounty_amount()`. Hardcoded 300 replaced.
+9. **core.py — kill labels now increment rugs_seen** — Expanded `rug_inc` condition to also match `"kill label"` reason strings.
+10. **signals.py — check_positive_escrow merged into compute_soft_signals** — Added `has_positive_escrow: bool` to `SignalResult`. `core.py` now uses `soft.has_positive_escrow` instead of a separate function call.
+
+### Added (Polish)
+11. **ci.yml — Python 3.13** — Added `"3.13"` to the CI test matrix.
+12. **pyproject.toml** — `[tool.mypy]` config confirmed present (already added in v2.0.2).
+
+
+
 ## [2.0.2] — 2026-04-29
 
 ### Fixed (Critical)

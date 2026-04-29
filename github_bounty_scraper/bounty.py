@@ -53,6 +53,10 @@ _CRYPTO_RE = re.compile(
 
 # Crypto keywords for the "Unknown / Custom Tokens" fallback.
 _CRYPTO_KEYWORD_SET = {s.upper() for s in _CRYPTO_SUFFIXES}
+_CRYPTO_KEYWORD_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(s) for s in _CRYPTO_KEYWORD_SET) + r')\b',
+    re.IGNORECASE,
+)
 
 
 def _parse_number(s: str) -> float:
@@ -72,6 +76,7 @@ def _proximity_score(text: str, match_start: int, window: int = 300) -> float:
 def extract_bounty_amount(
     text: str,
     max_sane: float = 1e7,
+    proximity_window: int = 300,
 ) -> BountyResult:
     """Extract the most relevant bounty amount from free-form text.
 
@@ -101,7 +106,7 @@ def extract_bounty_amount(
             continue
         if val <= 0 or val > max_sane:
             continue
-        prox = _proximity_score(text, m.start())
+        prox = _proximity_score(text, m.start(), proximity_window)
         candidates.append((val, raw.strip(), "USD", prox))
 
     # ── Crypto matches ──
@@ -119,13 +124,12 @@ def extract_bounty_amount(
         symbol = m.group(2).upper()
         # Normalise stablecoins to USD value.
         currency = "USD" if symbol in STABLECOIN_SYMBOLS else symbol
-        prox = _proximity_score(text, m.start())
+        prox = _proximity_score(text, m.start(), proximity_window)
         candidates.append((val, raw.strip(), currency, prox))
 
     if not candidates:
         # Fallback: crypto keyword detected but no parseable amount.
-        text_upper = text.upper()
-        if any(kw in text_upper for kw in _CRYPTO_KEYWORD_SET):
+        if _CRYPTO_KEYWORD_RE.search(text):
             result.numeric_amount = -1.0
             result.raw_display = "Unknown / Custom Tokens"
             result.currency_symbol = ""

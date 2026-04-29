@@ -65,7 +65,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
             numeric_amount    REAL,
             raw_display_amount TEXT,
             currency_symbol   TEXT,
-            score             REAL DEFAULT 0
+            score             REAL DEFAULT 0,
+            title             TEXT DEFAULT '',
+            repo_name         TEXT DEFAULT ''
         )
     """)
 
@@ -78,6 +80,8 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "raw_display_amount TEXT",
         "currency_symbol TEXT",
         "score REAL DEFAULT 0",
+        "title TEXT DEFAULT ''",
+        "repo_name TEXT DEFAULT ''",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -138,6 +142,8 @@ async def upsert_issue_stats(
     currency_symbol: str,
     score: float,
     last_updated_at: float = 0.0,
+    title: str = "",
+    repo_name: str = "",
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -146,8 +152,9 @@ async def upsert_issue_stats(
         INSERT INTO issue_stats
             (issue_url, checked_at, scraped_amount,
              first_seen_at, last_seen_at, last_updated_at,
-             numeric_amount, raw_display_amount, currency_symbol, score)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             numeric_amount, raw_display_amount, currency_symbol, score,
+             title, repo_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             checked_at         = excluded.checked_at,
             scraped_amount     = excluded.scraped_amount,
@@ -157,12 +164,15 @@ async def upsert_issue_stats(
             numeric_amount     = excluded.numeric_amount,
             raw_display_amount = excluded.raw_display_amount,
             currency_symbol    = excluded.currency_symbol,
-            score              = excluded.score
+            score              = excluded.score,
+            title              = excluded.title,
+            repo_name          = excluded.repo_name
         """,
         (
             issue_url, now, scraped_amount,
             now, now, last_updated_at,
             numeric_amount, raw_display_amount, currency_symbol, score,
+            title, repo_name,
         ),
     )
 

@@ -16,6 +16,8 @@
   "weight_escrow_strength": 0.20,
   "output_md_file": "output.md",
   "output_json_file": "output.json",
+  "active_signal_max_age_days": 90,
+  "proximity_window": 300,
 
   "search_queries": [
     "is:open is:issue label:bounty",

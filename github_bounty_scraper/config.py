@@ -73,6 +73,8 @@ class ScraperConfig:
 
     # ── Filtering behaviour ──
     allow_assigned_if_stale: bool = True
+    active_signal_max_age_days: int = 90
+    proximity_window: int = 300
 
     # ── Paths ──
     db_file: str = "bounty_stats.db"
@@ -183,5 +185,17 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     if not cfg.github_token:
         print("Error: No valid token available in GitHub CLI or environment variables.")
         sys.exit(1)
+
+    # 5. Validate scoring weights.
+    log = get_logger()
+    total_weight = (
+        cfg.weight_amount + cfg.weight_recency
+        + cfg.weight_activity + cfg.weight_escrow_strength
+    )
+    if not (0.99 <= total_weight <= 1.01):
+        log.warning(
+            "Scoring weights sum to %.3f (expected 1.0). "
+            "Scores may fall outside [0, 100].", total_weight
+        )
 
     return cfg

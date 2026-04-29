@@ -32,7 +32,6 @@ from .output import write_output
 from .scoring import compute_score
 from .signals import (
     apply_hard_disqualifiers,
-    check_positive_escrow,
     compute_soft_signals,
     detect_snipe,
 )
@@ -183,7 +182,7 @@ async def process_issue(
     )
     if disqualified:
         log.debug("Hard disqualified (%s): %s", reason, url)
-        if "negative" in reason:
+        if "negative" in reason or "kill label" in reason:
             rug_inc = 1
         if not config.dry_run:
             await upsert_repo_stats(
@@ -204,6 +203,7 @@ async def process_issue(
         issue=issue,
         signals=signals,
         allow_assigned_if_stale=config.allow_assigned_if_stale,
+        active_signal_max_age_days=config.active_signal_max_age_days,
     )
 
     if soft.lane_blocked:
@@ -211,7 +211,7 @@ async def process_issue(
         return None
 
     # ── Positive escrow gate ──
-    if not check_positive_escrow(body, comments, signals):
+    if not soft.has_positive_escrow:
         log.debug("No positive escrow signal: %s", url)
         return None
 
@@ -242,7 +242,7 @@ async def process_issue(
     for c in comments:
         concat_text += " " + c.get("body", "")
 
-    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount)
+    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window)
 
     num_val = bounty.numeric_amount
     display = bounty.raw_display
@@ -289,6 +289,8 @@ async def process_issue(
             currency_symbol=currency,
             score=score,
             last_updated_at=_last_updated_ts,
+            title=title,
+            repo_name=repo_name,
         )
         await upsert_repo_stats(
             db_conn, repo_name,

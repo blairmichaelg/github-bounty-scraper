@@ -30,6 +30,7 @@ class SignalResult:
     ghost_squatter: bool = False
     is_closed: bool = False
     has_negative_soft: bool = False
+    has_positive_escrow: bool = False
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -93,6 +94,7 @@ def compute_soft_signals(
     issue: dict,
     signals: dict[str, list[str]],
     allow_assigned_if_stale: bool = True,
+    active_signal_max_age_days: int = 90,
 ) -> SignalResult:
     """Compute soft signal strengths without filtering.
 
@@ -114,6 +116,7 @@ def compute_soft_signals(
             if s in c_lower:
                 escrow_hits.add(s)
     result.positive_escrow_count = len(escrow_hits)
+    result.has_positive_escrow = result.positive_escrow_count > 0
 
     # ── Soft negative signals ──
     soft_neg = signals.get("soft_negative_signals", [])
@@ -125,7 +128,9 @@ def compute_soft_signals(
             result.has_negative_soft = True
 
     # ── Lane status (True = lane is blocked by an active claim) ──
-    result.lane_blocked = _is_lane_blocked(comments, signals)
+    result.lane_blocked = _is_lane_blocked(
+        comments, signals, active_signal_max_age_days
+    )
 
     # ── Ghost squatter (True = fresh non-stale assignee exists) ──
     result.ghost_squatter = _check_ghost_squatter(
@@ -152,11 +157,13 @@ def check_positive_escrow(
 
 # ─── Lane blocked (renamed from evaluate_lane_status for clarity) ───
 def _is_lane_blocked(
-    comments: list[dict], signals: dict[str, list[str]]
+    comments: list[dict], signals: dict[str, list[str]],
+    active_signal_max_age_days: int = 90,
 ) -> bool:
     """Return True if an active claim is more recent than any stale signal.
 
     ``True`` means the lane is **blocked** — someone is actively working.
+    Claims older than *active_signal_max_age_days* are treated as stale.
     """
     stale_signals = signals.get("stale_signals", [])
     active_signals = signals.get("active_signals", [])
@@ -180,6 +187,10 @@ def _is_lane_blocked(
     if max_active_ts is not None and (
         max_stale_ts is None or max_active_ts > max_stale_ts
     ):
+        # Age cap: if the active claim is too old, treat as stale.
+        age_days = (datetime.datetime.now(datetime.timezone.utc) - max_active_ts).days
+        if age_days > active_signal_max_age_days:
+            return False  # Active claim is too old — treat as stale.
         return True
     return False
 

@@ -58,6 +58,15 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
             else:
                 expanded.append(q)
 
+    MAX_EXPANDED_QUERIES = 40  # Sane cap for a single run
+    if len(expanded) > MAX_EXPANDED_QUERIES:
+        log.warning(
+            "Query expansion produced %d queries (cap: %d). "
+            "Consider fewer --language flags or base queries.",
+            len(expanded), MAX_EXPANDED_QUERIES,
+        )
+        expanded = expanded[:MAX_EXPANDED_QUERIES]
+
     return expanded
 
 
@@ -116,8 +125,9 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
     ``per_page`` results.
     """
     queries = build_search_queries(config)
-    log.info("Discovery: running %d search queries (max %d pages each) …",
-             len(queries), config.max_pages_per_query)
+    log.info("Discovery: running %d search queries (max %d pages each, ~%d API calls min) …",
+             len(queries), config.max_pages_per_query,
+             len(queries) * config.max_pages_per_query)
 
     unique_issues: dict[str, dict] = {}
     max_cap = config.max_issues or float("inf")

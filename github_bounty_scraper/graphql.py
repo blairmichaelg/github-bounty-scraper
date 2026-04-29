@@ -138,6 +138,32 @@ query($owner: String!, $name: String!, $after: String!) {
 }
 """
 
+# ─── Timeline pagination query ───────────────────────────────────────────
+_TIMELINE_PAGE_QUERY = """
+query($owner: String!, $name: String!, $issue: Int!, $after: String!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $issue) {
+      timelineItems(first: 100, after: $after,
+        itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT]) {
+        nodes {
+          __typename
+          ... on CrossReferencedEvent {
+            createdAt willCloseTarget
+            source { ... on PullRequest { state isDraft createdAt updatedAt } }
+          }
+          ... on ConnectedEvent {
+            createdAt
+            source { ... on PullRequest { state isDraft createdAt updatedAt } }
+          }
+          ... on AssignedEvent { createdAt }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}
+"""
+
 
 async def run_graphql_audit(
     session: aiohttp.ClientSession,
@@ -214,5 +240,39 @@ async def run_graphql_audit(
 
     # Replace the truncated PR list with the full paginated set.
     repo_data["pullRequests"]["nodes"] = all_prs
+
+    # ── Timeline pagination (Section 2.2) ──
+    issue_data = repo_data.get("issue")
+    if issue_data:
+        tl_info = issue_data.get("timelineItems", {}).get("pageInfo", {})
+        all_tl_nodes = list(issue_data.get("timelineItems", {}).get("nodes", []))
+        tl_pages = 0
+        tl_max_pages = 5  # cap: 5 pages × 100 = 500 events max
+
+        while tl_info.get("hasNextPage") and tl_pages < tl_max_pages:
+            tl_cursor = tl_info.get("endCursor")
+            if not tl_cursor:
+                break
+
+            tl_data = await fetch_graphql(
+                session, bucket, token, _TIMELINE_PAGE_QUERY,
+                {"owner": owner, "name": repo, "issue": issue_number, "after": tl_cursor},
+            )
+            if not tl_data or not tl_data.get("repository"):
+                break
+
+            tl_issue = tl_data["repository"].get("issue", {})
+            tl_items = tl_issue.get("timelineItems", {})
+            new_tl_nodes = tl_items.get("nodes", [])
+            if not new_tl_nodes:
+                break
+
+            all_tl_nodes.extend(new_tl_nodes)
+            tl_info = tl_items.get("pageInfo", {})
+            tl_pages += 1
+
+        # Replace the truncated timeline with the full paginated set.
+        if issue_data.get("timelineItems"):
+            issue_data["timelineItems"]["nodes"] = all_tl_nodes
 
     return data
