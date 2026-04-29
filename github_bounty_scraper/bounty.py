@@ -107,6 +107,9 @@ def extract_bounty_amount(
         if val <= 0 or val > max_sane:
             continue
         prox = _proximity_score(text, m.start(), proximity_window)
+        # Title-region bonus: first 200 chars are usually the issue title.
+        if m.start() < 200 and prox == 0.0:
+            prox = 0.5  # Conservative bonus — title amounts are high signal.
         candidates.append((val, raw.strip(), "USD", prox))
 
     # ── Crypto matches ──
@@ -125,6 +128,9 @@ def extract_bounty_amount(
         # Normalise stablecoins to USD value.
         currency = "USD" if symbol in STABLECOIN_SYMBOLS else symbol
         prox = _proximity_score(text, m.start(), proximity_window)
+        # Title-region bonus: first 200 chars are usually the issue title.
+        if m.start() < 200 and prox == 0.0:
+            prox = 0.5  # Conservative bonus — title amounts are high signal.
         candidates.append((val, raw.strip(), currency, prox))
 
     if not candidates:

@@ -129,7 +129,8 @@ def compute_soft_signals(
 
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(
-        comments, signals, active_signal_max_age_days
+        comments, signals, active_signal_max_age_days,
+        labels_nodes=labels_nodes,
     )
 
     # ── Ghost squatter (True = fresh non-stale assignee exists) ──
@@ -144,11 +145,13 @@ def compute_soft_signals(
 def _is_lane_blocked(
     comments: list[dict], signals: dict[str, list[str]],
     active_signal_max_age_days: int = 90,
+    labels_nodes: list[dict] | None = None,
 ) -> bool:
     """Return True if an active claim is more recent than any stale signal.
 
     ``True`` means the lane is **blocked** — someone is actively working.
     Claims older than *active_signal_max_age_days* are treated as stale.
+    Also checks issue labels for active claim indicators.
     """
     stale_signals = signals.get("stale_signals", [])
     active_signals = signals.get("active_signals", [])
@@ -168,6 +171,21 @@ def _is_lane_blocked(
         if any(s in c_body for s in active_signals):
             if max_active_ts is None or dt > max_active_ts:
                 max_active_ts = dt
+
+    # Label-based active signal: treat matching labels as a recent claim.
+    if labels_nodes:
+        active_label_signals = signals.get("active_label_signals", [])
+        for label in labels_nodes:
+            l_name = label.get("name", "").lower()
+            if any(s in l_name for s in active_label_signals):
+                # GitHub doesn't expose label timestamps easily,
+                # so treat as max_active_ts = now − 1 day conservatively.
+                candidate = (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(days=1)
+                )
+                if max_active_ts is None or candidate > max_active_ts:
+                    max_active_ts = candidate
 
     if max_active_ts is not None and (
         max_stale_ts is None or max_active_ts > max_stale_ts
@@ -190,6 +208,7 @@ def _is_assignment_stale(
     stale_signals = signals.get("stale_signals", [])
 
     last_assigned_ts: datetime.datetime | None = None
+    last_unassigned_ts: datetime.datetime | None = None
     for node in timeline_nodes:
         # Use __typename for reliable event type detection (requires
         # the GraphQL query to request __typename on timelineItems).
@@ -197,9 +216,19 @@ def _is_assignment_stale(
             dt = _parse_gh_ts(node.get("createdAt"))
             if dt and (last_assigned_ts is None or dt > last_assigned_ts):
                 last_assigned_ts = dt
+        elif node.get("__typename") == "UnassignedEvent":
+            dt = _parse_gh_ts(node.get("createdAt"))
+            if dt and (last_unassigned_ts is None or dt > last_unassigned_ts):
+                last_unassigned_ts = dt
 
     if last_assigned_ts is None:
         return False
+
+    # If the most recent event is an unassignment, treat as stale.
+    if last_unassigned_ts and (
+        last_assigned_ts is None or last_unassigned_ts > last_assigned_ts
+    ):
+        return True
 
     for c in comments:
         c_body = c.get("body", "").lower()

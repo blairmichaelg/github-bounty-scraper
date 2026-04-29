@@ -112,12 +112,13 @@ query($owner: String!, $name: String!, $issue: Int!) {
         nodes { body createdAt }
         pageInfo { hasPreviousPage startCursor }
       }
-      timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT]) {
+      timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
         nodes {
           __typename
           ... on CrossReferencedEvent { createdAt willCloseTarget source { ... on PullRequest { state isDraft createdAt updatedAt } } }
           ... on ConnectedEvent { createdAt source { ... on PullRequest { state isDraft createdAt updatedAt } } }
           ... on AssignedEvent { createdAt }
+          ... on UnassignedEvent { createdAt }
         }
         pageInfo { hasNextPage endCursor }
       }
@@ -144,7 +145,7 @@ query($owner: String!, $name: String!, $issue: Int!, $after: String!) {
   repository(owner: $owner, name: $name) {
     issue(number: $issue) {
       timelineItems(first: 100, after: $after,
-        itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT]) {
+        itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
         nodes {
           __typename
           ... on CrossReferencedEvent {
@@ -156,6 +157,7 @@ query($owner: String!, $name: String!, $issue: Int!, $after: String!) {
             source { ... on PullRequest { state isDraft createdAt updatedAt } }
           }
           ... on AssignedEvent { createdAt }
+          ... on UnassignedEvent { createdAt }
         }
         pageInfo { hasNextPage endCursor }
       }

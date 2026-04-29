@@ -55,6 +55,11 @@
   "aggregator_repos": [
     "algora", "gitcoin", "issuehunt", "bountysource"
   ],
+  "active_label_signals": [
+    "claimed", "in-progress", "in progress",
+    "assigned", "wip", "work in progress",
+    "being worked on"
+  ],
   "soft_negative_signals": [
     "wip", "work in progress", "on hold", "blocked", "postponed",
     "not accepting", "not taking submissions", "paused"

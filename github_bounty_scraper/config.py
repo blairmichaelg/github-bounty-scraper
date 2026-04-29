@@ -131,6 +131,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str]]:
         "active_signals": [],
         "kill_labels": [],
         "aggregator_repos": [],
+        "active_label_signals": [],
         "soft_negative_signals": [],
     }
     try:
