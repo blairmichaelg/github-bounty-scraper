@@ -20,7 +20,6 @@ def compute_score(
     issue_updated_at: str | None,
     merges_last_45d: int,
     positive_escrow_count: int,
-    total_positive_signals: int,
     has_negative_soft: bool,
     config: ScraperConfig,
 ) -> float:

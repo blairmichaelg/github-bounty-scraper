@@ -21,6 +21,7 @@
     "is:open is:issue label:bounty",
     "is:open is:issue label:\"help wanted\"",
     "is:open is:issue label:\"good first issue\"",
+    "is:open is:issue label:\"good first issue\" \"reward\"",
     "is:open is:issue \"bounty\" OR \"reward\" OR \"paid on merge\"",
     "is:open is:issue \"USDC\" OR \"crypto bounty\"",
     "is:open is:issue \"bountydotnew\" OR \"collaborators.build\" OR \"GitGig-Base\" OR \"roxonn\" OR \"onlydust.xyz\"",

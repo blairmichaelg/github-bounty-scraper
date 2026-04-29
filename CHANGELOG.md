@@ -1,29 +1,46 @@
 # Changelog
 
-## [2.0.1] — 2026-04-29
+## [Unreleased]
+
+## [2.0.2] — 2026-04-29
 
 ### Fixed (Critical)
-1. **pyproject.toml** — Corrected broken build backend from `setuptools.backends._legacy:_Backend` to `setuptools.build_meta`.
-2. **CLI boolean override bug** — `store_true` flags (e.g. `--dry-run`, `--no-cache`) with `default=None` would shadow config-file values via the `if value is not None` guard. Fixed by using `argument_default=SUPPRESS` so unprovided flags are absent from the namespace entirely.
-3. **Unguarded strptime in core.py** — The inline `datetime.strptime` for `last_updated_at` near the DB upsert was not wrapped in try/except. Now falls back to `0.0` on malformed timestamps.
-4. **Fragile AssignedEvent detection** — Replaced key-based heuristic (`"source" not in node`) with explicit `__typename` checking. Added `__typename` to the GraphQL timelineItems query. Also updated `detect_snipe` to use `__typename` for `CrossReferencedEvent`/`ConnectedEvent`.
-5. **first_seen_at overwritten on re-upsert** — Both `upsert_repo_stats` and `upsert_issue_stats` now use `COALESCE(table.first_seen_at, excluded.first_seen_at)` to preserve existing values and backfill NULLs from migration.
+1. **pyproject.toml version out of sync** — `version` was still `"2.0.0"` while the git tag was `v2.0.1`. Now `"2.0.1"` so `importlib.metadata.version()` is correct.
+2. **discovery.py sort_by never wired** — `config.sort_by` was loaded from JSON but `fetch_rest_search()` hardcoded `"sort": "updated"`. Added `sort_by` parameter, wired from `discover_issues()`.
+3. **scoring.py dead parameter** — Removed unused `total_positive_signals` from `compute_score()` signature and its call site. The escrow norm formula uses a fixed `/5.0` divisor.
+4. **core.py has_negative_soft always False** — Added `has_negative_soft` field to `SignalResult`. `compute_soft_signals` now scans for `soft_negative_signals` (loaded from `signals_config.json`). `core.py` passes `soft.has_negative_soft` to `compute_score()`.
+5. **p.py JSON export empty repo/title** — `repo` is now parsed from the issue URL at export time. `title` is documented as not stored in DB.
 
 ### Fixed (Medium)
-6. **ISO string comparison for PR window** — Replaced string comparison `merged_at < forty_five_ago` with proper `datetime` comparison using `strptime`. Added comment explaining why the early-stop is safe.
-7. **Markdown written on every run** — `write_markdown_output()` is now only called when `output_format == "markdown"`, not on `"text"` runs. Docstring updated.
-8. **escrow_norm nearly always 0** — The old divisor (total signal list length, often 25+) made the escrow component negligible. New formula: `min(positive_escrow_count / 5.0, 1.0)` — 5+ distinct hits = full escrow score.
-9. **Proximity window too tight** — Widened bounty keyword proximity window from 120 to 300 characters to better handle GitHub issue bodies where amounts may be far from keywords.
-10. **subprocess.run for gh auth token** — Added `timeout=5` and `subprocess.TimeoutExpired` catch to prevent hanging on systems where `gh` waits for browser auth.
+6. **signals.py escrow double-counting** — Replaced per-occurrence counting with set-based dedup: only unique signal types are counted, not total occurrences across body+comments.
+7. **graphql.py PR early-stop field mismatch** — Changed `orderBy` from `UPDATED_AT` to `MERGED_AT` so the sort field matches the `mergedAt` early-stop check.
+8. **config.py zero/empty-string CLI override bug** — Removed the `if value is not None` guard; with `SUPPRESS`, all keys in `cli_overrides` were explicitly set by the user.
+9. **output.py naive datetime** — Replaced `datetime.now()` with `datetime.now(datetime.timezone.utc)` in both markdown and JSON reports. Markdown appends " UTC".
+10. **core.py upsert_repo_stats called 3–4× per issue** — Consolidated into a single call on the happy path (with early-exit calls only for disqualified/sniped issues). Accumulates `escrow_inc`, `rug_inc`, `snipe_inc` as local variables.
 
-### Fixed (Polish)
-11. **Aggregator repos hardcoded** — Moved `_AGGREGATOR_REPOS` set from `core.py` into `signals_config.json` as `"aggregator_repos"` key. Loaded via `config.load_signals()`.
-12. **Version sync** — Replaced hardcoded `__version__ = "2.0.0"` with `importlib.metadata.version()` for single-source versioning. Falls back to `"dev"` when not installed.
-13. **Stale requirements.txt** — Updated with version pins matching `pyproject.toml` and a comment documenting it as legacy.
-14. **min_bounty_amount too low** — Raised default from $10 to $25 to filter "$10 gas refund" noise. Updated `scraper_config.json`, `config.py`, `cli.py`, and `README.md`.
-15. **Console noise on JSON runs** — Added `suppress_console` parameter to `write_text_output()`. Set to `True` when `output_format == "json"` so JSON-only runs are clean.
-16. **p.py --export json** — Added JSON export support (auto-detected by `.json` extension). Same field structure as the scraper's `output.json`.
-17. **CI pip cache** — Added `actions/cache@v4` for pip. Added comment explaining GITHUB_TOKEN unavailability in CI.
+### Added (Polish)
+11. **mypy** — Added `mypy>=1.10` to dev deps, `[tool.mypy]` config, and a CI step.
+12. **search_queries** — Added `label:"good first issue" "reward"` query to `scraper_config.json`.
+13. **soft_negative_signals** — New key in `signals_config.json` with terms like "wip", "on hold", "blocked", "postponed", etc.
+
+### Previous v2.0.1 fixes (from earlier polish pass)
+- Corrected broken build backend (`setuptools.build_meta`).
+- Fixed CLI boolean override bug via `argument_default=SUPPRESS`.
+- Guarded `strptime` in core.py DB upsert.
+- Replaced fragile `AssignedEvent` key-heuristic with `__typename` checking.
+- Added `COALESCE` for `first_seen_at` preservation in both upsert statements.
+- Fixed ISO string comparison for PR window cutoff.
+- Restricted markdown output to `output_format == "markdown"` only.
+- Fixed escrow_norm formula (divisor: 5.0 instead of total signal count).
+- Widened bounty proximity window from 120 to 300 characters.
+- Added `timeout=5` to `gh auth token` subprocess call.
+- Externalized aggregator repos to `signals_config.json`.
+- Single-source versioning via `importlib.metadata`.
+- Updated `requirements.txt` with version pins.
+- Raised `min_bounty_amount` default from $10 to $25.
+- Suppressed console output for JSON-only runs.
+- Added JSON export to `p.py --export`.
+- Added pip cache to CI workflow.
 
 ## [2.0.0] — 2026-04-29
 

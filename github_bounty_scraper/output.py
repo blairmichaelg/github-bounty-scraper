@@ -91,7 +91,7 @@ def write_markdown_output(
     elapsed: float,
     path: str,
 ) -> None:
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
     lines = [
         "# GitHub Bounty Scraper — Results\n",
         f"**Generated:** {now_str}  ",
@@ -148,7 +148,7 @@ def write_json_output(
 ) -> None:
     """Write all leads to a JSON file with key fields."""
     output = {
-        "generated_at": datetime.datetime.now().isoformat(),
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
         "pipeline_time_seconds": round(elapsed, 2),
         "total_leads": len(leads),
         "leads": [

@@ -143,15 +143,6 @@ async def process_issue(
             except ValueError:
                 pass
 
-    # ── Upsert repo stats (base — no escrow/rug increments yet) ──
-    if not config.dry_run:
-        await upsert_repo_stats(
-            db_conn, repo_name,
-            last_merged_pr_at=last_merged_at_ts,
-            merges_last_45d=merges_last_45,
-        )
-        await committer.tick()
-
     # ── Dead-repo kill condition (with new-repo grace) ──
     if merges_last_45 == 0:
         repo_created_raw = repository.get("createdAt")
@@ -177,6 +168,11 @@ async def process_issue(
     title = issue.get("title") or ""
     timeline_nodes = issue.get("timelineItems", {}).get("nodes", [])
 
+    # ── Accumulate repo_stats increments locally (single upsert at end) ──
+    escrow_inc = 0
+    rug_inc = 0
+    snipe_inc = 0
+
     # ── Hard disqualifiers ──
     disqualified, reason = apply_hard_disqualifiers(
         issue_state=issue_state,
@@ -187,12 +183,14 @@ async def process_issue(
     )
     if disqualified:
         log.debug("Hard disqualified (%s): %s", reason, url)
-        if "negative" in reason and not config.dry_run:
+        if "negative" in reason:
+            rug_inc = 1
+        if not config.dry_run:
             await upsert_repo_stats(
                 db_conn, repo_name,
                 last_merged_pr_at=last_merged_at_ts,
                 merges_last_45d=merges_last_45,
-                rug_increment=1,
+                rug_increment=rug_inc,
             )
             await committer.tick()
         return None
@@ -217,24 +215,19 @@ async def process_issue(
         log.debug("No positive escrow signal: %s", url)
         return None
 
-    if not config.dry_run:
-        await upsert_repo_stats(
-            db_conn, repo_name,
-            last_merged_pr_at=last_merged_at_ts,
-            merges_last_45d=merges_last_45,
-            escrow_increment=1,
-        )
-        await committer.tick()
+    escrow_inc = 1
 
     # ── Snipe detection ──
     if detect_snipe(timeline_nodes):
         log.debug("Snipe detected: %s", url)
+        snipe_inc = 1
         if not config.dry_run:
             await upsert_repo_stats(
                 db_conn, repo_name,
                 last_merged_pr_at=last_merged_at_ts,
                 merges_last_45d=merges_last_45,
-                snipe_increment=1,
+                escrow_increment=escrow_inc,
+                snipe_increment=snipe_inc,
             )
             await committer.tick()
         return None
@@ -267,18 +260,16 @@ async def process_issue(
         return None
 
     # ── Scoring ──
-    total_pos_signals = len(signals.get("positive_escrow", []))
     score = compute_score(
         numeric_amount=num_val if num_val > 0 else 0,
         issue_updated_at=issue_updated_at_raw,
         merges_last_45d=merges_last_45,
         positive_escrow_count=soft.positive_escrow_count,
-        total_positive_signals=total_pos_signals,
-        has_negative_soft=False,
+        has_negative_soft=soft.has_negative_soft,
         config=config,
     )
 
-    # ── DB upsert ──
+    # ── DB upsert (single repo_stats + issue_stats call) ──
     if not config.dry_run:
         # Parse updatedAt safely — malformed timestamps fall back to 0.0.
         try:
@@ -303,6 +294,9 @@ async def process_issue(
             db_conn, repo_name,
             last_merged_pr_at=last_merged_at_ts,
             merges_last_45d=merges_last_45,
+            escrow_increment=escrow_inc,
+            rug_increment=rug_inc,
+            snipe_increment=snipe_inc,
             bounty_amount=num_val if num_val > 0 else 0,
         )
         await committer.tick()

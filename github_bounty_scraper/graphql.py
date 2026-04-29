@@ -96,7 +96,7 @@ _ENRICHMENT_QUERY = """
 query($owner: String!, $name: String!, $issue: Int!) {
   repository(owner: $owner, name: $name) {
     createdAt
-    pullRequests(first: 50, states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}) {
+    pullRequests(first: 50, states: MERGED, orderBy: {field: MERGED_AT, direction: DESC}) {
       nodes { mergedAt }
       pageInfo { hasNextPage endCursor }
     }
@@ -130,7 +130,7 @@ query($owner: String!, $name: String!, $issue: Int!) {
 _PR_PAGE_QUERY = """
 query($owner: String!, $name: String!, $after: String!) {
   repository(owner: $owner, name: $name) {
-    pullRequests(first: 50, states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, after: $after) {
+    pullRequests(first: 50, states: MERGED, orderBy: {field: MERGED_AT, direction: DESC}, after: $after) {
       nodes { mergedAt }
       pageInfo { hasNextPage endCursor }
     }
@@ -177,7 +177,7 @@ async def run_graphql_audit(
         page_info.get("hasNextPage")
         and len(all_prs) < pr_cap
     ):
-        # Early-stop: PRs are ordered by UPDATED_AT DESC, so once the
+        # Early-stop: PRs are ordered by MERGED_AT DESC, so once the
         # last PR on a page is older than the 45-day window, all
         # subsequent pages will also be older — safe to stop.
         last_pr = all_prs[-1] if all_prs else None

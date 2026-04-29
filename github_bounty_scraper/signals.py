@@ -29,6 +29,7 @@ class SignalResult:
     lane_blocked: bool = False
     ghost_squatter: bool = False
     is_closed: bool = False
+    has_negative_soft: bool = False
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -101,16 +102,27 @@ def compute_soft_signals(
     result = SignalResult()
     body_lower = body.lower()
 
-    # ── Positive escrow count ──
+    # ── Positive escrow count (set-based: count unique signal types) ──
     pos_signals = signals.get("positive_escrow", [])
+    escrow_hits: set[str] = set()
     for s in pos_signals:
         if s in body_lower:
-            result.positive_escrow_count += 1
+            escrow_hits.add(s)
     for c in comments:
         c_lower = c.get("body", "").lower()
         for s in pos_signals:
             if s in c_lower:
-                result.positive_escrow_count += 1
+                escrow_hits.add(s)
+    result.positive_escrow_count = len(escrow_hits)
+
+    # ── Soft negative signals ──
+    soft_neg = signals.get("soft_negative_signals", [])
+    if soft_neg:
+        all_text = body_lower
+        for c in comments:
+            all_text += " " + c.get("body", "").lower()
+        if any(s in all_text for s in soft_neg):
+            result.has_negative_soft = True
 
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(comments, signals)

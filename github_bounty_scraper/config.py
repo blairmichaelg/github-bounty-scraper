@@ -124,6 +124,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str]]:
         "active_signals": [],
         "kill_labels": [],
         "aggregator_repos": [],
+        "soft_negative_signals": [],
     }
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -168,10 +169,12 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
         if hasattr(cfg, key):
             setattr(cfg, key, value)
 
-    # 3. Apply CLI overrides (non-None values only).
+    # 3. Apply CLI overrides.  With argument_default=SUPPRESS, every key
+    #    present in cli_overrides was explicitly provided by the user —
+    #    no additional None-guard is needed.
     if cli_overrides:
         for key, value in cli_overrides.items():
-            if value is not None and hasattr(cfg, key):
+            if hasattr(cfg, key):
                 setattr(cfg, key, value)
 
     # 4. Resolve token if not already set.

@@ -68,6 +68,7 @@ async def fetch_rest_search(
     query: str,
     page: int,
     per_page: int = 100,
+    sort_by: str = "updated",
     retries: int = 3,
 ) -> list[dict]:
     """Fetch one page of GitHub issue search results via the REST API."""
@@ -77,7 +78,7 @@ async def fetch_rest_search(
     }
     params = {
         "q": query,
-        "sort": "updated",
+        "sort": sort_by,
         "order": "desc",
         "per_page": per_page,
         "page": page,
@@ -132,7 +133,8 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
                     break
 
                 items = await fetch_rest_search(
-                    session, config.github_token, query, page, per_page
+                    session, config.github_token, query, page, per_page,
+                    sort_by=config.sort_by,
                 )
 
                 new_count = 0

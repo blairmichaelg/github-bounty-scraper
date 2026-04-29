@@ -247,7 +247,10 @@ def main() -> None:
                             "amount": str(r["display"]),
                             "numeric_amount": r["amount"],
                             "currency": r["currency"],
-                            "repo": "",
+                            # Parse repo from URL: https://github.com/owner/repo/issues/N
+                            "repo": "/".join(r["url"].replace("https://github.com/", "").split("/")[:2])
+                                if r["url"].startswith("https://github.com/") else "",
+                            # title is not stored in DB; enrich via API if needed
                             "title": "",
                             "labels": "",
                             "link": r["url"],

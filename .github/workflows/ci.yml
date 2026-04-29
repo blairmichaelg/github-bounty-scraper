@@ -35,6 +35,9 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      - name: Type check with mypy
+        run: mypy github_bounty_scraper/ --ignore-missing-imports
+
       # Note: A live GITHUB_TOKEN is not available in CI, so tests are
       # limited to import checks and --help validation.  Full pipeline
       # testing requires a real token and is done locally.
