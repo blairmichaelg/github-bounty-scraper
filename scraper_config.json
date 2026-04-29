@@ -38,7 +38,7 @@
     "is:open is:issue \"OP reward\" OR \"ARB bounty\" OR \"STRK funded\" OR \"SOL bounty\"",
     "is:open is:issue \"this issue pays\" OR \"this task pays\" OR \"compensation:\"",
     "is:open is:issue \"reward:\" OR \"bounty:\" OR \"prize:\"",
-    "is:open is:issue \"will pay\" USDC OR ETH OR SOL",
+    "is:open is:issue \"will pay usdc\" OR \"will pay eth\" OR \"will pay sol\"",
     "is:open is:issue \"funded\" \"usdc\" OR \"eth\" OR \"sol\"",
     "is:open is:issue \"paid on merge\" OR \"reward on completion\" OR \"paid fix\"",
     "is:open is:issue \"bounty amount\" OR \"reward amount\" OR \"reward pool\"",
