@@ -1,0 +1,159 @@
+"""
+Output formatters — text (console), markdown, and JSON.
+"""
+
+from __future__ import annotations
+
+import datetime
+import json
+from typing import Any
+
+from .config import ScraperConfig
+from .log import get_logger
+
+log = get_logger()
+
+
+def write_output(
+    leads: list[dict[str, Any]],
+    elapsed: float,
+    config: ScraperConfig,
+) -> None:
+    """Dispatch output based on ``config.output_format``."""
+    verified = [lead for lead in leads if lead["AmountNum"] > 0]
+    unknown = [lead for lead in leads if lead["AmountNum"] < 0]
+
+    # Sort verified by score (desc), then amount as tie-breaker.
+    verified.sort(key=lambda x: (x.get("Score", 0), x["AmountNum"]), reverse=True)
+
+    write_text_output(verified, unknown, elapsed)
+
+    if config.output_format in ("markdown", "text"):
+        write_markdown_output(verified, unknown, elapsed, config.output_md_file)
+
+    if config.output_format == "json":
+        write_json_output(leads, elapsed, config.output_json_file)
+
+
+# ─── Console (text) output ───────────────────────────────────────────
+def write_text_output(
+    verified: list[dict], unknown: list[dict], elapsed: float
+) -> None:
+    print("\n" + "=" * 60)
+    print("VERIFIED BOUNTY LEADS (Sorted by Score)")
+    print("=" * 60)
+
+    if not verified:
+        print("No robust verified leads survived the pipeline filtering.")
+    else:
+        for lead in verified:
+            print(f"Score   : {lead.get('Score', 'N/A')}")
+            print(f"Amount  : {lead['Amount']}")
+            if lead.get("Currency") and lead["Currency"] != "USD":
+                print(f"Currency: {lead['Currency']}")
+            print(f"Repo    : {lead['Repo']}")
+            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            print(f"Title   : {safe_title} {lead['Labels']}")
+            print(f"Link    : {lead['Link']}")
+            print("-" * 60)
+
+    if unknown:
+        print("\n" + "=" * 60)
+        print("UNKNOWN / CUSTOM TOKEN LEADS")
+        print("=" * 60)
+        for lead in unknown:
+            print(f"Score   : {lead.get('Score', 'N/A')}")
+            print(f"Amount  : {lead['Amount']}")
+            print(f"Repo    : {lead['Repo']}")
+            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            print(f"Title   : {safe_title} {lead['Labels']}")
+            print(f"Link    : {lead['Link']}")
+            print("-" * 60)
+
+    print(f"Pipeline executed in {elapsed:.2f} seconds.")
+
+
+# ─── Markdown output ─────────────────────────────────────────────────
+def write_markdown_output(
+    verified: list[dict],
+    unknown: list[dict],
+    elapsed: float,
+    path: str,
+) -> None:
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [
+        "# GitHub Bounty Scraper — Results\n",
+        f"**Generated:** {now_str}  ",
+        f"**Verified leads:** {len(verified)}  ",
+        f"**Unknown/Custom Token leads:** {len(unknown)}  ",
+        f"**Pipeline time:** {elapsed:.2f}s\n",
+        "---\n",
+    ]
+
+    if verified:
+        lines.append("## Verified Bounty Leads\n")
+        lines.append("| Score | Amount | Currency | Repo | Title | Labels | Link |")
+        lines.append("|-------|--------|----------|------|-------|--------|------|")
+        for lead in verified:
+            safe_title = lead["Title"].replace("|", "\\|")[:80]
+            lines.append(
+                f"| {lead.get('Score', '')} | {lead['Amount']} "
+                f"| {lead.get('Currency', 'USD')} | {lead['Repo']} | {safe_title} "
+                f"| {lead['Labels']} | [link]({lead['Link']}) |"
+            )
+        lines.append("")
+
+    if unknown:
+        lines.append("## Unknown / Custom Token Leads\n")
+        lines.append("| Score | Amount | Repo | Title | Labels | Link |")
+        lines.append("|-------|--------|------|-------|--------|------|")
+        for lead in unknown:
+            safe_title = lead["Title"].replace("|", "\\|")[:80]
+            lines.append(
+                f"| {lead.get('Score', '')} | {lead['Amount']} | {lead['Repo']} "
+                f"| {safe_title} | {lead['Labels']} | [link]({lead['Link']}) |"
+            )
+        lines.append("")
+
+    if not verified and not unknown:
+        lines.append("_No leads survived pipeline filtering._\n")
+
+    lines.append("---\n")
+    lines.append(
+        "> **Disclaimer:** This tool is for discovery only. "
+        "Always verify bounty legitimacy before investing time.\n"
+    )
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    log.info("Markdown report written to %s", path)
+
+
+# ─── JSON output ─────────────────────────────────────────────────────
+def write_json_output(
+    leads: list[dict],
+    elapsed: float,
+    path: str,
+) -> None:
+    """Write all leads to a JSON file with key fields."""
+    output = {
+        "generated_at": datetime.datetime.now().isoformat(),
+        "pipeline_time_seconds": round(elapsed, 2),
+        "total_leads": len(leads),
+        "leads": [
+            {
+                "score": lead.get("Score", 0),
+                "amount": lead.get("Amount", ""),
+                "numeric_amount": lead.get("AmountNum", 0),
+                "currency": lead.get("Currency", "USD"),
+                "repo": lead.get("Repo", ""),
+                "title": lead.get("Title", ""),
+                "labels": lead.get("Labels", ""),
+                "link": lead.get("Link", ""),
+            }
+            for lead in leads
+        ],
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(output, fh, indent=2, ensure_ascii=False)
+    log.info("JSON report written to %s", path)

@@ -1,0 +1,34 @@
+{
+  "min_stars": 10,
+  "max_pages_per_query": 5,
+  "sort_by": "updated",
+  "min_bounty_amount": 10.0,
+  "max_sane_amount": 10000000,
+  "new_repo_grace_days": 90,
+  "semaphore_limit": 15,
+  "token_bucket_capacity": 500,
+  "token_bucket_fill_rate": 10.0,
+  "batch_commit_size": 25,
+  "progress_every": 20,
+  "weight_amount": 0.35,
+  "weight_recency": 0.25,
+  "weight_activity": 0.20,
+  "weight_escrow_strength": 0.20,
+  "output_md_file": "output.md",
+  "output_json_file": "output.json",
+
+  "search_queries": [
+    "is:open is:issue label:bounty",
+    "is:open is:issue label:\"help wanted\"",
+    "is:open is:issue label:\"good first issue\"",
+    "is:open is:issue \"bounty\" OR \"reward\" OR \"paid on merge\"",
+    "is:open is:issue \"USDC\" OR \"crypto bounty\"",
+    "is:open is:issue \"bountydotnew\" OR \"collaborators.build\" OR \"GitGig-Base\" OR \"roxonn\" OR \"onlydust.xyz\"",
+    "is:open is:issue \"workprotocol\" OR \"x402 payment\" OR \"hats.finance\"",
+    "is:open is:issue \"escrow locked\" OR \"smart contract funded\" OR \"paid via smart contract\" OR \"usdc has been funded\"",
+    "is:open is:issue \"paid on merge\" OR \"reward on merge\" OR \"bounty on merge\"",
+    "is:open is:issue \"post your wallet\" OR \"send usdc to\" OR \"wallet address on merge\" OR \"ens address\"",
+    "is:open is:issue \"USDC\" \"$1000\" OR \"$2000\" OR \"$5000\"",
+    "is:open is:issue \"OP reward\" OR \"ARB bounty\" OR \"STRK funded\" OR \"SOL bounty\""
+  ]
+}

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "github-bounty-scraper"
+version = "2.0.0"
+description = "Async pipeline that discovers and scores funded crypto bounties on GitHub Issues."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9",
+    "aiosqlite>=0.19",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4",
+]
+
+[project.scripts]
+github-bounty-scraper = "github_bounty_scraper.__main__:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

@@ -2,15 +2,15 @@
   "positive_escrow": [
     "@bountydotnew",
     "gig:bounty:$", "gitgig-base",
-    "ubounty.ai", "x402", "to be paid on merge",
+    "ubounty.ai", "x402 payment", "to be paid on merge",
     "collaborators.build", "usdc payments are escrowed",
     "bounty funded", "usdc has been funded", "roxonn", "escrow locked", "smart contract funded",
-    "FUNDING.json", "onlydust.xyz",
+    "funding.json", "onlydust.xyz",
     "workprotocol", "workprotocol.xyz", "workprotocol job", "@workprotocol",
     "@od-mentor", "@onlydust-app",
     "hats.finance", "hats protocol", "bounty vault",
     "superteam.fun", "earn.superteam",
-    "x-payment-response", "http 402", "x402 payment", "402 required", "paywall funded",
+    "x-payment-response", "http 402", "402 required", "paywall funded",
     "will send usdc to", "send usdc to your", "post your wallet address", "post your ens",
     "drop your wallet", "share your wallet on merge", "wallet address on merge",
     "eth address for payment", "payment to your wallet",
@@ -20,9 +20,9 @@
     "paid on merge", "paid on merge to main", "bounty paid via crypto",
     "bonus after funding", "bounty: $", "reward: $",
     "funds have been added to the escrow", "this issue is funded",
-    "usdc locked", "funds locked", "treasury funded", "dao funded", "grant funded",
+    "usdc locked", "funds locked", "treasury funded", "dao funded",
     "funding approved", "allocated usdc", "budget approved",
-    "this task pays", "compensation: usdc", "payout: usdc", "reward pool"
+    "this task pays", "compensation: usdc", "payout: usdc"
   ],
   "negative_filters": [
     "bounty cancelled", "unfunded", "reward distributed", "bounty paid", "payment released",

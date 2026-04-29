@@ -1,0 +1,207 @@
+"""
+GraphQL API helpers — enrichment queries with PR pagination,
+timeline pagination, and issue state checks.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import datetime
+import time
+
+import aiohttp
+
+from .log import get_logger
+
+log = get_logger()
+
+GRAPHQL_URL = "https://api.github.com/graphql"
+
+
+# ─── Token-bucket rate limiter ──────────────────────────────────────
+class TokenBucket:
+    """Async token-bucket rate limiter for API calls."""
+
+    def __init__(self, capacity: int, fill_rate: float):
+        self.capacity = capacity
+        self.fill_rate = fill_rate
+        self.tokens = float(capacity)
+        self.timestamp = time.monotonic()
+        self.lock = asyncio.Lock()
+
+    async def consume(self, tokens: int = 1) -> None:
+        """Wait until *tokens* are available, then consume them."""
+        async with self.lock:
+            while True:
+                now = time.monotonic()
+                elapsed = now - self.timestamp
+                self.timestamp = now
+                self.tokens = min(
+                    self.capacity, self.tokens + elapsed * self.fill_rate
+                )
+                if self.tokens >= tokens:
+                    self.tokens -= tokens
+                    return
+                wait_time = (tokens - self.tokens) / self.fill_rate
+                await asyncio.sleep(wait_time)
+
+
+# ─── Low-level GraphQL fetch ────────────────────────────────────────
+async def fetch_graphql(
+    session: aiohttp.ClientSession,
+    bucket: TokenBucket,
+    token: str,
+    query: str,
+    variables: dict | None = None,
+    retries: int = 5,
+) -> dict | None:
+    """Execute a GraphQL query against the GitHub API with rate-limit retries."""
+    await bucket.consume(1)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload: dict = {"query": query}
+    if variables:
+        payload["variables"] = variables
+
+    for attempt in range(retries):
+        try:
+            async with session.post(
+                GRAPHQL_URL, json=payload, headers=headers
+            ) as resp:
+                if resp.status in (403, 429):
+                    wait_t = 5 * (2 ** attempt)
+                    log.warning("GraphQL rate limit hit — sleeping %ds …", wait_t)
+                    await asyncio.sleep(wait_t)
+                    continue
+                if not resp.ok:
+                    resp_text = await resp.text()
+                    log.warning("GraphQL HTTP %d: %s", resp.status, resp_text[:200])
+                    return None
+                data = await resp.json()
+                if "errors" in data and "data" not in data:
+                    log.warning("GraphQL error: %s", data["errors"])
+                    return None
+                return data.get("data")
+        except aiohttp.ClientError as exc:
+            log.warning("GraphQL HTTP error (attempt %d): %s", attempt, exc)
+            await asyncio.sleep(2 * (attempt + 1))
+    return None
+
+
+# ─── Initial enrichment query ───────────────────────────────────────
+_ENRICHMENT_QUERY = """
+query($owner: String!, $name: String!, $issue: Int!) {
+  repository(owner: $owner, name: $name) {
+    createdAt
+    pullRequests(first: 50, states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes { mergedAt }
+      pageInfo { hasNextPage endCursor }
+    }
+    issue(number: $issue) {
+      title
+      body
+      url
+      state
+      updatedAt
+      assignees(first: 1) { totalCount }
+      labels(first: 10) { nodes { name } }
+      comments(last: 50) {
+        nodes { body createdAt }
+        pageInfo { hasPreviousPage startCursor }
+      }
+      timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT]) {
+        nodes {
+          ... on CrossReferencedEvent { createdAt willCloseTarget source { ... on PullRequest { state isDraft createdAt updatedAt } } }
+          ... on ConnectedEvent { createdAt source { ... on PullRequest { state isDraft createdAt updatedAt } } }
+          ... on AssignedEvent { createdAt }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}
+"""
+
+# ─── PR pagination query ────────────────────────────────────────────
+_PR_PAGE_QUERY = """
+query($owner: String!, $name: String!, $after: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(first: 50, states: MERGED, orderBy: {field: UPDATED_AT, direction: DESC}, after: $after) {
+      nodes { mergedAt }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+"""
+
+
+async def run_graphql_audit(
+    session: aiohttp.ClientSession,
+    bucket: TokenBucket,
+    token: str,
+    owner: str,
+    repo: str,
+    issue_number: int,
+    pr_cap: int = 200,
+) -> dict | None:
+    """Fetch detailed issue + repo health data via GraphQL.
+
+    Paginates pull requests until:
+      - All PRs within the 45-day window have been consumed, OR
+      - The configurable *pr_cap* (default 200) is reached.
+
+    Returns the full ``data`` dict or ``None`` on failure.
+    """
+    variables = {"owner": owner, "name": repo, "issue": issue_number}
+    data = await fetch_graphql(session, bucket, token, _ENRICHMENT_QUERY, variables)
+
+    if not data or not data.get("repository"):
+        return data
+
+    # ── PR pagination (Section 2.1) ──
+    repo_data = data["repository"]
+    pr_info = repo_data.get("pullRequests", {})
+    page_info = pr_info.get("pageInfo", {})
+    all_prs = list(pr_info.get("nodes", []))
+
+    forty_five_ago = (
+        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)
+    ).isoformat() + "Z"
+
+    while (
+        page_info.get("hasNextPage")
+        and len(all_prs) < pr_cap
+    ):
+        # Check if the last PR we received is already outside the window
+        last_pr = all_prs[-1] if all_prs else None
+        if last_pr:
+            merged_at = last_pr.get("mergedAt", "")
+            if merged_at and merged_at < forty_five_ago:
+                break  # All remaining PRs are older — stop.
+
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            break
+
+        page_data = await fetch_graphql(
+            session, bucket, token, _PR_PAGE_QUERY,
+            {"owner": owner, "name": repo, "after": cursor},
+        )
+        if not page_data or not page_data.get("repository"):
+            break
+
+        next_prs = page_data["repository"].get("pullRequests", {})
+        new_nodes = next_prs.get("nodes", [])
+        if not new_nodes:
+            break
+
+        all_prs.extend(new_nodes)
+        page_info = next_prs.get("pageInfo", {})
+
+    # Replace the truncated PR list with the full paginated set.
+    repo_data["pullRequests"]["nodes"] = all_prs
+
+    return data

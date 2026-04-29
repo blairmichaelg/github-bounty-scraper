@@ -10,10 +10,16 @@ venv/
 .venv/
 env/
 
+# Tooling
+.ruff_cache/
+.mypy_cache/
+
 # Project-specific
 *.db
 dead_repos.json
 output.txt
 output.md
+output.json
+*.csv
 .env
 out.md
