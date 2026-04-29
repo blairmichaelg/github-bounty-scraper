@@ -96,7 +96,7 @@ _ENRICHMENT_QUERY = """
 query($owner: String!, $name: String!, $issue: Int!) {
   repository(owner: $owner, name: $name) {
     createdAt
-    pullRequests(first: 50, states: MERGED, orderBy: {field: MERGED_AT, direction: DESC}) {
+    pullRequests(first: 50, states: MERGED, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes { mergedAt }
       pageInfo { hasNextPage endCursor }
     }
@@ -131,7 +131,7 @@ query($owner: String!, $name: String!, $issue: Int!) {
 _PR_PAGE_QUERY = """
 query($owner: String!, $name: String!, $after: String!) {
   repository(owner: $owner, name: $name) {
-    pullRequests(first: 50, states: MERGED, orderBy: {field: MERGED_AT, direction: DESC}, after: $after) {
+    pullRequests(first: 50, states: MERGED, orderBy: {field: CREATED_AT, direction: DESC}, after: $after) {
       nodes { mergedAt }
       pageInfo { hasNextPage endCursor }
     }
