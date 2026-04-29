@@ -40,6 +40,7 @@ class ScraperConfig:
     max_issues: int = 0  # 0 = unlimited
     max_pages_per_query: int = 5
     sort_by: str = "updated"
+    max_expanded_queries: int = 40
 
     # ── Thresholds ──
     min_bounty_amount: float = 25.0
@@ -75,6 +76,10 @@ class ScraperConfig:
     allow_assigned_if_stale: bool = True
     active_signal_max_age_days: int = 90
     proximity_window: int = 300
+
+    # ── GraphQL pagination ──
+    pr_cap: int = 200
+    tl_max_pages: int = 5
 
     # ── Paths ──
     db_file: str = "bounty_stats.db"

@@ -2,6 +2,7 @@
   "min_stars": 10,
   "max_pages_per_query": 5,
   "sort_by": "updated",
+  "max_expanded_queries": 40,
   "min_bounty_amount": 25.0,
   "max_sane_amount": 10000000,
   "new_repo_grace_days": 90,
@@ -18,6 +19,8 @@
   "output_json_file": "output.json",
   "active_signal_max_age_days": 90,
   "proximity_window": 300,
+  "pr_cap": 200,
+  "tl_max_pages": 5,
 
   "search_queries": [
     "is:open is:issue label:bounty",

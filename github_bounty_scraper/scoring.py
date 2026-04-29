@@ -47,7 +47,7 @@ def compute_score(
         amount_norm = min(math.log10(numeric_amount + 1) / 5.0, 1.0)
 
     # ── Recency component ──
-    recency_norm = 0.5  # default for missing data
+    recency_norm = 0.0  # unknown age → no recency bonus
     if issue_updated_at:
         try:
             updated_dt = datetime.datetime.strptime(

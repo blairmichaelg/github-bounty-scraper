@@ -58,14 +58,14 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
             else:
                 expanded.append(q)
 
-    MAX_EXPANDED_QUERIES = 40  # Sane cap for a single run
-    if len(expanded) > MAX_EXPANDED_QUERIES:
+    max_eq = config.max_expanded_queries
+    if len(expanded) > max_eq:
         log.warning(
             "Query expansion produced %d queries (cap: %d). "
             "Consider fewer --language flags or base queries.",
-            len(expanded), MAX_EXPANDED_QUERIES,
+            len(expanded), max_eq,
         )
-        expanded = expanded[:MAX_EXPANDED_QUERIES]
+        expanded = expanded[:max_eq]
 
     return expanded
 

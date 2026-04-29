@@ -173,6 +173,7 @@ async def run_graphql_audit(
     repo: str,
     issue_number: int,
     pr_cap: int = 200,
+    tl_max_pages: int = 5,
 ) -> dict | None:
     """Fetch detailed issue + repo health data via GraphQL.
 
@@ -247,7 +248,6 @@ async def run_graphql_audit(
         tl_info = issue_data.get("timelineItems", {}).get("pageInfo", {})
         all_tl_nodes = list(issue_data.get("timelineItems", {}).get("nodes", []))
         tl_pages = 0
-        tl_max_pages = 5  # cap: 5 pages × 100 = 500 events max
 
         while tl_info.get("hasNextPage") and tl_pages < tl_max_pages:
             tl_cursor = tl_info.get("endCursor")

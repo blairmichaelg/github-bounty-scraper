@@ -140,21 +140,6 @@ def compute_soft_signals(
     return result
 
 
-# ─── Positive escrow check (boolean) ────────────────────────────────
-def check_positive_escrow(
-    body: str, comments: list[dict], signals: dict[str, list[str]]
-) -> bool:
-    """Return True if at least one positive escrow signal is present."""
-    pos_signals = signals.get("positive_escrow", [])
-    body_lower = body.lower()
-    if any(s in body_lower for s in pos_signals):
-        return True
-    for c in comments:
-        if any(s in c.get("body", "").lower() for s in pos_signals):
-            return True
-    return False
-
-
 # ─── Lane blocked (renamed from evaluate_lane_status for clarity) ───
 def _is_lane_blocked(
     comments: list[dict], signals: dict[str, list[str]],

@@ -87,6 +87,8 @@ async def process_issue(
         data = await run_graphql_audit(
             session, bucket, config.github_token,
             owner, repo, issue_number,
+            pr_cap=config.pr_cap,
+            tl_max_pages=config.tl_max_pages,
         )
 
     if not data or not data.get("repository") or not data["repository"].get("issue"):
@@ -235,6 +237,14 @@ async def process_issue(
     # ── Ghost squatter ──
     if soft.ghost_squatter:
         log.debug("Ghost squatter (fresh assignee): %s", url)
+        if not config.dry_run:
+            await upsert_repo_stats(
+                db_conn, repo_name,
+                last_merged_pr_at=last_merged_at_ts,
+                merges_last_45d=merges_last_45,
+                escrow_increment=escrow_inc,
+            )
+            await committer.tick()
         return None
 
     # ── Bounty amount extraction ──
@@ -254,9 +264,25 @@ async def process_issue(
     #   num_val >= min_bounty_amount    → verified lead
     if 0 < num_val < config.min_bounty_amount:
         log.debug("Below threshold ($%.0f < $%.0f): %s", num_val, config.min_bounty_amount, url)
+        if not config.dry_run:
+            await upsert_repo_stats(
+                db_conn, repo_name,
+                last_merged_pr_at=last_merged_at_ts,
+                merges_last_45d=merges_last_45,
+                escrow_increment=escrow_inc,
+            )
+            await committer.tick()
         return None
     if num_val == 0.0:
         log.debug("No bounty amount found: %s", url)
+        if not config.dry_run:
+            await upsert_repo_stats(
+                db_conn, repo_name,
+                last_merged_pr_at=last_merged_at_ts,
+                merges_last_45d=merges_last_45,
+                escrow_increment=escrow_inc,
+            )
+            await committer.tick()
         return None
 
     # ── Scoring ──
