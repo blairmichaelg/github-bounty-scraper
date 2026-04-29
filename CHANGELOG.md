@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [2.0.6] - 2026-04-29
+
+### Fixed
+- Removed overly broad positive_escrow signals: "rewarding", "this pays", "grant:"
+  which were matching non-bounty content like "rewarding experience" and "granted:"
+- Fixed malformed GitHub search query for "will pay" — bare unquoted OR tokens
+  are not valid in the REST search API; replaced with quoted phrase variants
+
 ## [2.0.5] - 2026-04-29
 
 ### Fixed
