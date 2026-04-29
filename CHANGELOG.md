@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [2.0.7] - 2026-04-29
+
+### Fixed
+- Added 11 new "job posting" negative filters (e.g. "salary:", "pm/ux audit") to kill non-bounty work requests
+- Added 4 new aggregator repos to block `sol-bug-bench` style false positives
+- Lowered `max_sane_amount` from 10,000,000 to 50,000 to effectively filter out $100k+ extreme outliers
+
 ## [2.0.6] - 2026-04-29
 
 ### Fixed
