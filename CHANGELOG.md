@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-04-29
+
+### Fixed
+- Committed uncommitted graphql.py hotfix from live run session
+- Expanded `positive_escrow` signal list with 40+ general-language patterns to recover real bounties using plain text instead of platform-specific language
+- Added 19 spam/aggregator repo patterns to block bounty-farming accounts
+- Lowered `min_stars` from 10 → 0 to stop silently killing small DeFi repos
+- Lowered `min_bounty_amount` from 50 → 25 for better coverage
+- Added 6 new "social task" negative filters to kill non-code engagement tasks
+- Added 8 new search queries targeting plain-language bounty patterns
+
 ## [2.0.4] — 2026-04-29
 
 ### Fixed (Critical)

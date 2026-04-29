@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-bounty-scraper"
-version = "2.0.4"
+version = "2.0.5"
 description = "Async pipeline that discovers and scores funded crypto bounties on GitHub Issues."
 readme = "README.md"
 license = {text = "MIT"}
