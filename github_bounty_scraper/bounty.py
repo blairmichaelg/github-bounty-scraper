@@ -60,7 +60,7 @@ def _parse_number(s: str) -> float:
     return float(s.replace(",", ""))
 
 
-def _proximity_score(text: str, match_start: int, window: int = 120) -> float:
+def _proximity_score(text: str, match_start: int, window: int = 300) -> float:
     """Return a 0–1 score based on how close *match_start* is to a bounty keyword."""
     region = text[max(0, match_start - window):match_start + window]
     hits = _BOUNTY_PROXIMITY_KEYWORDS.findall(region)

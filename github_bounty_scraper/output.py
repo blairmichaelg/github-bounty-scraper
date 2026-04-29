@@ -19,16 +19,23 @@ def write_output(
     elapsed: float,
     config: ScraperConfig,
 ) -> None:
-    """Dispatch output based on ``config.output_format``."""
+    """Dispatch output based on ``config.output_format``.
+
+    - ``text``:     Console output only.
+    - ``markdown``: Console output + ``output.md`` file.
+    - ``json``:     ``output.json`` file only (console suppressed).
+    """
     verified = [lead for lead in leads if lead["AmountNum"] > 0]
     unknown = [lead for lead in leads if lead["AmountNum"] < 0]
 
     # Sort verified by score (desc), then amount as tie-breaker.
     verified.sort(key=lambda x: (x.get("Score", 0), x["AmountNum"]), reverse=True)
 
-    write_text_output(verified, unknown, elapsed)
+    # Console output is suppressed for JSON-only runs.
+    suppress_console = config.output_format == "json"
+    write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
 
-    if config.output_format in ("markdown", "text"):
+    if config.output_format == "markdown":
         write_markdown_output(verified, unknown, elapsed, config.output_md_file)
 
     if config.output_format == "json":
@@ -37,8 +44,12 @@ def write_output(
 
 # ─── Console (text) output ───────────────────────────────────────────
 def write_text_output(
-    verified: list[dict], unknown: list[dict], elapsed: float
+    verified: list[dict], unknown: list[dict], elapsed: float,
+    *, suppress_console: bool = False,
 ) -> None:
+    if suppress_console:
+        return
+
     print("\n" + "=" * 60)
     print("VERIFIED BOUNTY LEADS (Sorted by Score)")
     print("=" * 60)

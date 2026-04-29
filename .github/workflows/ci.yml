@@ -21,6 +21,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -29,6 +35,9 @@ jobs:
       - name: Lint with ruff
         run: ruff check .
 
+      # Note: A live GITHUB_TOKEN is not available in CI, so tests are
+      # limited to import checks and --help validation.  Full pipeline
+      # testing requires a real token and is done locally.
       - name: Import smoke test
         run: |
           python -c "from github_bounty_scraper import core, cli, db, signals, scoring, bounty, graphql, discovery, output; print('All modules imported successfully')"

@@ -183,7 +183,9 @@ def _is_assignment_stale(
 
     last_assigned_ts: datetime.datetime | None = None
     for node in timeline_nodes:
-        if "source" not in node and "willCloseTarget" not in node:
+        # Use __typename for reliable event type detection (requires
+        # the GraphQL query to request __typename on timelineItems).
+        if node.get("__typename") == "AssignedEvent":
             dt = _parse_gh_ts(node.get("createdAt"))
             if dt and (last_assigned_ts is None or dt > last_assigned_ts):
                 last_assigned_ts = dt
@@ -226,8 +228,9 @@ def _check_ghost_squatter(
 def detect_snipe(timeline_nodes: list[dict]) -> bool:
     """Return True if a non-draft open PR that will auto-close the issue exists."""
     for node in timeline_nodes:
-        if "source" in node:
-            source = node["source"]
+        typename = node.get("__typename", "")
+        if typename in ("CrossReferencedEvent", "ConnectedEvent"):
+            source = node.get("source")
             if (
                 source
                 and source.get("state") == "OPEN"

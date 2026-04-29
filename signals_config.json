@@ -51,5 +51,8 @@
   "kill_labels": [
     "security", "audit", "vulnerability", "cve",
     "core-team", "internal", "wave", "stellar wave"
+  ],
+  "aggregator_repos": [
+    "algora", "gitcoin", "issuehunt", "bountysource"
   ]
 }

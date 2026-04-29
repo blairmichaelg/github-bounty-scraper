@@ -39,9 +39,6 @@ from .signals import (
 
 log = get_logger()
 
-# Known aggregator repos to skip.
-_AGGREGATOR_REPOS = {"algora", "gitcoin", "issuehunt", "bountysource"}
-
 
 # ─── Per-issue processing ───────────────────────────────────────────
 async def process_issue(
@@ -69,8 +66,9 @@ async def process_issue(
     owner, repo = parts[0], parts[1]
     repo_name = f"{owner}/{repo}"
 
-    # Skip known aggregator repos.
-    if any(a in repo_name.lower() for a in _AGGREGATOR_REPOS):
+    # Skip known aggregator repos (loaded from signals_config.json).
+    aggregator_repos = signals.get("aggregator_repos", [])
+    if any(a in repo_name.lower() for a in aggregator_repos):
         log.debug("Skipping aggregator repo: %s", repo_name)
         return None
 
@@ -282,6 +280,16 @@ async def process_issue(
 
     # ── DB upsert ──
     if not config.dry_run:
+        # Parse updatedAt safely — malformed timestamps fall back to 0.0.
+        try:
+            _last_updated_ts = (
+                datetime.datetime.strptime(issue_updated_at_raw, "%Y-%m-%dT%H:%M:%SZ")
+                .replace(tzinfo=datetime.timezone.utc)
+                .timestamp()
+            ) if issue_updated_at_raw else 0.0
+        except ValueError:
+            _last_updated_ts = 0.0
+
         await upsert_issue_stats(
             db_conn, url,
             scraped_amount=num_val,
@@ -289,12 +297,7 @@ async def process_issue(
             raw_display_amount=display,
             currency_symbol=currency,
             score=score,
-            last_updated_at=(
-                datetime.datetime.strptime(issue_updated_at_raw, "%Y-%m-%dT%H:%M:%SZ")
-                .replace(tzinfo=datetime.timezone.utc)
-                .timestamp()
-                if issue_updated_at_raw else 0.0
-            ),
+            last_updated_at=_last_updated_ts,
         )
         await upsert_repo_stats(
             db_conn, repo_name,

@@ -42,7 +42,7 @@ class ScraperConfig:
     sort_by: str = "updated"
 
     # ── Thresholds ──
-    min_bounty_amount: float = 10.0
+    min_bounty_amount: float = 25.0
     max_sane_amount: float = 1e7
     new_repo_grace_days: int = 90
 
@@ -91,12 +91,13 @@ def resolve_github_token() -> str:
     """Return a GitHub PAT from the CLI tool or environment variables."""
     try:
         res = subprocess.run(
-            ["gh", "auth", "token"], capture_output=True, text=True, check=True
+            ["gh", "auth", "token"], capture_output=True, text=True, check=True,
+            timeout=5,
         )
         token = res.stdout.strip()
         if token:
             return token
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return (
         os.environ.get("GITHUB_TOKEN")
@@ -122,6 +123,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str]]:
         "stale_signals": [],
         "active_signals": [],
         "kill_labels": [],
+        "aggregator_repos": [],
     }
     try:
         with open(path, "r", encoding="utf-8") as fh:

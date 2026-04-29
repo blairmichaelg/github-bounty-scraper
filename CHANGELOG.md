@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.0.1] — 2026-04-29
+
+### Fixed (Critical)
+1. **pyproject.toml** — Corrected broken build backend from `setuptools.backends._legacy:_Backend` to `setuptools.build_meta`.
+2. **CLI boolean override bug** — `store_true` flags (e.g. `--dry-run`, `--no-cache`) with `default=None` would shadow config-file values via the `if value is not None` guard. Fixed by using `argument_default=SUPPRESS` so unprovided flags are absent from the namespace entirely.
+3. **Unguarded strptime in core.py** — The inline `datetime.strptime` for `last_updated_at` near the DB upsert was not wrapped in try/except. Now falls back to `0.0` on malformed timestamps.
+4. **Fragile AssignedEvent detection** — Replaced key-based heuristic (`"source" not in node`) with explicit `__typename` checking. Added `__typename` to the GraphQL timelineItems query. Also updated `detect_snipe` to use `__typename` for `CrossReferencedEvent`/`ConnectedEvent`.
+5. **first_seen_at overwritten on re-upsert** — Both `upsert_repo_stats` and `upsert_issue_stats` now use `COALESCE(table.first_seen_at, excluded.first_seen_at)` to preserve existing values and backfill NULLs from migration.
+
+### Fixed (Medium)
+6. **ISO string comparison for PR window** — Replaced string comparison `merged_at < forty_five_ago` with proper `datetime` comparison using `strptime`. Added comment explaining why the early-stop is safe.
+7. **Markdown written on every run** — `write_markdown_output()` is now only called when `output_format == "markdown"`, not on `"text"` runs. Docstring updated.
+8. **escrow_norm nearly always 0** — The old divisor (total signal list length, often 25+) made the escrow component negligible. New formula: `min(positive_escrow_count / 5.0, 1.0)` — 5+ distinct hits = full escrow score.
+9. **Proximity window too tight** — Widened bounty keyword proximity window from 120 to 300 characters to better handle GitHub issue bodies where amounts may be far from keywords.
+10. **subprocess.run for gh auth token** — Added `timeout=5` and `subprocess.TimeoutExpired` catch to prevent hanging on systems where `gh` waits for browser auth.
+
+### Fixed (Polish)
+11. **Aggregator repos hardcoded** — Moved `_AGGREGATOR_REPOS` set from `core.py` into `signals_config.json` as `"aggregator_repos"` key. Loaded via `config.load_signals()`.
+12. **Version sync** — Replaced hardcoded `__version__ = "2.0.0"` with `importlib.metadata.version()` for single-source versioning. Falls back to `"dev"` when not installed.
+13. **Stale requirements.txt** — Updated with version pins matching `pyproject.toml` and a comment documenting it as legacy.
+14. **min_bounty_amount too low** — Raised default from $10 to $25 to filter "$10 gas refund" noise. Updated `scraper_config.json`, `config.py`, `cli.py`, and `README.md`.
+15. **Console noise on JSON runs** — Added `suppress_console` parameter to `write_text_output()`. Set to `True` when `output_format == "json"` so JSON-only runs are clean.
+16. **p.py --export json** — Added JSON export support (auto-detected by `.json` extension). Same field structure as the scraper's `output.json`.
+17. **CI pip cache** — Added `actions/cache@v4` for pip. Added comment explaining GITHUB_TOKEN unavailability in CI.
+
 ## [2.0.0] — 2026-04-29
 
 ### Added

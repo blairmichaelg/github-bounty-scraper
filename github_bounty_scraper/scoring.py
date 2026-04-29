@@ -34,8 +34,8 @@ def compute_score(
        ``issue_updated_at``.  Weight: ``config.weight_recency``.
     3. **Repo activity** — ``min(merges_45d, 20) / 20``.
        Weight: ``config.weight_activity``.
-    4. **Escrow strength** — Ratio of positive escrow hits to total possible
-       signals (capped at 1).  Weight: ``config.weight_escrow_strength``.
+    4. **Escrow strength** — ``min(positive_escrow_count / 5, 1)``.  5+ distinct
+       escrow signal hits = full score.  Weight: ``config.weight_escrow_strength``.
 
     A soft negative penalty of −10 is applied if soft negative signals are
     present but didn't trigger a hard disqualifier.
@@ -66,10 +66,10 @@ def compute_score(
     activity_norm = min(merges_last_45d, 20) / 20.0
 
     # ── Escrow strength component ──
-    if total_positive_signals > 0:
-        escrow_norm = min(positive_escrow_count / max(total_positive_signals, 1), 1.0)
-    else:
-        escrow_norm = 0.0
+    # 5+ distinct positive escrow signal hits = full escrow score.
+    # (Using the total signal list length as divisor made this nearly
+    # always ~0, since the config list has 25+ entries.)
+    escrow_norm = min(positive_escrow_count / 5.0, 1.0)
 
     # ── Weighted composite ──
     raw_score = (

@@ -114,6 +114,7 @@ query($owner: String!, $name: String!, $issue: Int!) {
       }
       timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT]) {
         nodes {
+          __typename
           ... on CrossReferencedEvent { createdAt willCloseTarget source { ... on PullRequest { state isDraft createdAt updatedAt } } }
           ... on ConnectedEvent { createdAt source { ... on PullRequest { state isDraft createdAt updatedAt } } }
           ... on AssignedEvent { createdAt }
@@ -167,20 +168,30 @@ async def run_graphql_audit(
     page_info = pr_info.get("pageInfo", {})
     all_prs = list(pr_info.get("nodes", []))
 
-    forty_five_ago = (
+    # Cutoff: PRs older than 45 days are outside the activity window.
+    forty_five_ago_dt = (
         datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)
-    ).isoformat() + "Z"
+    )
 
     while (
         page_info.get("hasNextPage")
         and len(all_prs) < pr_cap
     ):
-        # Check if the last PR we received is already outside the window
+        # Early-stop: PRs are ordered by UPDATED_AT DESC, so once the
+        # last PR on a page is older than the 45-day window, all
+        # subsequent pages will also be older — safe to stop.
         last_pr = all_prs[-1] if all_prs else None
         if last_pr:
-            merged_at = last_pr.get("mergedAt", "")
-            if merged_at and merged_at < forty_five_ago:
-                break  # All remaining PRs are older — stop.
+            merged_at_raw = last_pr.get("mergedAt", "")
+            if merged_at_raw:
+                try:
+                    merged_dt = datetime.datetime.strptime(
+                        merged_at_raw, "%Y-%m-%dT%H:%M:%SZ"
+                    ).replace(tzinfo=datetime.timezone.utc)
+                    if merged_dt < forty_five_ago_dt:
+                        break
+                except ValueError:
+                    pass  # Malformed timestamp — continue paginating.
 
         cursor = page_info.get("endCursor")
         if not cursor:

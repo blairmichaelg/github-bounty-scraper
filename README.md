@@ -71,7 +71,7 @@ Soft negative signals apply a −10 penalty. Weights are configurable in
 | **Positive Escrow** | Requires at least one positive funding signal |
 | **Snipe Detection** | Drops issues with a non-draft open PR that will auto-close the issue |
 | **Ghost Squatter** | Skips freshly assigned issues, allows stale assignments through |
-| **Amount Threshold** | Drops leads with numeric amount below threshold (default $10) |
+| **Amount Threshold** | Drops leads with numeric amount below threshold (default $25) |
 
 ---
 
@@ -197,7 +197,7 @@ Top-level configuration with all tunable parameters:
 | `search_queries` | array | GitHub search query templates |
 | `min_stars` | int | Default minimum star count (default: 10) |
 | `max_pages_per_query` | int | Pages to fetch per query (default: 5) |
-| `min_bounty_amount` | float | Minimum bounty threshold (default: $10) |
+| `min_bounty_amount` | float | Minimum bounty threshold (default: $25) |
 | `max_sane_amount` | float | Upper sanity bound (default: $10M) |
 | `weight_amount` | float | Scoring weight for amount (default: 0.35) |
 | `weight_recency` | float | Scoring weight for recency (default: 0.25) |

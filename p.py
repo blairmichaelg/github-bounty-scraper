@@ -5,6 +5,7 @@ with filtering and export options.
 
 import argparse
 import csv
+import json
 import sqlite3
 import sys
 
@@ -52,8 +53,8 @@ def main() -> None:
         "--export",
         type=str,
         default=None,
-        metavar="FILE.csv",
-        help="Export results to a CSV file.",
+        metavar="FILE",
+        help="Export results to a file (.csv or .json).",
     )
     args = parser.parse_args()
     limit = args.limit
@@ -233,14 +234,35 @@ def main() -> None:
     except sqlite3.OperationalError as exc:
         print(f"  (repo_stats table not found: {exc})")
 
-    # ── CSV export ──
+    # ── Export (CSV or JSON) ──
     if args.export and export_rows:
+        export_path = args.export
         try:
-            with open(args.export, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=["score", "amount", "currency", "display", "url"])
-                writer.writeheader()
-                writer.writerows(export_rows)
-            print(f"\nExported {len(export_rows)} rows to {args.export}")
+            if export_path.lower().endswith(".json"):
+                json_out = {
+                    "total_leads": len(export_rows),
+                    "leads": [
+                        {
+                            "score": r["score"],
+                            "amount": str(r["display"]),
+                            "numeric_amount": r["amount"],
+                            "currency": r["currency"],
+                            "repo": "",
+                            "title": "",
+                            "labels": "",
+                            "link": r["url"],
+                        }
+                        for r in export_rows
+                    ],
+                }
+                with open(export_path, "w", encoding="utf-8") as f:
+                    json.dump(json_out, f, indent=2, ensure_ascii=False)
+            else:
+                with open(export_path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=["score", "amount", "currency", "display", "url"])
+                    writer.writeheader()
+                    writer.writerows(export_rows)
+            print(f"\nExported {len(export_rows)} rows to {export_path}")
         except OSError as exc:
             print(f"Export error: {exc}", file=sys.stderr)
 

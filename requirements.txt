@@ -1,3 +1,6 @@
-aiohttp
-aiosqlite
-python-dotenv
+# Install with: pip install -e .
+# Dependencies are declared in pyproject.toml
+# This file is kept for legacy tooling compatibility.
+aiohttp>=3.9
+aiosqlite>=0.19
+python-dotenv>=1.0

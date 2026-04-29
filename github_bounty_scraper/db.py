@@ -115,6 +115,7 @@ async def upsert_repo_stats(
             escrows_seen       = repo_stats.escrows_seen + excluded.escrows_seen,
             rugs_seen          = repo_stats.rugs_seen + excluded.rugs_seen,
             snipes_detected    = repo_stats.snipes_detected + excluded.snipes_detected,
+            first_seen_at      = COALESCE(repo_stats.first_seen_at, excluded.first_seen_at),
             last_seen_at       = excluded.last_seen_at,
             total_escrows_seen = repo_stats.total_escrows_seen + excluded.escrows_seen,
             max_bounty_amount  = MAX(repo_stats.max_bounty_amount, excluded.max_bounty_amount)
@@ -150,6 +151,7 @@ async def upsert_issue_stats(
         ON CONFLICT(issue_url) DO UPDATE SET
             checked_at         = excluded.checked_at,
             scraped_amount     = excluded.scraped_amount,
+            first_seen_at      = COALESCE(issue_stats.first_seen_at, excluded.first_seen_at),
             last_seen_at       = excluded.last_seen_at,
             last_updated_at    = excluded.last_updated_at,
             numeric_amount     = excluded.numeric_amount,

@@ -2,7 +2,7 @@
   "min_stars": 10,
   "max_pages_per_query": 5,
   "sort_by": "updated",
-  "min_bounty_amount": 10.0,
+  "min_bounty_amount": 25.0,
   "max_sane_amount": 10000000,
   "new_repo_grace_days": 90,
   "semaphore_limit": 15,
