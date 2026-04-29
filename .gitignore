@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+env/
+
+# Project-specific
+*.db
+dead_repos.json
+output.txt
+output.md
+.env
+out.md

@@ -1,0 +1,55 @@
+{
+  "positive_escrow": [
+    "@bountydotnew",
+    "gig:bounty:$", "gitgig-base",
+    "ubounty.ai", "x402", "to be paid on merge",
+    "collaborators.build", "usdc payments are escrowed",
+    "bounty funded", "usdc has been funded", "roxonn", "escrow locked", "smart contract funded",
+    "FUNDING.json", "onlydust.xyz",
+    "workprotocol", "workprotocol.xyz", "workprotocol job", "@workprotocol",
+    "@od-mentor", "@onlydust-app",
+    "hats.finance", "hats protocol", "bounty vault",
+    "superteam.fun", "earn.superteam",
+    "x-payment-response", "http 402", "x402 payment", "402 required", "paywall funded",
+    "will send usdc to", "send usdc to your", "post your wallet address", "post your ens",
+    "drop your wallet", "share your wallet on merge", "wallet address on merge",
+    "eth address for payment", "payment to your wallet",
+    "will pay in usdc", "will pay via usdc", "usdc payment on completion",
+    "reward paid in usdc", "reward paid to wallet", "send to your ens",
+    "will transfer usdc", "dai will be sent", "eth will be sent on merge",
+    "paid on merge", "paid on merge to main", "bounty paid via crypto",
+    "bonus after funding", "bounty: $", "reward: $",
+    "funds have been added to the escrow", "this issue is funded",
+    "usdc locked", "funds locked", "treasury funded", "dao funded", "grant funded",
+    "funding approved", "allocated usdc", "budget approved",
+    "this task pays", "compensation: usdc", "payout: usdc", "reward pool"
+  ],
+  "negative_filters": [
+    "bounty cancelled", "unfunded", "reward distributed", "bounty paid", "payment released",
+    "@algora-io", "/bounty $", "/claim #", "/attempt #", "/approve",
+    "@gitcoinbot", "gitcoin.co/issue", "issuehunt.io", "@issuehunt-oss",
+    "bountysource.com", "@bountysource",
+    "what is roxonn?", "a decentralized bounty platform for open source projects",
+    "create crypto bounties for github issues",
+    "drips.network", "soroban", "stellar wave"
+  ],
+  "stale_signals": [
+    "bounty expired", "claim invalidated", "work expired", "reward period ended",
+    "bounty unassigned", "unassigning due to inactivity", "removing assignment",
+    "contribution cancelled", "no progress after", "closing stale claim",
+    "feel free to pick this up", "open for contributions",
+    "anyone else want to take this", "previous contributor abandoned",
+    "up for grabs again", "open to new contributors",
+    "payment already sent", "reward claimed", "usdc sent", "eth transferred",
+    "wallet paid", "compensation released", "reward distributed",
+    "bounty closed", "paid out", "payout complete", "funds released to"
+  ],
+  "active_signals": [
+    "/attempt", "/claim", "working on this", "i'll take this",
+    "assigning to myself", "i am working on", "pr incoming", "submitting fix shortly"
+  ],
+  "kill_labels": [
+    "security", "audit", "vulnerability", "cve",
+    "core-team", "internal", "wave", "stellar wave"
+  ]
+}
