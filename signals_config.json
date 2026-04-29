@@ -22,7 +22,20 @@
     "funds have been added to the escrow", "this issue is funded",
     "usdc locked", "funds locked", "treasury funded", "dao funded",
     "funding approved", "allocated usdc", "budget approved",
-    "this task pays", "compensation: usdc", "payout: usdc"
+    "this task pays", "compensation: usdc", "payout: usdc",
+    "reward:", "bounty:", "reward $", "reward of $", "pays $", "payout $",
+    "will pay $", "prize of $", "winner receives", "will receive usdc",
+    "this issue pays", "this bounty pays", "paying in usdc", "paying in eth",
+    "issue reward", "$ usdc", "$ eth", "$ sol", "$ op", "$ arb",
+    "will award", "bounty amount", "total reward", "reward pool",
+    "funded issue", "issue is funded", "this pays", "compensation:",
+    "grant:", "allocation:", "prize:", "reward amount", "bounty value",
+    "usdc reward", "eth reward", "sol reward", "token reward",
+    "crypto reward", "on-chain reward", "on-chain bounty",
+    "paid contributor", "pay the contributor", "rewarding",
+    "will compensate", "payment for this", "paid fix", "paid task",
+    "100 usdc", "200 usdc", "500 usdc", "1000 usdc", "250 usdc",
+    "0.1 eth", "0.5 eth", "1 eth", "0.01 eth"
   ],
   "negative_filters": [
     "bounty cancelled", "unfunded", "reward distributed", "bounty paid", "payment released",
@@ -31,7 +44,14 @@
     "bountysource.com", "@bountysource",
     "what is roxonn?", "a decentralized bounty platform for open source projects",
     "create crypto bounties for github issues",
-    "drips.network", "soroban", "stellar wave"
+    "drips.network", "soroban", "stellar wave",
+    "star this repo", "star the repo", "follow us on twitter",
+    "follow us on x", "like and retweet", "share on twitter",
+    "share on x", "repost this", "onboard:", "[onboard:", "[social:",
+    "social media task", "tweet about", "post on twitter", "post on x",
+    "engagement task", "community task", "star + compare",
+    "star and compare", "compare to another", "write a review of",
+    "rtc bounty", "rtc reward", "earn rtc", "rtc tokens"
   ],
   "stale_signals": [
     "bounty expired", "claim invalidated", "work expired", "reward period ended",
@@ -53,7 +73,12 @@
     "core-team", "internal", "wave", "stellar wave"
   ],
   "aggregator_repos": [
-    "algora", "gitcoin", "issuehunt", "bountysource"
+    "algora", "gitcoin", "issuehunt", "bountysource",
+    "rustchain-bounties", "scottcjn", "-bounties", "bounty-list",
+    "bounty-board", "bounty-farm", "bounty-factory", "bounty-hub",
+    "bounty-repo", "issue-bounties", "crypto-bounties", "web3-bounties",
+    "open-bounties", "github-bounties", "bounty-tracker", "bountyboard",
+    "bountylist", "bountyhub", "bounty-aggregator"
   ],
   "active_label_signals": [
     "claimed", "in-progress", "in progress",

@@ -1,5 +1,5 @@
 {
-  "min_stars": 10,
+  "min_stars": 0,
   "max_pages_per_query": 5,
   "sort_by": "updated",
   "max_expanded_queries": 40,
@@ -35,6 +35,14 @@
     "is:open is:issue \"paid on merge\" OR \"reward on merge\" OR \"bounty on merge\"",
     "is:open is:issue \"post your wallet\" OR \"send usdc to\" OR \"wallet address on merge\" OR \"ens address\"",
     "is:open is:issue \"USDC\" \"$1000\" OR \"$2000\" OR \"$5000\"",
-    "is:open is:issue \"OP reward\" OR \"ARB bounty\" OR \"STRK funded\" OR \"SOL bounty\""
+    "is:open is:issue \"OP reward\" OR \"ARB bounty\" OR \"STRK funded\" OR \"SOL bounty\"",
+    "is:open is:issue \"this issue pays\" OR \"this task pays\" OR \"compensation:\"",
+    "is:open is:issue \"reward:\" OR \"bounty:\" OR \"prize:\"",
+    "is:open is:issue \"will pay\" USDC OR ETH OR SOL",
+    "is:open is:issue \"funded\" \"usdc\" OR \"eth\" OR \"sol\"",
+    "is:open is:issue \"paid on merge\" OR \"reward on completion\" OR \"paid fix\"",
+    "is:open is:issue \"bounty amount\" OR \"reward amount\" OR \"reward pool\"",
+    "is:open is:issue label:bounty stars:>0",
+    "is:open is:issue label:\"bounty\" label:\"help wanted\""
   ]
 }
