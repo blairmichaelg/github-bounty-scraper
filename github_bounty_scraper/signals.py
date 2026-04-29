@@ -16,6 +16,13 @@ from .log import get_logger
 
 log = get_logger()
 
+__all__ = [
+    "SignalResult",
+    "apply_hard_disqualifiers",
+    "compute_soft_signals",
+    "detect_snipe",
+]
+
 
 @dataclass
 class SignalResult:

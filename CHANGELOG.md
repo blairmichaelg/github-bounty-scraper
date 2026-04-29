@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [2.0.4] — 2026-04-29
+
+### Fixed (Critical)
+1. **core.py — escrow_inc lost on early returns** — Three exit paths after the escrow gate (ghost squatter, below-threshold, zero-amount) now call `upsert_repo_stats` with `escrow_increment` before returning `None`.
+2. **scoring.py — recency default was 0.5** — Changed from `0.5` (free gift) to `0.0` (no bonus for unknown age). Prevents score inflation for issues with missing `updatedAt`.
+3. **graphql.py + config.py — pr_cap/tl_max_pages configurable** — Added `pr_cap: int = 200` and `tl_max_pages: int = 5` to `ScraperConfig`, `scraper_config.json`, and `run_graphql_audit()`. Removed hardcoded `tl_max_pages = 5` local variable.
+4. **signals.py — dead check_positive_escrow removed** — Deleted the entire function body (replaced by `SignalResult.has_positive_escrow` in v2.0.3).
+5. **discovery.py — MAX_EXPANDED_QUERIES configurable** — Replaced module-level constant with `config.max_expanded_queries` (default 40). Added to `ScraperConfig` and `scraper_config.json`.
+
+### Fixed (Medium)
+6. **signals.py — label-based active signal check** — `_is_lane_blocked()` now accepts `labels_nodes` and checks for active claim labels (claimed, in-progress, assigned, wip). Added `active_label_signals` to `signals_config.json` and `load_signals()`.
+7. **bounty.py — title-region proximity bonus** — Amounts in the first 200 chars get a conservative `0.5` proximity boost when no keyword context is nearby. Applied to both dollar and crypto match loops.
+8. **graphql.py — ConnectedEvent schema verified** — Confirmed `willCloseTarget` is NOT present on `ConnectedEvent` fragments (correct behavior). No change needed.
+9. **signals.py + graphql.py — UnassignedEvent handling** — Added `UNASSIGNED_EVENT` to timeline `itemTypes` in both GraphQL queries and `UnassignedEvent` fragment. `_is_assignment_stale()` now detects unassignment events: if the most recent event is an unassignment, the assignment is treated as stale.
+10. **db.py — merges_last_45d refresh verified** — Confirmed `upsert_repo_stats` already sets `merges_last_45d = excluded.merges_last_45d` on conflict. No change needed.
+
+### Added (Polish)
+11. **signals.py — `__all__` export control** — Added `__all__` to restrict wildcard imports to `SignalResult`, `apply_hard_disqualifiers`, `compute_soft_signals`, `detect_snipe`.
+12. **graphql.py — full error body logging** — Removed `[:200]` truncation from GraphQL error logging. Full body is now logged for non-200 responses.
+
 ## [2.0.3] — 2026-04-29
 
 ### Fixed (Critical)

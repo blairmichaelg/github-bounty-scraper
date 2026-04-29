@@ -78,7 +78,7 @@ async def fetch_graphql(
                     continue
                 if not resp.ok:
                     resp_text = await resp.text()
-                    log.warning("GraphQL HTTP %d: %s", resp.status, resp_text[:200])
+                    log.warning("GraphQL HTTP %d: %s", resp.status, resp_text)
                     return None
                 data = await resp.json()
                 if "errors" in data and "data" not in data:
