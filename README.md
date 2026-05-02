@@ -93,6 +93,9 @@ github-bounty-scraper inspect-leads --mode opportunistic --limit 50
 
 # View all leads of any mode
 github-bounty-scraper inspect-leads --mode all
+
+# Specify a custom database path
+github-bounty-scraper inspect-leads --mode strict --db-path bounty_stats.db
 ```
 
 ---

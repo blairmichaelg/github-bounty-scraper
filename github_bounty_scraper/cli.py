@@ -128,6 +128,12 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_parser = subparsers.add_parser("inspect-leads", help="Inspect recently saved leads")
     inspect_parser.add_argument("--mode", choices=["strict", "opportunistic", "all"], default="strict", help="Filter by lead mode")
     inspect_parser.add_argument("--limit", type=int, default=20, help="Number of leads to show")
+    inspect_parser.add_argument(
+        "--db-path",
+        type=str,
+        default="bounty_stats.db",
+        help="Path to the SQLite DB (default: bounty_stats.db)",
+    )
 
     return main_parser
 

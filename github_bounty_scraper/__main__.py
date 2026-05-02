@@ -21,7 +21,7 @@ def main() -> None:
         from .db import get_recent_leads
         
         async def run_inspect():
-            leads = await get_recent_leads("bounty_stats.db", ns.mode, ns.limit)
+            leads = await get_recent_leads(ns.db_path, ns.mode, ns.limit)
             if not leads:
                 print(f"No leads found for mode={ns.mode} yet.")
                 sys.exit(0)
@@ -30,7 +30,13 @@ def main() -> None:
             print("-" * 120)
             for L in leads:
                 score = f"{L['score']:.2f}"
-                amt = f"${L['numeric_amount']:.2f}" if L['numeric_amount'] >= 0 else "Unknown"
+                
+                val = L.get("numeric_amount")
+                if val is not None and val >= 0:
+                    amt = f"${val:.2f}"
+                else:
+                    amt = "Unknown"
+
                 mode = str(L.get('lead_mode', 'strict'))
                 escrow = "yes" if L.get('escrow_verified') else "no"
                 dead = "yes" if L.get('is_dead_repo') else "no"

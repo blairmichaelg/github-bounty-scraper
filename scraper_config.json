@@ -1,5 +1,5 @@
 {
-  "min_stars": 5,
+  "min_stars": 10,
   "max_pages_per_query": 5,
   "sort_by": "updated",
   "max_expanded_queries": 40,
