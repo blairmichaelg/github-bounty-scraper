@@ -12,6 +12,8 @@ import datetime
 import time
 from typing import Any
 
+MAX_ISSUES_PER_RUN = 1000
+
 import aiohttp
 import aiosqlite
 
@@ -26,7 +28,7 @@ from .db import (
     upsert_repo_stats,
 )
 from .discovery import discover_issues
-from .graphql import TokenBucket, run_graphql_audit
+from .graphql import TokenBucket, run_graphql_audit, fetch_graphql
 from .log import get_logger
 from .output import write_output
 from .scoring import compute_score
@@ -96,6 +98,26 @@ async def process_issue(
         return None
 
     repository = data["repository"]
+    
+    repo_stars = repository.get("stargazerCount", 0)
+    owner_type = repository.get("owner", {}).get("__typename", "")
+    contrib_count = repository.get("mentionableUsers", {}).get("totalCount", 0)
+    
+    is_lead_candidate = True
+    raw_reasons = []
+
+    if repo_stars < config.min_stars:
+        is_lead_candidate = False
+        raw_reasons.append(f"too few stars ({repo_stars} < {config.min_stars})")
+    if owner_type.upper() == "USER" and contrib_count < 2:
+        is_lead_candidate = False
+        raw_reasons.append("personal repo")
+
+    if not is_lead_candidate:
+        if not config.log_raw_candidates:
+            log.debug("Skipping %s: %s", repo_name, " / ".join(raw_reasons))
+            return None
+
     issue = repository["issue"]
 
     # ── Issue state check (Section 2.3) — drop CLOSED early ──
@@ -145,6 +167,7 @@ async def process_issue(
                 pass
 
     # ── Dead-repo kill condition (with new-repo grace) ──
+    is_dead_repo_flag = False
     if merges_last_45 == 0:
         repo_created_raw = repository.get("createdAt")
         is_new_repo = False
@@ -160,8 +183,12 @@ async def process_issue(
             except ValueError:
                 pass
         if not is_new_repo:
-            log.debug("Dead repo (0 merges, not new): %s", repo_name)
-            return None
+            is_dead_repo_flag = True
+            if config.mode == "opportunistic" and config.opportunistic_allow_dead_repos:
+                pass
+            else:
+                log.debug("Dead repo (0 merges, not new): %s", repo_name)
+                return None
 
     labels = issue.get("labels", {}).get("nodes", [])
     comments = issue.get("comments", {}).get("nodes", [])
@@ -212,12 +239,85 @@ async def process_issue(
         log.debug("Lane blocked: %s", url)
         return None
 
-    # ── Positive escrow gate ──
-    if not soft.has_positive_escrow:
-        log.debug("No positive escrow signal: %s", url)
+    # ── Bounty amount extraction ──
+    concat_text = f"{title} {body}"
+    for c in comments:
+        concat_text += " " + c.get("body", "")
+
+    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window)
+
+    num_val = bounty.numeric_amount
+    display = bounty.raw_display
+    currency = bounty.currency_symbol
+
+    title_lower = title.lower()
+    labels_lower = [l.get("name", "").lower() for l in labels]
+    has_bounty_title = any(w in title_lower for w in ["bounty", "reward", "paid", "pays", "bounties"])
+    has_bounty_label = any("bounty" in l or "reward" in l for l in labels_lower)
+    has_cue = has_bounty_title or has_bounty_label
+
+    escrow_verified = soft.has_positive_escrow
+
+    if is_lead_candidate:
+        if config.mode == "opportunistic":
+            if not escrow_verified and not (config.opportunistic_allow_no_escrow and has_cue):
+                is_lead_candidate = False
+                raw_reasons.append("no_positive_escrow_and_no_cue")
+            if is_lead_candidate:
+                if num_val >= config.opportunistic_min_amount:
+                    pass
+                elif num_val == 0.0 and has_cue:
+                    num_val = -1.0
+                else:
+                    is_lead_candidate = False
+                    raw_reasons.append("below_opportunistic_amount_threshold")
+        else:
+            if not escrow_verified:
+                is_lead_candidate = False
+                raw_reasons.append("no_positive_escrow")
+            elif 0 < num_val < config.min_bounty_amount:
+                is_lead_candidate = False
+                raw_reasons.append("below_amount_threshold")
+            elif num_val == 0.0:
+                is_lead_candidate = False
+                raw_reasons.append("no_parsable_amount")
+
+    if not is_lead_candidate:
+        if not escrow_verified and "no_positive_escrow" not in raw_reasons and "no_positive_escrow_and_no_cue" not in raw_reasons:
+            raw_reasons.append("no_positive_escrow")
+        if num_val == 0.0 and "no_parsable_amount" not in raw_reasons:
+            raw_reasons.append("no_parsable_amount")
+
+    # ── Raw Candidate Logging ──
+    if config.log_raw_candidates and not detect_snipe(timeline_nodes) and not soft.ghost_squatter and not is_lead_candidate:
+        import json
+        cand = {
+            "url": url,
+            "repo_name": repo_name,
+            "issue_number": issue_number,
+            "title": title,
+            "numeric_amount": num_val if num_val > 0 else -1,
+            "raw_display_amount": display,
+            "currency_symbol": currency,
+            "merges_last_45d": merges_last_45,
+            "stars": repo_stars,
+            "is_org_owner": owner_type.upper() == "ORGANIZATION",
+            "contributors_count": contrib_count,
+            "is_fork": repository.get("isFork", False),
+            "is_archived": repository.get("isArchived", False),
+            "labels": [l.get("name") for l in labels],
+            "body_snippet": body[:300].replace("\n", " ") if body else "",
+            "reasons": raw_reasons
+        }
+        with open("exploration_raw.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(cand) + "\n")
+
+    # ── Lead Checks ──
+    if not is_lead_candidate:
+        log.debug("Skipping non-lead: %s", url)
         return None
 
-    escrow_inc = 1
+    escrow_inc = 1 if escrow_verified else 0
 
     # ── Snipe detection ──
     if detect_snipe(timeline_nodes):
@@ -246,17 +346,6 @@ async def process_issue(
             )
             await committer.tick()
         return None
-
-    # ── Bounty amount extraction ──
-    concat_text = f"{title} {body}"
-    for c in comments:
-        concat_text += " " + c.get("body", "")
-
-    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window)
-
-    num_val = bounty.numeric_amount
-    display = bounty.raw_display
-    currency = bounty.currency_symbol
 
     # Threshold logic:
     #   num_val < 0   → Unknown / Custom Tokens (include as low-priority)
@@ -317,6 +406,9 @@ async def process_issue(
             last_updated_at=_last_updated_ts,
             title=title,
             repo_name=repo_name,
+            lead_mode=config.mode,
+            escrow_verified=escrow_verified,
+            is_dead_repo=is_dead_repo_flag,
         )
         await upsert_repo_stats(
             db_conn, repo_name,
@@ -362,7 +454,7 @@ async def _process_with_retry(
                 session, bucket, issue_item, db_conn, sem,
                 config, signals, committer,
             )
-        except (aiohttp.ClientError, aiosqlite.OperationalError) as exc:
+        except (aiohttp.ClientError, aiosqlite.OperationalError, asyncio.TimeoutError) as exc:
             if attempt < max_retries:
                 log.warning(
                     "Transient error on %s (attempt %d/%d): %s",
@@ -400,22 +492,34 @@ async def run_pipeline(config: ScraperConfig) -> None:
         # Respect max_issues cap.
         if config.max_issues and len(issues) > config.max_issues:
             issues = issues[: config.max_issues]
+            
+        issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]
 
         log.info(
             "Processing %d issues with concurrent GraphQL enrichment …",
-            len(issues),
+            len(issues_to_enrich),
         )
 
         # Phase 2: Enrichment + scoring (with error isolation)
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # Pre-enrichment rate limit check
+            rl_query = "query { rateLimit { remaining resetAt } }"
+            rl_data = await fetch_graphql(session, bucket, config.github_token, rl_query)
+            if rl_data and "rateLimit" in rl_data:
+                rem = rl_data["rateLimit"]["remaining"]
+                if rem < 200:
+                    log.warning("GraphQL rate limit critically low (%d remaining). Stopping Phase 2 early.", rem)
+                    issues_to_enrich = []
+
             tasks = [
                 _process_with_retry(
                     session, bucket, issue, db_conn, sem,
                     config, signals, committer,
                 )
-                for issue in issues
+                for issue in issues_to_enrich
             ]
 
             # Process with progress reporting.
@@ -430,7 +534,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
                 results.append(result)
                 completed += 1
                 if completed % config.progress_every == 0:
-                    log.info("Progress: %d / %d issues processed …", completed, len(issues))
+                    log.info("Progress: %d / %d issues processed …", completed, len(issues_to_enrich))
 
         # Final commit.
         await committer.flush()

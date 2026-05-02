@@ -92,6 +92,15 @@ class ScraperConfig:
     # ── Progress ──
     progress_every: int = 20
 
+    # ── Exploration / Runtime Mode ──
+    mode: str = "strict"  # "strict" or "opportunistic"
+    log_raw_candidates: bool = False
+    
+    opportunistic_allow_dead_repos: bool = True
+    opportunistic_allow_no_escrow: bool = True
+    opportunistic_min_amount: float = 10.0
+    exploration_min_stars_raw: int = 1
+
 
 # ─── GitHub token resolution ────────────────────────────────────────
 def resolve_github_token() -> str:
@@ -181,9 +190,13 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     #    present in cli_overrides was explicitly provided by the user —
     #    no additional None-guard is needed.
     if cli_overrides:
-        for key, value in cli_overrides.items():
+        for key, val in cli_overrides.items():
             if hasattr(cfg, key):
-                setattr(cfg, key, value)
+                setattr(cfg, key, val)
+
+    # ── Mode overrides ──
+    if cfg.mode == "opportunistic":
+        cfg.log_raw_candidates = True  # Auto-log raw candidates in opportunistic mode
 
     # 4. Resolve token if not already set.
     if not cfg.github_token:

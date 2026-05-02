@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-bounty-scraper"
-version = "2.0.7"
-description = "Async pipeline that discovers and scores funded crypto bounties on GitHub Issues."
+version = "0.1.0"
+description = "High-precision GitHub bounty scraper with strict and opportunistic modes."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"

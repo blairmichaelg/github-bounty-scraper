@@ -15,11 +15,16 @@ def _build_parser() -> argparse.ArgumentParser:
     # namespace entirely, so we can distinguish "not passed" from "passed
     # with a falsy value" (e.g. --dry-run is store_true → True, but if the
     # user never passed it, it won't appear in vars(ns)).
-    parser = argparse.ArgumentParser(
+    main_parser = argparse.ArgumentParser(
         prog="github-bounty-scraper",
         description="Discover and score funded crypto bounties on GitHub Issues.",
         argument_default=argparse.SUPPRESS,
     )
+    
+    subparsers = main_parser.add_subparsers(dest="command", required=True)
+    
+    # ── Scrape Command ──
+    parser = subparsers.add_parser("scrape", help="Run the scraper pipeline", argument_default=argparse.SUPPRESS)
 
     # ── Discovery ──
     parser.add_argument(
@@ -97,6 +102,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Enable DEBUG-level logging.",
     )
 
+    parser.add_argument(
+        "--mode",
+        choices=["strict", "opportunistic"],
+        dest="mode",
+        help="Runtime mode: strict (default) or opportunistic.",
+    )
+    parser.add_argument(
+        "--log-raw-candidates",
+        action="store_true",
+        dest="log_raw_candidates",
+        help="Log raw candidate issues to exploration_raw.jsonl",
+    )
+
     # ── Config file ──
     parser.add_argument(
         "--config",
@@ -106,28 +124,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to scraper_config.json (default: ./scraper_config.json).",
     )
 
-    return parser
+    # ── Inspect Leads Command ──
+    inspect_parser = subparsers.add_parser("inspect-leads", help="Inspect recently saved leads")
+    inspect_parser.add_argument("--mode", choices=["strict", "opportunistic", "all"], default="strict", help="Filter by lead mode")
+    inspect_parser.add_argument("--limit", type=int, default=20, help="Number of leads to show")
+
+    return main_parser
 
 
-def parse_args(argv: list[str] | None = None) -> ScraperConfig:
-    """Parse CLI arguments and build a merged ``ScraperConfig``.
-
-    Uses ``argument_default=SUPPRESS`` so that only flags the user
-    explicitly passed appear in the namespace.  This avoids the boolean
-    override bug where ``store_true`` defaults (``False``) would shadow
-    config-file values via the ``if value is not None`` guard.
-
-    Precedence: CLI flags > config file > dataclass defaults.
-    """
+def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, ScraperConfig | None]:
+    """Parse CLI arguments. Returns (command, namespace, ScraperConfig if scrape)."""
     parser = _build_parser()
     ns = parser.parse_args(argv)
+    
+    if ns.command == "inspect-leads":
+        return ns.command, ns, None
 
     # vars(ns) now contains ONLY keys the user explicitly provided.
-    overrides = vars(ns)
+    overrides = dict(vars(ns))
+    overrides.pop("command", None)
 
     config = build_config(overrides)
 
     # Logging must be set up before anything else logs.
     setup_logging(config.verbose)
 
-    return config
+    return ns.command, ns, config

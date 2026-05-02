@@ -82,6 +82,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "score REAL DEFAULT 0",
         "title TEXT DEFAULT ''",
         "repo_name TEXT DEFAULT ''",
+        "lead_mode TEXT DEFAULT 'strict'",
+        "escrow_verified INTEGER DEFAULT 1",
+        "is_dead_repo INTEGER DEFAULT 0",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -144,6 +147,9 @@ async def upsert_issue_stats(
     last_updated_at: float = 0.0,
     title: str = "",
     repo_name: str = "",
+    lead_mode: str = "strict",
+    escrow_verified: bool = True,
+    is_dead_repo: bool = False,
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -153,8 +159,8 @@ async def upsert_issue_stats(
             (issue_url, checked_at, scraped_amount,
              first_seen_at, last_seen_at, last_updated_at,
              numeric_amount, raw_display_amount, currency_symbol, score,
-             title, repo_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             title, repo_name, lead_mode, escrow_verified, is_dead_repo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             checked_at         = excluded.checked_at,
             scraped_amount     = excluded.scraped_amount,
@@ -166,13 +172,16 @@ async def upsert_issue_stats(
             currency_symbol    = excluded.currency_symbol,
             score              = excluded.score,
             title              = excluded.title,
-            repo_name          = excluded.repo_name
+            repo_name          = excluded.repo_name,
+            lead_mode          = excluded.lead_mode,
+            escrow_verified    = excluded.escrow_verified,
+            is_dead_repo       = excluded.is_dead_repo
         """,
         (
             issue_url, now, scraped_amount,
             now, now, last_updated_at,
             numeric_amount, raw_display_amount, currency_symbol, score,
-            title, repo_name,
+            title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo),
         ),
     )
 
@@ -273,3 +282,32 @@ class BatchCommitter:
         if self._count > 0:
             await self.conn.commit()
             self._count = 0
+
+
+async def mark_issue_checked(
+    conn: aiosqlite.Connection, issue_url: str, checked_at: float
+) -> None:
+    """Update only the check timestamp to refresh the cache TTL."""
+    await conn.execute(
+        "UPDATE issue_stats SET checked_at = ? WHERE issue_url = ?",
+        (checked_at, issue_url),
+    )
+
+
+async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
+    import os
+    if not os.path.exists(db_path):
+        return []
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url FROM issue_stats"
+        params = []
+        if mode != "all":
+            query += " WHERE lead_mode = ?"
+            params.append(mode)
+        query += " ORDER BY checked_at DESC LIMIT ?"
+        params.append(limit)
+
+        async with conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]

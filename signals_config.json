@@ -2,7 +2,7 @@
   "positive_escrow": [
     "@bountydotnew",
     "gig:bounty:$", "gitgig-base",
-    "ubounty.ai", "x402 payment", "to be paid on merge",
+    "ubounty.ai", "to be paid on merge",
     "collaborators.build", "usdc payments are escrowed",
     "bounty funded", "usdc has been funded", "roxonn", "escrow locked", "smart contract funded",
     "funding.json", "onlydust.xyz",
@@ -10,7 +10,6 @@
     "@od-mentor", "@onlydust-app",
     "hats.finance", "hats protocol", "bounty vault",
     "superteam.fun", "earn.superteam",
-    "x-payment-response", "http 402", "402 required", "paywall funded",
     "will send usdc to", "send usdc to your", "post your wallet address", "post your ens",
     "drop your wallet", "share your wallet on merge", "wallet address on merge",
     "eth address for payment", "payment to your wallet",
@@ -23,17 +22,11 @@
     "usdc locked", "funds locked", "treasury funded", "dao funded",
     "funding approved", "allocated usdc", "budget approved",
     "this task pays", "compensation: usdc", "payout: usdc",
-    "reward:", "bounty:", "reward $", "reward of $", "pays $", "payout $",
+    "reward $", "reward of $", "pays $", "payout $",
     "will pay $", "prize of $", "winner receives", "will receive usdc",
     "this issue pays", "this bounty pays", "paying in usdc", "paying in eth",
-    "issue reward", "$ usdc", "$ eth", "$ sol", "$ op", "$ arb",
-    "will award", "bounty amount", "total reward", "reward pool",
-    "funded issue", "issue is funded", "compensation:",
-    "allocation:", "prize:", "reward amount", "bounty value",
-    "usdc reward", "eth reward", "sol reward", "token reward",
-    "crypto reward", "on-chain reward", "on-chain bounty",
-    "paid contributor", "pay the contributor",
-    "will compensate", "payment for this", "paid fix", "paid task",
+    "$ usdc", "$ eth", "$ sol", "$ op", "$ arb",
+    "usdc reward", "eth reward", "sol reward",
     "100 usdc", "200 usdc", "500 usdc", "1000 usdc", "250 usdc",
     "0.1 eth", "0.5 eth", "1 eth", "0.01 eth"
   ],
@@ -54,7 +47,15 @@
     "rtc bounty", "rtc reward", "earn rtc", "rtc tokens",
     "editor-in-chief", "sats/day", "sats per day", "salary:", "compensation range",
     "launch plan:", "project budget", "full audit of", "pm/ux audit",
-    "14 pages", "per month equity"
+    "14 pages", "per month equity",
+    "openclaw", "clawhub", "x402", "keeperhub",
+    "observer protocol verification",
+    "agentsign",
+    "CONTRACT.md", "billing activation",
+    "pre-contest audit triage",
+    "runtime-sentinel flagged", "agenttrust-scanner flagged",
+    "sentinelx402", "vaultfire-x402",
+    "clawd-agent"
   ],
   "stale_signals": [
     "bounty expired", "claim invalidated", "work expired", "reward period ended",
@@ -72,7 +73,7 @@
     "assigning to myself", "i am working on", "pr incoming", "submitting fix shortly"
   ],
   "kill_labels": [
-    "security", "audit", "vulnerability", "cve",
+    "vulnerability", "cve",
     "core-team", "internal", "wave", "stellar wave"
   ],
   "aggregator_repos": [
@@ -82,7 +83,11 @@
     "bounty-repo", "issue-bounties", "crypto-bounties", "web3-bounties",
     "open-bounties", "github-bounties", "bounty-tracker", "bountyboard",
     "bountylist", "bountyhub", "bounty-aggregator",
-    "bug-bench", "sol-bug-bench", "bug-benchmark", "bench-full"
+    "bug-bench", "sol-bug-bench", "bug-benchmark", "bench-full",
+    "openclaw/clawhub", "hien-p/skillname",
+    "broomva/life", "broomva/haima",
+    "402shop", "402md/facilitator",
+    "x402-foundation", "x402-index", "x402agent"
   ],
   "active_label_signals": [
     "claimed", "in-progress", "in progress",

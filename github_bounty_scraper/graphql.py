@@ -96,6 +96,9 @@ _ENRICHMENT_QUERY = """
 query($owner: String!, $name: String!, $issue: Int!) {
   repository(owner: $owner, name: $name) {
     createdAt
+    stargazerCount
+    owner { __typename }
+    mentionableUsers(first: 1) { totalCount }
     pullRequests(first: 50, states: MERGED, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes { mergedAt }
       pageInfo { hasNextPage endCursor }
