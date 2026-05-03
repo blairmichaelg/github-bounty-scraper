@@ -109,6 +109,18 @@ Use the provided analysis tool to inspect the raw pool:
 python tools/analyze_raw.py
 ```
 
+### Vibe Check (LLM Scoring, Optional)
+
+You can optionally run a Gemini 1.5 Flash-based "vibe check" over the raw pool:
+
+```bash
+export GEMINI_API_KEY=your_api_key_here
+
+github-bounty-scraper vibe-check --mode unscored --limit 100
+```
+
+This annotates `issue_stats` with `vibe_score`, `vibe_reason`, and `vibe_checked_at` for any issues that appear in `exploration_raw.jsonl`.
+
 ---
 
 ## Database Schema (`issue_stats`)

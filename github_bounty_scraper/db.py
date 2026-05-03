@@ -85,6 +85,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "lead_mode TEXT DEFAULT 'strict'",
         "escrow_verified INTEGER DEFAULT 1",
         "is_dead_repo INTEGER DEFAULT 0",
+        "vibe_score INTEGER",
+        "vibe_reason TEXT",
+        "vibe_checked_at REAL",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -311,3 +314,87 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         async with conn.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+
+async def set_issue_vibe(
+    db_path: str,
+    issue_url: str,
+    vibe_score: int,
+    vibe_reason: str,
+    checked_at: float,
+) -> None:
+    """
+    Upsert vibe-check metadata for an issue.
+
+    If the issue already exists in issue_stats, update only the vibe_* fields.
+    If it does not exist, insert a minimal row with these fields populated.
+    """
+    import os
+
+    if not os.path.exists(db_path):
+        # If the DB does not exist yet, nothing to update.
+        return
+
+    async with aiosqlite.connect(db_path) as conn:
+        # Ensure schema is initialized/migrated
+        await init_db(conn)
+
+        # Try to update existing row first
+        await conn.execute(
+            """
+            UPDATE issue_stats
+            SET
+                vibe_score     = ?,
+                vibe_reason    = ?,
+                vibe_checked_at = ?
+            WHERE issue_url = ?
+            """,
+            (vibe_score, vibe_reason, checked_at, issue_url),
+        )
+        if conn.total_changes == 0:
+            # No existing row; insert minimal entry with vibe fields
+            await conn.execute(
+                """
+                INSERT INTO issue_stats (
+                    issue_url,
+                    checked_at,
+                    first_seen_at,
+                    last_seen_at,
+                    last_updated_at,
+                    numeric_amount,
+                    raw_display_amount,
+                    currency_symbol,
+                    score,
+                    title,
+                    repo_name,
+                    lead_mode,
+                    escrow_verified,
+                    is_dead_repo,
+                    vibe_score,
+                    vibe_reason,
+                    vibe_checked_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    issue_url,
+                    checked_at,
+                    checked_at,
+                    checked_at,
+                    0.0,
+                    -1.0,
+                    "",
+                    "",
+                    0.0,
+                    "",
+                    "",
+                    "opportunistic",
+                    0,
+                    0,
+                    vibe_score,
+                    vibe_reason,
+                    checked_at,
+                ),
+            )
+
+        await conn.commit()

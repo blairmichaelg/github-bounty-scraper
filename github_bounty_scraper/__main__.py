@@ -46,6 +46,17 @@ def main() -> None:
                 print(f"{score:<7} | {amt:<10} | {mode:<14} | {escrow:<6} | {dead:<4} | {repo:<30} | {url}")
 
         asyncio.run(run_inspect())
+    elif command == "vibe-check":
+        from .vibe import run_vibe_check
+
+        asyncio.run(
+            run_vibe_check(
+                raw_file=ns.raw_file,
+                db_path=ns.db_path,
+                limit=ns.limit,
+                mode=ns.mode,
+            )
+        )
 
 if __name__ == "__main__":
     main()

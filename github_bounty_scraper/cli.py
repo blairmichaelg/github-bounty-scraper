@@ -135,6 +135,40 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to the SQLite DB (default: bounty_stats.db)",
     )
 
+    # ── Vibe Check Command ──
+    vibe_parser = subparsers.add_parser(
+        "vibe-check",
+        help="Run LLM-based vibe checks over exploration_raw.jsonl",
+    )
+    vibe_parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Maximum number of raw candidates to score (default: 100).",
+    )
+    vibe_parser.add_argument(
+        "--mode",
+        choices=["all", "unscored"],
+        default="unscored",
+        help=(
+            "Which candidates to score: "
+            "'unscored' only issues without vibe_score in the DB, "
+            "'all' scores every raw candidate up to --limit."
+        ),
+    )
+    vibe_parser.add_argument(
+        "--raw-file",
+        type=str,
+        default="exploration_raw.jsonl",
+        help="Path to exploration_raw.jsonl (default: ./exploration_raw.jsonl).",
+    )
+    vibe_parser.add_argument(
+        "--db-path",
+        type=str,
+        default="bounty_stats.db",
+        help="Path to the SQLite DB used for storing vibe scores (default: bounty_stats.db).",
+    )
+
     return main_parser
 
 
@@ -143,7 +177,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
     parser = _build_parser()
     ns = parser.parse_args(argv)
     
-    if ns.command == "inspect-leads":
+    if ns.command in ("inspect-leads", "vibe-check"):
         return ns.command, ns, None
 
     # vars(ns) now contains ONLY keys the user explicitly provided.
