@@ -290,10 +290,25 @@ async def run_vibe_check(
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
                 return s, r, issue_url
 
-        # Choose source iterator
+        # source_iter selection
+        async def iter_unscored_combined(raw_file: str, db_path: str) -> AsyncIterator[dict[str, Any]]:
+            # Load existing scored URLs from DB
+            scored_urls = set()
+            if os.path.exists(db_path):
+                async with aiosqlite.connect(db_path) as _conn:
+                    async with _conn.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL") as cur:
+                        async for r in cur:
+                            scored_urls.add(r[0])
+            
+            async for obj in iter_raw_candidates(raw_file):
+                url = obj.get("issue_url") or obj.get("url") or ""
+                if url in scored_urls:
+                    continue
+                yield obj
+
         source_iter: AsyncIterator[dict[str, Any]]
-        if mode == "unscored" and os.path.exists(db_path):
-            source_iter = iter_unscored_db(db_path)
+        if mode == "unscored":
+            source_iter = iter_unscored_combined(raw_file, db_path)
         else:
             source_iter = iter_raw_candidates(raw_file)
 

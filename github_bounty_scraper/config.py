@@ -99,6 +99,9 @@ class ScraperConfig:
     no_cache: bool = False
     """Skip cache checks — re-enrich every issue.  Default: False."""
 
+    include_closed_for_training: bool = False
+    """Allow enrichment of CLOSED issues for training data.  Default: False."""
+
     # ── Concurrency ──
     semaphore_limit: int = 15
     """Max concurrent GraphQL enrichments.  Default: 15."""

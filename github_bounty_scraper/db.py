@@ -404,10 +404,14 @@ async def set_issue_vibe(
             (vibe_score, vibe_reason, checked_at, issue_url),
         )
         if cursor.rowcount == 0:
-            log.warning(
-                "vibe-check: no issue_stats row for %s — score discarded. "
-                "Run the main pipeline first to populate issue_stats.",
-                issue_url,
+            # If not exists, insert a minimal row. 
+            # Note: other fields (title, etc) will be NULL until a proper scrape matches it.
+            await conn.execute(
+                """
+                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_checked_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (issue_url, vibe_score, vibe_reason, checked_at),
             )
 
         await conn.commit()
@@ -435,13 +439,12 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
 
 
 async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0) -> None:
-    """Export the issue_stats table joined with repo_stats and raw body text to a CSV file.
+    """Export scored issues to a CSV file for supervised fine-tuning.
 
-    Args:
-        db_path: Path to the SQLite database.
-        out_path: Path to the output CSV file.
-        raw_file: Path to exploration_raw.jsonl for body enrichment.
-        label_threshold: Minimum numeric_amount to label a row is_bounty=1.
+    Calculates an 'is_bounty' label:
+    - 1: amount >= threshold AND vibe >= 50, OR lead_mode contains 'closed' AND vibe >= 50.
+    - 0: vibe < 30 OR amount == 0 AND vibe is NULL.
+    - '': ambiguous.
     """
     import os
     import json
@@ -517,7 +520,12 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 # is_bounty = NULL (empty) when: ambiguous — let the model decide
                 amount = d.get("numeric_amount") or 0
                 vibe = d.get("vibe_score")
-                if amount >= label_threshold and (vibe is None or vibe >= 50):
+                lead_mode = str(d.get("lead_mode") or "").lower()
+
+                is_positive = (amount >= label_threshold and (vibe is None or vibe >= 50)) or \
+                              ("closed" in lead_mode and vibe is not None and vibe >= 50)
+                
+                if is_positive:
                     d["is_bounty"] = 1
                 elif vibe is not None and vibe < 30:
                     d["is_bounty"] = 0

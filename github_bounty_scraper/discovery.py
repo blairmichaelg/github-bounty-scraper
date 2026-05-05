@@ -1,6 +1,6 @@
-"""
 Discovery layer — builds search queries and fetches issue candidates
-from the GitHub REST Search API.
+from the GitHub REST Search API. Supports both open and closed issues
+to facilitate training data collection.
 """
 
 from __future__ import annotations
@@ -17,21 +17,32 @@ log = get_logger()
 
 # ─── Query builder ───────────────────────────────────────────────────
 def build_search_queries(config: ScraperConfig) -> list[str]:
-    """Build the list of GitHub search queries from config + CLI filters.
-
     Each base query from ``config.search_queries`` is augmented with:
     - ``language:X`` for each entry in ``config.languages``.
     - ``stars:>N`` from ``config.min_stars``.
     - ``updated:>=YYYY-MM-DD`` from ``config.since``.
+
+    Note: Closed issues are included in the base set to provide high-quality
+    historical positives for fine-tuning datasets.
     """
     base_queries = config.search_queries
     if not base_queries:
         # Sensible built-in fallback if config has no queries.
         base_queries = [
+            # Open — primary pipeline targets
             'is:open is:issue label:bounty',
-            'is:open is:issue "bounty" OR "reward" OR "paid on merge"',
-            'is:open is:issue "USDC" OR "crypto bounty"',
-            'is:open is:issue "escrow locked" OR "smart contract funded"',
+            'is:open is:issue label:gitcoin',
+            'is:open is:issue "bounty" "USDC" OR "DAI" OR "ETH"',
+            'is:open is:issue "paid on merge" OR "reward on close"',
+            'is:open is:issue "escrow" OR "escrow locked" OR "smart contract funded"',
+            'is:open is:issue "gitcoin" OR "bounties network" OR "radicle"',
+            'is:open is:issue "prize" OR "hackathon reward" OR "tip"',
+            # Closed — verified historical positives (gold-standard training data)
+            'is:closed is:issue label:bounty',
+            'is:closed is:issue label:gitcoin',
+            'is:closed is:issue "bounty" "USDC" OR "DAI" OR "ETH"',
+            'is:closed is:issue "paid on merge" OR "reward on close"',
+            'is:closed is:issue "escrow" "merged" OR "completed" OR "paid"',
         ]
 
     # Build suffix fragments.
@@ -84,6 +95,7 @@ async def fetch_rest_search(
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "github-bounty-scraper",
     }
     params: dict[str, str | int] = {
         "q": query,

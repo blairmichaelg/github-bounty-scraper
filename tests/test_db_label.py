@@ -51,3 +51,47 @@ def test_label_threshold_default_matches_config():
     default_val = sig.parameters["label_threshold"].default
     
     assert default_val == ScraperConfig().min_bounty_amount
+
+@pytest.mark.asyncio
+async def test_closed_issue_labeled_positive(tmp_path):
+    """Insert a row with lead_mode='closed_historical', vibe_score=70, numeric_amount=5.0 (below threshold).
+    Call dump_dataset with label_threshold=25.0. Assert is_bounty == '1'.
+    """
+    db_path = str(tmp_path / "test_closed_pos.db")
+    out_path = str(tmp_path / "dataset_closed_pos.csv")
+    
+    async with aiosqlite.connect(db_path) as conn:
+        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT)")
+        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
+        await conn.execute("INSERT INTO issue_stats (issue_url, lead_mode, vibe_score, numeric_amount, score) VALUES (?, ?, ?, ?, ?)", 
+                           ("url_closed", "closed_historical", 70, 5.0, 50.0))
+        await conn.commit()
+
+    await dump_dataset(db_path, out_path, label_threshold=25.0)
+    
+    with open(out_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        row = next(reader)
+        
+    assert row["is_bounty"] == "1"
+
+@pytest.mark.asyncio
+async def test_closed_issue_low_vibe_labeled_negative(tmp_path):
+    """Insert a row with lead_mode='closed_historical', vibe_score=20, numeric_amount=5.0. Assert is_bounty == '0'."""
+    db_path = str(tmp_path / "test_closed_neg.db")
+    out_path = str(tmp_path / "dataset_closed_neg.csv")
+    
+    async with aiosqlite.connect(db_path) as conn:
+        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT)")
+        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
+        await conn.execute("INSERT INTO issue_stats (issue_url, lead_mode, vibe_score, numeric_amount, score) VALUES (?, ?, ?, ?, ?)", 
+                           ("url_closed_neg", "closed_historical", 20, 5.0, 10.0))
+        await conn.commit()
+
+    await dump_dataset(db_path, out_path, label_threshold=25.0)
+    
+    with open(out_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        row = next(reader)
+        
+    assert row["is_bounty"] == "0"

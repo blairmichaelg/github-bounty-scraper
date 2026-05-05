@@ -1,0 +1,237 @@
+{
+  "generated_at": "2026-05-05T22:29:23.396380+00:00Z",
+  "pipeline_time_seconds": 93.17,
+  "total_leads": 23,
+  "leads": [
+    {
+      "score": 42.23,
+      "amount": "$100",
+      "numeric_amount": 100.0,
+      "currency": "USD",
+      "repo": "conversejs/converse.js",
+      "title": "👷‍♂️  Good first issues, Bounties 💰  & Help wanted 👷‍♀️ ",
+      "labels": "[good first issue, help wanted, XEP, bounty]",
+      "link": "https://github.com/conversejs/converse.js/issues/2481"
+    },
+    {
+      "score": 40.17,
+      "amount": "$600",
+      "numeric_amount": 600.0,
+      "currency": "USD",
+      "repo": "commaai/agnos-builder",
+      "title": "Speedup system build time",
+      "labels": "[good first issue, bounty]",
+      "link": "https://github.com/commaai/agnos-builder/issues/259"
+    },
+    {
+      "score": 56.74,
+      "amount": "bounty: $200",
+      "numeric_amount": 200.0,
+      "currency": "USD",
+      "repo": "QuantumSavory/QuantumSavory.jl",
+      "title": "More thorough benchmarks [$200]",
+      "labels": "[good first issue, bug bounty, bounty:200, bounty:reserved]",
+      "link": "https://github.com/QuantumSavory/QuantumSavory.jl/issues/131"
+    },
+    {
+      "score": 29.71,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "atharvnaik1/ipaship-app-reviewer",
+      "title": "Convert into a skill",
+      "labels": "[help wanted, good first issue, bounty]",
+      "link": "https://github.com/atharvnaik1/ipaship-app-reviewer/issues/55"
+    },
+    {
+      "score": 21.82,
+      "amount": "Bounty: $40",
+      "numeric_amount": 40.0,
+      "currency": "USD",
+      "repo": "openguild-labs/open-contribution-bounty",
+      "title": "[Track 3 | Technical Blog] Polkadot & Kusama: Exploring the Differences",
+      "labels": "[good first issue, 💰 Bounty Track, ✅ Available, 📗 Blog]",
+      "link": "https://github.com/openguild-labs/open-contribution-bounty/issues/23"
+    },
+    {
+      "score": 21.82,
+      "amount": "Bounty: $40",
+      "numeric_amount": 40.0,
+      "currency": "USD",
+      "repo": "openguild-labs/open-contribution-bounty",
+      "title": "[Track 3 | Technical Blog] JAM chain & how it enhances Polkadot blockchain",
+      "labels": "[good first issue, 💰 Bounty Track, ✅ Available, 📗 Blog]",
+      "link": "https://github.com/openguild-labs/open-contribution-bounty/issues/20"
+    },
+    {
+      "score": 51.39,
+      "amount": "$50",
+      "numeric_amount": 50.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "[Feature] Scene upload from UI",
+      "labels": "[feature, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/13"
+    },
+    {
+      "score": 45.56,
+      "amount": "$100",
+      "numeric_amount": 100.0,
+      "currency": "USD",
+      "repo": "graphql-dotnet/graphql-dotnet",
+      "title": "Looking for a demo using Schema-First approach",
+      "labels": "[documentation, bounty]",
+      "link": "https://github.com/graphql-dotnet/graphql-dotnet/issues/1025"
+    },
+    {
+      "score": 55.55,
+      "amount": "$600",
+      "numeric_amount": 600.0,
+      "currency": "USD",
+      "repo": "HHS/simpler-grants-gov",
+      "title": "Add Bounty Program section to CONTRIBUTING.md",
+      "labels": "[]",
+      "link": "https://github.com/HHS/simpler-grants-gov/issues/10068"
+    },
+    {
+      "score": 49.43,
+      "amount": "$20",
+      "numeric_amount": 20.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "Add a Manga/Doujin section",
+      "labels": "[feature request, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/1659"
+    },
+    {
+      "score": 50.22,
+      "amount": "$20",
+      "numeric_amount": 20.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "Non-privileged user in Docker build",
+      "labels": "[feature request, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/684"
+    },
+    {
+      "score": 58.81,
+      "amount": "3000 USDC",
+      "numeric_amount": 3000.0,
+      "currency": "USD",
+      "repo": "hummingbot/hummingbot",
+      "title": "Bounty - Add Lighter Spot and Perpetual Connectors",
+      "labels": "[bounty]",
+      "link": "https://github.com/hummingbot/hummingbot/issues/8159"
+    },
+    {
+      "score": 44.94,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "Monkestation/Vanderlin",
+      "title": "crossbows can&#39;t be sold on the merchant&#39;s boat despite bounties spawning for it",
+      "labels": "[]",
+      "link": "https://github.com/Monkestation/Vanderlin/issues/6392"
+    },
+    {
+      "score": 44.92,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "entrius/gittensor-ui",
+      "title": "⚡ Watchlist Page: Bounties tab has no filter sidebar inconsistently",
+      "labels": "[bug, enhancement]",
+      "link": "https://github.com/entrius/gittensor-ui/issues/949"
+    },
+    {
+      "score": 56.83,
+      "amount": "$960",
+      "numeric_amount": 960.0,
+      "currency": "USD",
+      "repo": "space-wizards/space-station-14",
+      "title": "bounty arbitrage test is nearly useless ",
+      "labels": "[T: Bugfix, P3: Standard, D2: Medium, A: Integration Tests, A: Cargo/Salvage, S: Requires Content PR]",
+      "link": "https://github.com/space-wizards/space-station-14/issues/33033"
+    },
+    {
+      "score": 36.67,
+      "amount": "$900",
+      "numeric_amount": 900.0,
+      "currency": "USD",
+      "repo": "Spectral-Finance/lux",
+      "title": "Curve Finance Integration and Stablecoin Management $900",
+      "labels": "[bounty, web3, exchanges]",
+      "link": "https://github.com/Spectral-Finance/lux/issues/81"
+    },
+    {
+      "score": 51.17,
+      "amount": "60 USDC",
+      "numeric_amount": 60.0,
+      "currency": "USD",
+      "repo": "Tesis-Stellar/stellar-tickets",
+      "title": "[BUG] Prevent checkout from issuing paid tickets without proper validation",
+      "labels": "[]",
+      "link": "https://github.com/Tesis-Stellar/stellar-tickets/issues/18"
+    },
+    {
+      "score": 51.65,
+      "amount": "60 USDC",
+      "numeric_amount": 60.0,
+      "currency": "USD",
+      "repo": "MetaMask/metamask-extension",
+      "title": "[Bug]: Intermittent Insufficient funds alert when sending token with network fee paid in different token than native",
+      "labels": "[type-bug, Sev2-normal, INVALID-ISSUE-TEMPLATE, team-confirmations, regression-RC-13.27.0]",
+      "link": "https://github.com/MetaMask/metamask-extension/issues/41839"
+    },
+    {
+      "score": 39.96,
+      "amount": "$30",
+      "numeric_amount": 30.0,
+      "currency": "USD",
+      "repo": "TeamNewPipe/NewPipe",
+      "title": "personalize sidebar",
+      "labels": "[feature request, bounty, GUI, niche]",
+      "link": "https://github.com/TeamNewPipe/NewPipe/issues/4081"
+    },
+    {
+      "score": 30.5,
+      "amount": "price: 25",
+      "numeric_amount": 25.0,
+      "currency": "USD",
+      "repo": "ubiquity/research",
+      "title": "update the promotional bounty completed message from bot to promote other departments/tasks",
+      "labels": "[Time: <1 Hour, Priority: 1 (Normal), Price: 25 USD, Price: 12.5 USD]",
+      "link": "https://github.com/ubiquity/research/issues/64"
+    },
+    {
+      "score": 28.84,
+      "amount": "price: 9",
+      "numeric_amount": 9.0,
+      "currency": "USD",
+      "repo": "ubiquity/business-development",
+      "title": "Launch Another DoraHacks Bounty Post",
+      "labels": "[Priority: 1 (Normal), Time: <15 Minutes, Price: 9 USD]",
+      "link": "https://github.com/ubiquity/business-development/issues/174"
+    },
+    {
+      "score": 18.82,
+      "amount": "$100",
+      "numeric_amount": 100.0,
+      "currency": "USD",
+      "repo": "codingo/dooked",
+      "title": "Adding first-seen/last-seen to dataset with new flags",
+      "labels": "[good first issue, bounty on merge]",
+      "link": "https://github.com/codingo/dooked/issues/1"
+    },
+    {
+      "score": 37.43,
+      "amount": "$550",
+      "numeric_amount": 550.0,
+      "currency": "USD",
+      "repo": "LennyMalcolm0/bitcoin",
+      "title": "Improve transaction processing efficiency and reduce transaction fees. ($550)",
+      "labels": "[bug, good first issue, 💵 Bounty]",
+      "link": "https://github.com/LennyMalcolm0/bitcoin/issues/53"
+    }
+  ]
+}

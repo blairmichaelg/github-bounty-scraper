@@ -178,9 +178,14 @@ async def process_issue(
 
     # ── Issue state check (Section 2.3) — drop CLOSED early ──
     issue_state = issue.get("state", "")
+    lead_mode_override = None
     if issue_state.upper() == "CLOSED":
-        log.debug("Dropping CLOSED issue: %s", url)
-        return None
+        if not config.include_closed_for_training:
+            log.debug("Dropping CLOSED issue: %s", url)
+            return None
+        # Fall through: enrich closed issue for training data only
+        # Mark it so dump_dataset knows it's a historical positive
+        lead_mode_override = "closed_historical"
 
     issue_updated_at_raw = issue.get("updatedAt", "")
 
@@ -354,7 +359,7 @@ async def process_issue(
             raw_reasons.append("no_parsable_amount")
 
     # ── Raw Candidate Logging ──
-    if config.log_raw_candidates and not detect_snipe(timeline_nodes) and not soft.ghost_squatter and not is_lead_candidate:
+    if config.log_raw_candidates and not detect_snipe(timeline_nodes) and not soft.ghost_squatter:
         cand = {
             "url": url,
             "repo_name": repo_name,
@@ -371,7 +376,7 @@ async def process_issue(
             "is_archived": repository.get("isArchived", False),
             "labels": [l.get("name") for l in labels],
             "body_snippet": body[:300].replace("\n", " ") if body else "",
-            "reasons": raw_reasons
+            "reasons": raw_reasons if not is_lead_candidate else ["LEAD_CANDIDATE"]
         }
         await asyncio.get_running_loop().run_in_executor(
             None, _append_raw, "exploration_raw.jsonl", json.dumps(cand) + "\n"
@@ -479,7 +484,7 @@ async def process_issue(
             last_updated_at=_last_updated_ts,
             title=title,
             repo_name=repo_name,
-            lead_mode=config.mode,
+            lead_mode=lead_mode_override or config.mode,
             escrow_verified=escrow_verified,
             is_dead_repo=is_dead_repo_flag,
         )

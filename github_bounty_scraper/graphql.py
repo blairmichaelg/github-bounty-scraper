@@ -61,6 +61,7 @@ async def fetch_graphql(
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
+        "User-Agent": "github-bounty-scraper",
     }
     payload: dict = {"query": query}
     if variables:

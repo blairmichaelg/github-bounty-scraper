@@ -98,6 +98,12 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="allow_assigned_if_stale",
         help="Include assigned issues when the assignment looks stale.",
     )
+    parser.add_argument(
+        "--include-closed-for-training",
+        action="store_true",
+        dest="include_closed_for_training",
+        help="Allow enrichment of CLOSED issues for training data collection.",
+    )
 
     # ── Output ──
     parser.add_argument(
@@ -228,7 +234,18 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
     
     # vars(ns) now contains ONLY keys the user explicitly provided.
     overrides = dict(vars(ns))
-    overrides.pop("command", None)
+    command = overrides.pop("command", None)
+
+    # Filter out command-specific flags that aren't in ScraperConfig
+    if command == "vibe-check":
+        for k in ["limit", "concurrency", "db_path", "raw_file", "mode"]:
+            overrides.pop(k, None)
+    elif command == "inspect-leads":
+        for k in ["mode", "limit", "db_path"]:
+            overrides.pop(k, None)
+    elif command == "dump-dataset":
+        for k in ["db_path", "out", "raw_file", "label_threshold"]:
+            overrides.pop(k, None)
 
     # build_config handles this by ignoring unknown keys.
     config = build_config(overrides)

@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-05-05T23:02:44.470004+00:00Z",
+  "pipeline_time_seconds": 214.58,
+  "total_leads": 2,
+  "leads": [
+    {
+      "score": 25.0,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "subzeroid/instagrapi",
+      "title": "[BUG] is_paid_partnership field not being used when creating Story through photo_upload_to_story",
+      "labels": "[bug]",
+      "link": "https://github.com/subzeroid/instagrapi/issues/1851"
+    },
+    {
+      "score": 15.8,
+      "amount": "$500",
+      "numeric_amount": 500.0,
+      "currency": "USD",
+      "repo": "AxLabs/grantshares",
+      "title": "Quidli - Crypto reward tool on Discord for NEO",
+      "labels": "[request-for-funding]",
+      "link": "https://github.com/AxLabs/grantshares/issues/37"
+    }
+  ]
+}
