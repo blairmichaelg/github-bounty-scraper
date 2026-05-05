@@ -40,3 +40,5 @@ opp_test.txt
 .pytest_cache/
 htmlcov/
 .coverage
+
+vibe_test.log

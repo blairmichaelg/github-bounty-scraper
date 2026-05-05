@@ -216,6 +216,12 @@ class ScraperConfig:
     gemini_model: str = "gemini-2.5-flash"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
     """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
 
+    vibe_check_concurrency: int = 1
+    vibe_check_limit: int = 10
+    limit: int = 0
+    concurrency: int = 5
+    raw_file: str = 'exploration_raw.jsonl'
+
     def __repr__(self) -> str:
         import dataclasses
         d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
@@ -369,3 +375,4 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
         )
 
     return cfg
+

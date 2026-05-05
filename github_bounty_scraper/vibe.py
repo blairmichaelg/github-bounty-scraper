@@ -24,6 +24,7 @@ log = get_logger()
 
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
+GOOGLE_API_KEY_ENV = "GOOGLE_API_KEY"
 
 SYSTEM_PROMPT = (
     "You are a ruthless, highly cynical Web3 security auditor. "
@@ -84,7 +85,7 @@ async def call_gemini(
     api_key: str,
     title: str,
     body_snippet: str,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-2.5-flash-lite",
 ) -> tuple[int, str]:
     """Call Gemini to get a vibe score and reason.
 
@@ -93,7 +94,7 @@ async def call_gemini(
         api_key: Gemini API key.
         title: Issue title.
         body_snippet: Snippet of the issue body.
-        model: Model identifier (e.g., 'gemini-2.5-flash').
+        model: Model identifier (e.g., 'gemini-2.5-flash-lite').
 
     Returns:
         A tuple of (score, reason) where score is [0, 100].
@@ -103,7 +104,7 @@ async def call_gemini(
         aiohttp.ClientResponseError: On persistent API errors.
     """
     if not api_key:
-        raise RuntimeError(f"{GEMINI_API_KEY_ENV} is not set in environment")
+        raise RuntimeError(f"Gemini API key not found. Set {GEMINI_API_KEY_ENV} or {GOOGLE_API_KEY_ENV} in environment")
 
     # User content to provide to the model
     user_text = f"TITLE: {title}\n\nBODY:\n{body_snippet}"
@@ -129,22 +130,42 @@ async def call_gemini(
     }
 
     data: dict[str, Any] = {}
-    for attempt in range(3):
+    MAX_ATTEMPTS = 5
+    for attempt in range(MAX_ATTEMPTS):
         try:
             async with session.post(
                 _gemini_endpoint(model), params=params, json=payload,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
-                resp.raise_for_status()
+                # Handle rate limits / transient errors with backoff
+                if resp.status == 429 or resp.status == 503:
+                    if attempt < MAX_ATTEMPTS - 1:
+                        wait = 2 ** attempt
+                        log.warning(
+                            "Gemini %d rate-limited — waiting %ds (attempt %d/%d)",
+                            resp.status, wait, attempt + 1, MAX_ATTEMPTS,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    else:
+                        log.error("Gemini: exhausted retries after %d attempts", MAX_ATTEMPTS)
+                        raise aiohttp.ClientResponseError(
+                            resp.request_info, resp.history, status=resp.status
+                        )
+                if resp.status != 200:
+                    body = await resp.text()
+                    log.error("Gemini error %d: %s", resp.status, body[:200])
+                    raise aiohttp.ClientResponseError(resp.request_info, resp.history, status=resp.status)
                 data = await resp.json()
-            break
-        except aiohttp.ClientResponseError as exc:
-            if exc.status in (429, 503) and attempt < 2:
-                wait = 5 * (2 ** attempt)
-                log.warning("Gemini %s on attempt %d; retrying in %ds", exc.status, attempt + 1, wait)
+                break
+        except aiohttp.ClientError as exc:
+            # Retry on transient client errors
+            if attempt < MAX_ATTEMPTS - 1:
+                wait = 2 ** attempt
+                log.warning("Gemini client error on attempt %d/%d: %s — retrying in %ds", attempt + 1, MAX_ATTEMPTS, exc, wait)
                 await asyncio.sleep(wait)
-            else:
-                raise
+                continue
+            raise
 
     # Gemini's typical structure: candidates[0].content.parts[*].text
     try:
@@ -207,7 +228,7 @@ async def run_vibe_check(
     limit: int,
     mode: Literal["unscored", "all"],
     concurrency: int = 5,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-2.5-flash-lite",
 ) -> None:
     """Iterate exploration_raw.jsonl and score candidates with Gemini.
 
@@ -222,9 +243,10 @@ async def run_vibe_check(
     Side Effects:
         Updates 'issue_stats' table in the database with vibe scores.
     """
-    api_key = os.environ.get(GEMINI_API_KEY_ENV, "")
+    # Resolve API key from GEMINI_API_KEY or GOOGLE_API_KEY
+    api_key = os.environ.get(GEMINI_API_KEY_ENV) or os.environ.get(GOOGLE_API_KEY_ENV) or ""
     if not api_key:
-        raise RuntimeError(f"{GEMINI_API_KEY_ENV} is not set; cannot run vibe-check.")
+        raise RuntimeError(f"Gemini key not found. Set {GEMINI_API_KEY_ENV} or {GOOGLE_API_KEY_ENV} in .env or environment")
 
     from .db import init_db
     import aiosqlite
@@ -245,7 +267,32 @@ async def run_vibe_check(
         timeout=aiohttp.ClientTimeout(total=35)
     ) as session:
         count = 0
-        
+
+        # If mode == 'unscored', prefer iterating DB rows with NULL vibe_score
+        async def iter_unscored_db(db_path: str) -> AsyncIterator[dict[str, Any]]:
+            import aiosqlite as _aiosqlite
+            # Load bodies from exploration_raw.jsonl
+            bodies = {}
+            if os.path.exists(raw_file):
+                def _read():
+                    with open(raw_file, "r", encoding="utf-8") as f:
+                        return f.read().splitlines()
+                lines = await asyncio.to_thread(_read)
+                for line in lines:
+                    if not line.strip(): continue
+                    try:
+                        obj = json.loads(line)
+                        bodies[obj.get("url", "")] = obj.get("body_snippet", "")
+                    except: pass
+
+            async with _aiosqlite.connect(db_path) as _conn:
+                await init_db(_conn)
+                async with _conn.execute(
+                    "SELECT issue_url, title FROM issue_stats WHERE vibe_score IS NULL ORDER BY score DESC"
+                ) as cur:
+                    async for r in cur:
+                        yield {"issue_url": r[0], "title": r[1] or "", "body_snippet": bodies.get(r[0], "")}
+
         async def _guarded_vibe(obj: dict) -> tuple[int, str, str]:
             issue_url = obj.get("issue_url") or obj.get("url") or ""
             title = obj.get("title", "").strip()
@@ -255,7 +302,14 @@ async def run_vibe_check(
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
                 return s, r, issue_url
 
-        async for obj in iter_raw_candidates(raw_file):
+        # Choose source iterator
+        source_iter: AsyncIterator[dict[str, Any]]
+        if mode == "unscored" and os.path.exists(db_path):
+            source_iter = iter_unscored_db(db_path)
+        else:
+            source_iter = iter_raw_candidates(raw_file)
+
+        async for obj in source_iter:
             if limit and count >= limit:
                 break
 
@@ -287,3 +341,7 @@ async def run_vibe_check(
             log.info("VIBE %3d for %s — %s", score, url, reason)
 
     log.info("Vibe-check complete. Scored %d candidates from %s", count, raw_file)
+
+
+
+
