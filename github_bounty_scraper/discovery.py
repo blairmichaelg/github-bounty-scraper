@@ -93,7 +93,8 @@ async def fetch_rest_search(
         "page": page,
     }
 
-    for attempt in range(retries + 1):
+    attempt = 0
+    while attempt <= retries:
         try:
             async with session.get(
                 "https://api.github.com/search/issues",
@@ -102,23 +103,22 @@ async def fetch_rest_search(
             ) as resp:
                 if resp.status in (403, 429):
                     retry_delays = [5, 10, 20, 40]
-                    wait_t = retry_delays[attempt] if attempt < len(retry_delays) else retry_delays[-1]
-                    log.warning("Search rate limit hit — sleeping %ds …", wait_t)
+                    wait_t = retry_delays[attempt] if attempt < len(retry_delays) else 40
+                    log.warning("Rate limit — sleeping %ds (attempt %d/%d)…",
+                                wait_t, attempt + 1, retries + 1)
                     await asyncio.sleep(wait_t)
+                    attempt += 1
                     continue
                 if not resp.ok:
-                    log.warning("Search HTTP %d for query page %d", resp.status, page)
+                    log.warning("Search HTTP %d page %d", resp.status, page)
                     return []
                 data = await resp.json()
                 return data.get("items", [])
         except aiohttp.ClientError as exc:
-            log.warning("Search HTTP error (attempt %d): %s", attempt, exc)
+            log.warning("Search error (attempt %d): %s", attempt, exc)
             await asyncio.sleep(2 * (attempt + 1))
-    log.error(
-        "Search query failed after %d retries (last status: rate-limit "
-        "or network error). Results may be incomplete.",
-        retries + 1,
-    )
+            attempt += 1
+    log.error("Search failed after %d retries.", retries + 1)
     return []
 
 
@@ -131,9 +131,8 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
     ``per_page`` results.
     """
     queries = build_search_queries(config)
-    log.info("Discovery: running %d search queries (max %d pages each, ~%d API calls min) …",
-             len(queries), config.max_pages_per_query,
-             len(queries) * config.max_pages_per_query)
+    log.info("Discovery: running %d search queries (~%d API calls max, %d min) …",
+             len(queries), len(queries) * config.max_pages_per_query, len(queries))
 
     unique_issues: dict[str, dict] = {}
     per_page = 100
@@ -144,7 +143,7 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
         for qi, query in enumerate(queries, 1):
             if config.max_issues and len(unique_issues) >= config.max_issues:
                 break
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(config.search_delay_seconds)
 
             for page in range(1, config.max_pages_per_query + 1):
                 if config.max_issues and len(unique_issues) >= config.max_issues:
@@ -167,7 +166,7 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
                     qi, len(queries), page, len(items), new_count,
                 )
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(config.search_delay_seconds / 2)
 
                 # Early stop: page is not full.
                 if len(items) < per_page:

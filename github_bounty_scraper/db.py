@@ -26,13 +26,6 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     await conn.execute("PRAGMA journal_mode=WAL;")
     await conn.execute("PRAGMA synchronous=NORMAL;")
 
-    # ── Migration: Ghost row cleanup ──
-    async with conn.execute("SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL") as cursor:
-        ghost_count = (await cursor.fetchone())[0]
-        if ghost_count > 0:
-            log.info("Migration: Purging %d zero-score ghost rows from issue_stats …", ghost_count)
-            await conn.execute("DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL")
-
     # ── repo_stats ──
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS repo_stats (
@@ -127,6 +120,21 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         );
     """)
 
+    # ── Migration: Ghost row cleanup ──
+    async with conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='issue_stats'"
+    ) as cursor:
+        if await cursor.fetchone():
+            async with conn.execute(
+                "SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
+            ) as c2:
+                ghost_count = (await c2.fetchone())[0]
+                if ghost_count > 0:
+                    log.info("Migration: Purging %d zero-score ghost rows from issue_stats …", ghost_count)
+                    await conn.execute(
+                        "DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
+                    )
+
     await conn.commit()
 
 
@@ -195,8 +203,8 @@ async def upsert_issue_stats(
             (issue_url, checked_at, scraped_amount,
              first_seen_at, last_seen_at, last_updated_at,
              numeric_amount, raw_display_amount, currency_symbol, score,
-             title, repo_name, lead_mode, escrow_verified, is_dead_repo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
@@ -218,7 +226,7 @@ async def upsert_issue_stats(
             issue_url, now, scraped_amount,
             now, now, last_updated_at,
             numeric_amount, raw_display_amount, currency_symbol, score,
-            title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo),
+            title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo), score,
         ),
     )
 
@@ -237,25 +245,27 @@ async def should_skip_issue(
       - The issue's updatedAt hasn't changed since our last check AND
       - Our last check is within *ttl* seconds of now.
     """
-    query = """
-        SELECT MAX(checked_at), MAX(last_updated_at) FROM (
-            SELECT checked_at, last_updated_at FROM issue_stats WHERE issue_url = ?
-            UNION ALL
-            SELECT checked_at, 0.0 as last_updated_at FROM checked_cache WHERE issue_url = ?
-        )
-    """
-    async with conn.execute(query, (issue_url, issue_url)) as cursor:
-        row = await cursor.fetchone()
-
-    if row is None:
-        return False
-
-    last_seen, last_updated = row
     now = time.time()
 
-    if last_updated and issue_updated_at and last_updated >= issue_updated_at:
-        if last_seen and (now - last_seen) < ttl:
-            return True
+    async with conn.execute(
+        "SELECT checked_at, last_updated_at FROM issue_stats WHERE issue_url = ?",
+        (issue_url,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row:
+        last_seen, last_updated = row
+        if last_updated and issue_updated_at and last_updated >= issue_updated_at:
+            if last_seen and (now - last_seen) < ttl:
+                return True
+
+    async with conn.execute(
+        "SELECT checked_at FROM checked_cache WHERE issue_url = ?",
+        (issue_url,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row and row[0] and (now - row[0]) < ttl:
+        return True
+
     return False
 
 
@@ -448,7 +458,8 @@ async def dump_dataset(db_path: str, out_path: str) -> None:
                 r.total_escrows_seen
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
-            WHERE i.score > 0 OR i.numeric_amount > 0
+            WHERE i.score > 0
+               OR (i.numeric_amount IS NOT NULL AND i.numeric_amount != 0)
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:
