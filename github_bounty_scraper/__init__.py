@@ -1,11 +1,10 @@
 """
-GitHub Bounty Scraper — Async pipeline that discovers and scores funded
-crypto bounties on GitHub Issues using GraphQL enrichment and SQLite caching.
+github-bounty-scraper: discover and score funded crypto bounties
+on GitHub Issues.
 """
+from .config import ScraperConfig, build_config
+from .scoring import compute_score
 
-from importlib.metadata import PackageNotFoundError, version
+__version__ = "2.0.7"
 
-try:
-    __version__ = version("github-bounty-scraper")
-except PackageNotFoundError:
-    __version__ = "dev"
+__all__ = ["ScraperConfig", "build_config", "compute_score", "__version__"]

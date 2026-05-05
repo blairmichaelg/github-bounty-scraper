@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "github-bounty-scraper"
-version = "0.1.0"
+version = "2.0.7"
 description = "High-precision GitHub bounty scraper with strict and opportunistic modes."
 readme = "README.md"
 license = {text = "MIT"}
@@ -19,10 +19,15 @@ dependencies = [
 dev = [
     "ruff>=0.4",
     "mypy>=1.10",
+    "pytest>=8.0",
 ]
 
 [project.scripts]
 github-bounty-scraper = "github_bounty_scraper.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
 
 [tool.ruff]
 target-version = "py311"

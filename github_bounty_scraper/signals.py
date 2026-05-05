@@ -20,7 +20,6 @@ __all__ = [
     "SignalResult",
     "apply_hard_disqualifiers",
     "compute_soft_signals",
-    "detect_snipe",
 ]
 
 
@@ -266,18 +265,4 @@ def _check_ghost_squatter(
     return False
 
 
-# ─── Snipe detection ────────────────────────────────────────────────
-def detect_snipe(timeline_nodes: list[dict]) -> bool:
-    """Return True if a non-draft open PR that will auto-close the issue exists."""
-    for node in timeline_nodes:
-        typename = node.get("__typename", "")
-        if typename in ("CrossReferencedEvent", "ConnectedEvent"):
-            source = node.get("source")
-            if (
-                source
-                and source.get("state") == "OPEN"
-                and source.get("isDraft") is False
-                and node.get("willCloseTarget") is True
-            ):
-                return True
     return False

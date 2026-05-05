@@ -18,7 +18,7 @@ MAX_ISSUES_PER_RUN = 1000
 import aiohttp
 import aiosqlite
 
-from .bounty import extract_bounty_amount
+from .bounty import extract_bounty_amount, detect_snipe
 from .config import ScraperConfig, load_signals
 from .db import (
     BatchCommitter,
@@ -37,7 +37,6 @@ from .scoring import compute_score
 from .signals import (
     apply_hard_disqualifiers,
     compute_soft_signals,
-    detect_snipe,
 )
 
 log = get_logger()
