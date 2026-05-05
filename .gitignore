@@ -42,3 +42,8 @@ htmlcov/
 .coverage
 
 vibe_test.log
+
+# auto-added
+.claude/
+audit_env.py
+*.log
