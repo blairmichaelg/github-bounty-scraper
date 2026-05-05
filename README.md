@@ -87,7 +87,8 @@ github-bounty-scraper scrape [OPTIONS]
   --mode MODE           strict (default) or opportunistic
   --language LANG       Filter by language (repeatable)
   --no-cache            Skip all TTL caches
-  --dry-run             Run pipeline without writing to DB
+  --output-format MODE  text (default), markdown, or json
+  --output-file PATH    Base name for output files (e.g. 'results' -> results.md)
   -v, --verbose         Enable debug logging
   --log-raw-candidates  Write rejected candidates to exploration_raw.jsonl
 ```
@@ -102,6 +103,9 @@ github-bounty-scraper inspect-leads [OPTIONS]
 ```
 
 Output columns: `SCORE · AMOUNT · MODE · ESCROW · DEAD · VIBE · REPO · URL`
+
+> [!NOTE]
+> Output files (`output.md`, `output.json`) are only written if `--output-file` is provided. If only `--output-format` is passed, the results are displayed in the console (text mode) or used for the specified format's side effects.
 
 ### `vibe-check` (optional, requires Gemini API key)
 ```

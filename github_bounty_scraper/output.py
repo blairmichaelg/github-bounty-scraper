@@ -35,11 +35,14 @@ def write_output(
     suppress_console = config.output_format == "json"
     write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
 
+    md_path = f"{config.output_file}.md" if config.output_file else config.output_md_file
+    json_path = f"{config.output_file}.json" if config.output_file else config.output_json_file
+
     if config.output_format == "markdown":
-        write_markdown_output(verified, unknown, elapsed, config.output_md_file)
+        write_markdown_output(verified, unknown, elapsed, md_path)
 
     if config.output_format == "json":
-        write_json_output(leads, elapsed, config.output_json_file)
+        write_json_output(leads, elapsed, json_path)
 
 
 # ─── Console (text) output ───────────────────────────────────────────

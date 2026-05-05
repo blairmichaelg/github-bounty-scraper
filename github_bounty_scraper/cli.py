@@ -94,7 +94,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-format",
         choices=["text", "markdown", "json"],
         dest="output_format",
-        help="Output format (default: text). Markdown and JSON also write files.",
+        help="Output format (default: text).",
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        dest="output_file",
+        metavar="PATH",
+        help="Base name for output files (e.g. 'results' -> results.md, results.json). Only written if this flag is passed.",
     )
     parser.add_argument(
         "-v", "--verbose",

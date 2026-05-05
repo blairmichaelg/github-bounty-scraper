@@ -242,6 +242,8 @@ async def process_issue(
 
     if soft.lane_blocked:
         log.debug("Lane blocked: %s", url)
+        if not config.dry_run:
+            await mark_issue_checked(db_conn, url, time.time())
         return None
 
     # ── Bounty amount extraction ──
@@ -405,7 +407,7 @@ async def process_issue(
             escrow_increment=escrow_inc,
             rug_increment=rug_inc,
             snipe_increment=snipe_inc,
-            bounty_amount=num_val if num_val > 0 else 0,
+            bounty_amount=num_val if num_val >= 0 else 0,
         )
         await committer.tick()
 
@@ -442,7 +444,7 @@ async def _process_with_retry(
                 session, bucket, issue_item, db_conn, sem,
                 config, signals, committer,
             )
-        except (aiohttp.ClientError, aiosqlite.OperationalError, asyncio.TimeoutError) as exc:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt < max_retries:
                 log.warning(
                     "Transient error on %s (attempt %d/%d): %s",
@@ -455,6 +457,12 @@ async def _process_with_retry(
                     max_retries, issue_item.get("html_url", "?"), exc,
                 )
                 return None
+        except aiosqlite.OperationalError as exc:
+            log.error(
+                "DB error (non-retryable) on %s: %s",
+                issue_item.get("html_url", "?"), exc,
+            )
+            return None
     return None
 
 
@@ -536,5 +544,5 @@ async def run_pipeline(config: ScraperConfig) -> None:
     )
 
     # Output.
-    if not config.dry_run:
+    if not config.dry_run and config.output_file:
         write_output(all_leads, elapsed, config)

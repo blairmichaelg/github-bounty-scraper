@@ -71,6 +71,7 @@ class ScraperConfig:
     verbose: bool = False
     output_md_file: str = "output.md"
     output_json_file: str = "output.json"
+    output_file: str = ""  # Base name for output files (e.g. 'results' -> results.md, results.json)
 
     # ── Filtering behaviour ──
     allow_assigned_if_stale: bool = True
@@ -178,24 +179,32 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     Precedence: CLI flags > config file > dataclass defaults.
     """
-    cfg = ScraperConfig()
-
     # 1. Determine config file path (CLI may override).
-    config_path = (cli_overrides or {}).get("config_file", DEFAULT_CONFIG_FILE)
+    overrides = cli_overrides or {}
+    config_path = overrides.get("config_file", DEFAULT_CONFIG_FILE)
 
     # 2. Load config file and apply.
-    file_data = load_config_file(config_path)
-    for key, value in file_data.items():
-        if hasattr(cfg, key):
-            setattr(cfg, key, value)
+    data = load_config_file(config_path)
+    
+    from dataclasses import fields as dc_fields
+    known = {f.name for f in dc_fields(ScraperConfig)}
+    
+    if data:
+        unknown = set(data) - known
+        if unknown:
+            import warnings
+            warnings.warn(
+                f"scraper_config.json contains unrecognized keys (will be ignored): {unknown}",
+                stacklevel=2,
+            )
+        data = {k: v for k, v in data.items() if k in known}
 
-    # 3. Apply CLI overrides.  With argument_default=SUPPRESS, every key
-    #    present in cli_overrides was explicitly provided by the user —
-    #    no additional None-guard is needed.
-    if cli_overrides:
-        for key, val in cli_overrides.items():
-            if hasattr(cfg, key):
-                setattr(cfg, key, val)
+    # 3. Apply CLI overrides.
+    cli_data = {k: v for k, v in overrides.items() if k in known}
+    
+    # Merge: defaults (in dataclass) < config file < CLI
+    combined = {**data, **cli_data}
+    cfg = ScraperConfig(**combined)
 
     # ── Mode overrides ──
     if cfg.mode == "opportunistic":

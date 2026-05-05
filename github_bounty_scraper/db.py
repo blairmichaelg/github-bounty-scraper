@@ -290,11 +290,18 @@ class BatchCommitter:
 async def mark_issue_checked(
     conn: aiosqlite.Connection, issue_url: str, checked_at: float
 ) -> None:
-    """Update only the check timestamp to refresh the cache TTL."""
+    """Update or insert the check timestamp to refresh the cache TTL."""
     await conn.execute(
-        "UPDATE issue_stats SET checked_at = ? WHERE issue_url = ?",
-        (checked_at, issue_url),
+        """
+        INSERT INTO issue_stats (issue_url, checked_at, first_seen_at, last_seen_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(issue_url) DO UPDATE SET
+            checked_at   = excluded.checked_at,
+            last_seen_at = excluded.last_seen_at
+        """,
+        (issue_url, checked_at, checked_at, checked_at),
     )
+    await conn.commit()
 
 
 async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
