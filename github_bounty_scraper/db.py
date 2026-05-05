@@ -121,19 +121,20 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     """)
 
     # ── Migration: Ghost row cleanup ──
-    async with conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='issue_stats'"
-    ) as cursor:
-        if await cursor.fetchone():
-            async with conn.execute(
-                "SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
-            ) as c2:
-                ghost_count = (await c2.fetchone())[0]
-                if ghost_count > 0:
-                    log.info("Migration: Purging %d zero-score ghost rows from issue_stats …", ghost_count)
-                    await conn.execute(
-                        "DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
-                    )
+    # Ghost-row cleanup — runs once only (guarded by user_version migration flag)
+    async with conn.execute("PRAGMA user_version") as _uv_cur:
+        _uv = (await _uv_cur.fetchone())[0]
+    if _uv < 1:
+        async with conn.execute(
+            "SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
+        ) as c2:
+            ghost_count = (await c2.fetchone())[0]
+            if ghost_count > 0:
+                log.info("Migration v1: Purging %d zero-score ghost rows …", ghost_count)
+                await conn.execute(
+                    "DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
+                )
+        await conn.execute("PRAGMA user_version = 1")
 
     await conn.commit()
 
@@ -403,8 +404,9 @@ async def set_issue_vibe(
             (vibe_score, vibe_reason, checked_at, issue_url),
         )
         if cursor.rowcount == 0:
-            log.debug(
-                "vibe-check: no issue_stats row for %s — skipping orphan insert.",
+            log.warning(
+                "vibe-check: no issue_stats row for %s — score discarded. "
+                "Run the main pipeline first to populate issue_stats.",
                 issue_url,
             )
 

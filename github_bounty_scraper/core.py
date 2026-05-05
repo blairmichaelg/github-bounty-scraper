@@ -433,6 +433,17 @@ async def process_issue(
 
     repo_rep = await get_repo_reputation(db_conn, repo_name)
 
+    if not config.dry_run:
+        # Fetch previous score for delta tracking in output
+        async with db_conn.execute("SELECT score, vibe_score FROM issue_stats WHERE issue_url = ?", (url,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                prev_score_for_output = row[0]
+                vibe_score_val = row[1]
+            else:
+                prev_score_for_output = None
+                vibe_score_val = None
+
     # ── Scoring ──
     score = compute_score(
         numeric_amount=num_val if num_val > 0 else 0,
@@ -457,16 +468,6 @@ async def process_issue(
             ) if issue_updated_at_raw else 0.0
         except ValueError:
             _last_updated_ts = 0.0
-
-        # Fetch previous score for delta tracking in output
-        async with db_conn.execute("SELECT score, vibe_score FROM issue_stats WHERE issue_url = ?", (url,)) as cursor:
-            row = await cursor.fetchone()
-            if row:
-                prev_score_for_output = row[0]
-                vibe_score_val = row[1]
-            else:
-                prev_score_for_output = None
-                vibe_score_val = None
 
         await upsert_issue_stats(
             db_conn, url,

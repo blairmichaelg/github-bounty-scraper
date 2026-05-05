@@ -213,7 +213,7 @@ class ScraperConfig:
     exploration_min_stars_raw: int = 1
     """Min stars for exploration logging.  Default: 1."""
 
-    gemini_model: str = "gemini-2.5-flash"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
+    gemini_model: str = "gemini-2.5-flash-lite"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
     """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
 
     vibe_check_concurrency: int = 1

@@ -29,6 +29,8 @@ Thumbs.db
 
 # Project runtime artifacts
 *.csv
+!training_data.csv
+!bounty_dataset.csv
 exploration_raw.jsonl
 bounty_stats.db
 output.md

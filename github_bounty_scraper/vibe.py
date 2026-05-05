@@ -40,13 +40,8 @@ SYSTEM_PROMPT = (
     "Format: 'SCORE: [0-100]' then 'REASON: [One brutally honest, cynical sentence explaining why.]'"
 )
 
-_VIBE_SEM: asyncio.Semaphore | None = None
-
-def _get_sem() -> asyncio.Semaphore:
-    global _VIBE_SEM
-    if _VIBE_SEM is None:
-        _VIBE_SEM = asyncio.Semaphore(5)
-    return _VIBE_SEM
+def _make_sem(concurrency: int) -> asyncio.Semaphore:
+    return asyncio.Semaphore(concurrency)
 
 def _gemini_endpoint(model: str) -> str:
     return f"{_GEMINI_BASE}/{model}:generateContent"
@@ -248,6 +243,8 @@ async def run_vibe_check(
     if not api_key:
         raise RuntimeError(f"Gemini key not found. Set {GEMINI_API_KEY_ENV} or {GOOGLE_API_KEY_ENV} in .env or environment")
 
+    sem = _make_sem(concurrency)
+
     from .db import init_db
     import aiosqlite
 
@@ -298,7 +295,7 @@ async def run_vibe_check(
             title = obj.get("title", "").strip()
             body_snippet = str(obj.get("body_snippet") or obj.get("body") or "")[:500]
             
-            async with _get_sem():
+            async with sem:
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
                 return s, r, issue_url
 
