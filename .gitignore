@@ -28,6 +28,7 @@ env/
 Thumbs.db
 
 # Project runtime artifacts
+*.csv
 exploration_raw.jsonl
 bounty_stats.db
 output.md
