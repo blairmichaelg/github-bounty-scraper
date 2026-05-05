@@ -113,8 +113,8 @@ class ScraperConfig:
     """Number of DB ops before commit.  Default: 25."""
 
     # ── Scoring weights ──
-    weight_amount: float = 0.30
-    """Weight for bounty amount in score calculation.  Default: 0.30."""
+    weight_amount: float = 0.20
+    """Weight for bounty amount in score calculation.  Default: 0.20."""
 
     weight_recency: float = 0.20
     """Weight for issue recency.  Default: 0.20."""
@@ -128,8 +128,8 @@ class ScraperConfig:
     w_repo_reputation: float = 0.10
     """Weight for repo reputation term (escrows vs rugs). Default: 0.10."""
 
-    w_vibe: float = 0.05
-    """Weight for LLM vibe score term. Default: 0.05."""
+    weight_vibe: float = 0.15
+    """Weight for LLM vibe score term. Default: 0.15."""
 
     # ── Output ──
     output_format: str = "text"  # text | markdown | json
@@ -366,7 +366,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     total_weight = (
         cfg.weight_amount + cfg.weight_recency
         + cfg.weight_activity + cfg.weight_escrow_strength
-        + cfg.w_repo_reputation + cfg.w_vibe
+        + cfg.w_repo_reputation + cfg.weight_vibe
     )
     if not (0.99 <= total_weight <= 1.01):
         log.warning(

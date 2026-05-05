@@ -481,6 +481,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
             WHERE i.score > 0
                OR (i.numeric_amount IS NOT NULL AND i.numeric_amount != 0)
+               OR i.vibe_score IS NOT NULL
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:
@@ -491,7 +492,8 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 "issue_url", "title", "body_snippet", "lead_mode", "numeric_amount", 
                 "score", "prev_score", "escrow_verified", "is_dead_repo", 
                 "checked_at", "vibe_score", "vibe_reason", 
-                "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen"
+                "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen",
+                "is_bounty"
             ]
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
@@ -502,8 +504,20 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
 
             for row in rows:
                 d = dict(row)
-                # Join body text from jsonl
                 d["body_snippet"] = bodies.get(d["issue_url"], "")
+                # is_bounty = 1 when: explicit numeric amount >= 10 AND vibe_score >= 50
+                # is_bounty = 0 when: vibe_score < 30 OR no numeric amount
+                # is_bounty = NULL (empty) when: ambiguous — let the model decide
+                amount = d.get("numeric_amount") or 0
+                vibe = d.get("vibe_score")
+                if amount >= 10 and (vibe is None or vibe >= 50):
+                    d["is_bounty"] = 1
+                elif vibe is not None and vibe < 30:
+                    d["is_bounty"] = 0
+                elif amount == 0 and vibe is None:
+                    d["is_bounty"] = 0
+                else:
+                    d["is_bounty"] = ""   # ambiguous — exclude from supervised training
                 writer.writerow(d)
         
         log.info("dump-dataset: exported %d rows to %s (enriched with %d bodies)", len(rows), out_path, len(bodies))

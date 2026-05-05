@@ -81,17 +81,18 @@ def compute_score(
     
     escrow_norm = max(count_norm, weighted_norm)
 
-    # ── Vibe component ──
-    vibe_component = (vibe_score_int or 0) * 0.25
+    # ── Vibe component — normalised to [0, 1] ──
+    vibe_norm = (vibe_score_int or 0) / 100.0
 
-    # ── Weighted composite ──
+    # ── Weighted composite — all components stay in [0, 1] before * 100 ──
     raw_score = (
-        amount_norm * config.weight_amount
+        amount_norm    * config.weight_amount
         + recency_norm * config.weight_recency
         + activity_norm * config.weight_activity
-        + escrow_norm * config.weight_escrow_strength
+        + escrow_norm  * config.weight_escrow_strength
         + repo_reputation * config.w_repo_reputation
-    ) * 100.0 + vibe_component
+        + vibe_norm    * config.weight_vibe
+    ) * 100.0
 
     # Soft negative penalty.
     if has_negative_soft:
