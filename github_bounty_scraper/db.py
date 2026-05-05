@@ -303,7 +303,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         return []
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
-        query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url FROM issue_stats"
+        query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
         params = []
         if mode != "all":
             query += " WHERE lead_mode = ?"

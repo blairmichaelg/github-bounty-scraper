@@ -40,6 +40,9 @@ _DOLLAR_RE = re.compile(
 )
 
 # Crypto amounts: 1000 USDC, 0.5 ETH, 10,000 DAI
+# NOTE: Short symbols like "OP" and "SOL" can match non-crypto text.
+# Proximity scoring (see _proximity_score) is the primary mitigation.
+# Do not remove these without verifying they are absent from active bounty repos.
 _CRYPTO_SUFFIXES = (
     "USDC", "USDT", "ETH", "SOL", "OP", "ARB", "MATIC",
     "ROXN", "XDC", "DAI", "WETH", "STRK", "BUSD",

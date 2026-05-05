@@ -232,9 +232,7 @@ def _is_assignment_stale(
         return False
 
     # If the most recent event is an unassignment, treat as stale.
-    if last_unassigned_ts and (
-        last_assigned_ts is None or last_unassigned_ts > last_assigned_ts
-    ):
+    if last_unassigned_ts and last_unassigned_ts > last_assigned_ts:
         return True
 
     for c in comments:

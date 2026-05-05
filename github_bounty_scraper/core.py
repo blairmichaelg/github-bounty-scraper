@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import time
 from typing import Any
 
@@ -309,8 +310,13 @@ async def process_issue(
             "body_snippet": body[:300].replace("\n", " ") if body else "",
             "reasons": raw_reasons
         }
-        with open("exploration_raw.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(cand) + "\n")
+        _line = json.dumps(cand) + "\n"
+        _path = "exploration_raw.jsonl"
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: open(_path, "a", encoding="utf-8").write(_line),
+        )
 
     # ── Lead Checks ──
     if not is_lead_candidate:
@@ -351,28 +357,7 @@ async def process_issue(
     #   num_val < 0   → Unknown / Custom Tokens (include as low-priority)
     #   0 < num_val < min_bounty_amount → too small, skip
     #   num_val >= min_bounty_amount    → verified lead
-    if 0 < num_val < config.min_bounty_amount:
-        log.debug("Below threshold ($%.0f < $%.0f): %s", num_val, config.min_bounty_amount, url)
-        if not config.dry_run:
-            await upsert_repo_stats(
-                db_conn, repo_name,
-                last_merged_pr_at=last_merged_at_ts,
-                merges_last_45d=merges_last_45,
-                escrow_increment=escrow_inc,
-            )
-            await committer.tick()
-        return None
-    if num_val == 0.0:
-        log.debug("No bounty amount found: %s", url)
-        if not config.dry_run:
-            await upsert_repo_stats(
-                db_conn, repo_name,
-                last_merged_pr_at=last_merged_at_ts,
-                merges_last_45d=merges_last_45,
-                escrow_increment=escrow_inc,
-            )
-            await committer.tick()
-        return None
+
 
     # ── Scoring ──
     score = compute_score(

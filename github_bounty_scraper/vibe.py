@@ -171,6 +171,7 @@ async def run_vibe_check(
     db_path: str,
     limit: int,
     mode: str,
+    concurrency: int = 5,
 ) -> None:
     """
     Iterate exploration_raw.jsonl and score candidates with Gemini.
@@ -197,6 +198,7 @@ async def run_vibe_check(
                 async for row in cursor:
                     scored_urls.add(row[0])
 
+    vibe_sem = asyncio.Semaphore(concurrency)
     async with aiohttp.ClientSession() as session:
         count = 0
         async for obj in iter_raw_candidates(raw_file):
@@ -220,7 +222,9 @@ async def run_vibe_check(
             body_snippet = str(body_snippet)[:500]
 
             try:
-                score, reason = await call_gemini(session, api_key, title, body_snippet)
+                async with vibe_sem:
+                    score, reason = await call_gemini(session, api_key, title, body_snippet)
+                    await asyncio.sleep(0.1)
             except Exception as exc:
                 log.warning("Gemini call failed for %s: %s", issue_url, exc)
                 continue

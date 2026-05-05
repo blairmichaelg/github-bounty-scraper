@@ -104,7 +104,15 @@ class ScraperConfig:
 
 # ─── GitHub token resolution ────────────────────────────────────────
 def resolve_github_token() -> str:
-    """Return a GitHub PAT from the CLI tool or environment variables."""
+    """Return a GitHub PAT — env vars checked first, then gh CLI fallback."""
+    token = (
+        os.environ.get("GITHUB_TOKEN")
+        or os.environ.get("GITHUB_PAT")
+        or os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN")
+        or ""
+    )
+    if token:
+        return token
     try:
         res = subprocess.run(
             ["gh", "auth", "token"], capture_output=True, text=True, check=True,
@@ -115,12 +123,7 @@ def resolve_github_token() -> str:
             return token
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         pass
-    return (
-        os.environ.get("GITHUB_TOKEN")
-        or os.environ.get("GITHUB_PAT")
-        or os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN")
-        or ""
-    )
+    return ""
 
 
 # ─── Signal config loader ───────────────────────────────────────────

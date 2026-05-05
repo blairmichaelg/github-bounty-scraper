@@ -111,6 +111,9 @@ query($owner: String!, $name: String!, $issue: Int!) {
       updatedAt
       assignees(first: 1) { totalCount }
       labels(first: 10) { nodes { name } }
+      # NOTE: Only the last 50 comments are fetched. Backward pagination is
+      # intentionally omitted to limit API call volume. Older comments on
+      # high-traffic issues may occasionally miss escrow signals.
       comments(last: 50) {
         nodes { body createdAt }
         pageInfo { hasPreviousPage startCursor }

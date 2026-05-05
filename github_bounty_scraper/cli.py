@@ -168,6 +168,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="bounty_stats.db",
         help="Path to the SQLite DB used for storing vibe scores (default: bounty_stats.db).",
     )
+    vibe_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Max concurrent Gemini API calls (default: 5).",
+    )
 
     return main_parser
 

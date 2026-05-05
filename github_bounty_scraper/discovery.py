@@ -137,6 +137,7 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
         for qi, query in enumerate(queries, 1):
             if len(unique_issues) >= max_cap:
                 break
+            await asyncio.sleep(0.3)
 
             for page in range(1, config.max_pages_per_query + 1):
                 if len(unique_issues) >= max_cap:
@@ -158,6 +159,8 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
                     "  Query %d/%d page %d → %d items (%d new)",
                     qi, len(queries), page, len(items), new_count,
                 )
+
+                await asyncio.sleep(0.5)
 
                 # Early stop: page is not full.
                 if len(items) < per_page:
