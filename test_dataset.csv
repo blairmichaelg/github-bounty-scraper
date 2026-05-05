@@ -1,0 +1,153 @@
+issue_url,title,lead_mode,numeric_amount,score,prev_score,escrow_verified,is_dead_repo,checked_at,vibe_score,vibe_reason,merges_last_45d,escrows_seen,rugs_seen,total_escrows_seen
+https://github.com/retrnull/garnet/issues/5,[FEATURE] Please sync fork with upstream ,opportunistic,-1.0,0.0,,0,1,1777757055.6846104,,,0,0,0,0
+https://github.com/OpenMind/OM1/issues/366,[Bounty] Smart device communication,strict,0.0,64.85,,1,0,1777752947.6441214,,,64,3,0,3
+https://github.com/tinygrad/tinygrad/issues/3039,"Bounty: Fast parallel scan (Mamba, etc). ",strict,500.0,64.76,,1,0,1777752946.6497555,,,200,4,0,4
+https://github.com/bolivian-peru/marketplace-service-template/issues/70,[BOUNTY] Trend Intelligence API (Cross-Platform Research) — $100 paid in $SX token,strict,100.0,35.25,,1,0,1777752946.6029124,,,0,3,13,3
+https://github.com/stashapp/stash/issues/3875,[Feature] Display embedded subtitles,strict,50.0,54.06,,1,0,1777752944.0146523,,,65,8,4,8
+https://github.com/stashapp/stash/issues/3530,[Feature] Support multiple Scenes in a single file,strict,450.0,60.69,,1,0,1777752943.8685496,,,65,8,4,8
+https://github.com/graphql-dotnet/graphql-dotnet/issues/1025,Looking for a demo using Schema-First approach,strict,100.0,54.93,,1,0,1777752940.187975,,,12,2,0,2
+https://github.com/iglesiasbrandon/dox402/issues/38,Add HD wallet support,strict,-1.0,19.04,,1,0,1777748248.82891,,,6,2,0,2
+https://github.com/0xMiden/protocol/issues/2630,Unify asset delta into one,strict,100.0,50.18,,1,0,1777748238.293416,,,95,2,0,2
+https://github.com/commaai/opendbc/issues/2017,[$3000 bounty] BYD port,strict,300.0,54.16,,1,0,1777748233.2168627,,,73,2,0,2
+https://github.com/arbuthnot-eth/passki/issues/138,Porygon-Z Conversion Beam — sends anywhere → 95% stables + 5% gas,strict,32.0,44.63,,1,0,1777748218.922064,,,43,3,1,3
+https://github.com/LittleFingerrr/Griffin/issues/22,GRIFFIN ROADMAP,strict,100.0,47.69,,1,0,1777748211.8158102,,,12,3,0,3
+https://github.com/browserbase/stagehand/issues/1950,"Add x402 agent payments: let AI agents pay per browser session autonomously (USDC, no shared credit pools)",strict,-1.0,46.94,,1,0,1777748185.7549536,,,107,3,0,3
+https://github.com/duanyytop/ai-market-radar/issues/111,AI Market Radar — 2026-04-29,strict,72.0,40.96,,1,0,1777748184.5451424,,,1,3,0,3
+https://github.com/google-agentic-commerce/AP2/issues/207,[Feat]: Cross-merchant budget enforcement for IntentMandates,strict,-1.0,32.97,,1,0,1777748178.5536041,,,6,5,0,5
+https://github.com/vercel/ai/issues/13905,Feature: agentpay-mcp integration for AI SDK — x402 payments with human-approval and on-chain spend caps,strict,-1.0,37.1,,1,0,1777748173.3188589,,,200,3,0,3
+https://github.com/e2b-dev/E2B/issues/1295,Tempo (MPP) integration — enable autonomous payments from sandboxes,strict,3009.0,71.69,,1,0,1777748150.0738971,,,29,2,0,2
+https://github.com/x402-foundation/x402/issues/2132,Add ChainAnalyzer to Agentic.Market discovery & x402 ecosystem listing,strict,402.0,55.68,,1,0,1777748142.985302,,,109,54,2,48
+https://github.com/cenetex/signal/issues/479,decentralization (off-chain): per-zone station federation via signed events + station keypairs,strict,100.0,61.56,,1,0,1777748125.8733974,,,171,2,0,2
+https://github.com/cenetex/signal/issues/480,"decentralization (Solana): state-root anchoring, wrap contract, bounty program",strict,100.0,61.56,,1,0,1777748124.7761726,,,171,2,0,2
+https://github.com/microsoft/autogen/issues/7353,Feature: Cryptographic action receipts for enterprise agent governance (AAR),strict,2500.0,47.64,,1,0,1777748087.9373732,,,2,3,2,3
+https://github.com/dotnet/runtime/issues/90803,Address race in PerformanceCounterLib,strict,-1.0,48.98,,1,0,1777748077.1595767,,,200,3,0,3
+https://github.com/x402agent/SolanaOS/issues/54,Free protocol-translation reliability benchmark for SolanaOS — error-rate report on x402/skills stack,strict,402.0,66.15,,1,0,1777748074.263248,,,31,1,0,1
+https://github.com/arbuthnot-eth/passki/issues/200,Darkrai — batch threshold encryption integration (ePrint 2026/674),strict,-1.0,47.99,,1,0,1777748069.1415,,,43,3,1,3
+https://github.com/vega/vega/issues/4221,Bug & Feature Bounty,strict,75.0,53.26,,1,0,1777748058.5949273,,,19,2,0,2
+https://github.com/arra7trader/growth/issues/3,[AETHER] Runtime Status Mirror,strict,-1.0,32.07,,1,0,1777748056.2183757,,,0,3,0,3
+https://github.com/arra7trader/growth/issues/1,[AETHER] Runtime Status Mirror,strict,-1.0,28.07,,1,0,1777748053.0656502,,,0,3,0,3
+https://github.com/arra7trader/growth/issues/2,[AETHER] Runtime Status Mirror,strict,-1.0,28.07,,1,0,1777748052.0119233,,,0,3,0,3
+https://github.com/rhein1/agoragentic-integrations/issues/4,A2A Collaboration: HexNest — your agents are already in our rooms,strict,-1.0,32.11,,1,0,1777748038.123925,,,4,2,0,2
+https://github.com/x402-foundation/x402/issues/1755,"Open-source x402 security testing harness (20 tests, 7 attack categories)",strict,-1.0,48.35,,1,0,1777748027.6087732,,,109,54,2,48
+https://github.com/intuition-box/intuition.box/issues/18,Mission 08: Intuition Community Call Recording [ROLE],strict,40.0,49.69,,1,0,1777748023.4135396,,,10,2,0,2
+https://github.com/x402-foundation/x402/issues/839,"x402 Escrow Scheme for Pre-funded, Usage-Based Payments",strict,-1.0,25.33,,1,0,1777748021.5644774,,,109,54,2,48
+https://github.com/jayzalowitz/near-bit/issues/11,Launch plan: from working prototype to production mainnet,strict,25000.0,41.61,,1,0,1777748001.4180014,,,4,3,0,3
+https://github.com/ObolNetwork/obol-stack/issues/295,Autoresearch infrastructure Helm chart with verified reward distribution,strict,70.0,53.73,,1,0,1777748000.937061,,,63,9,0,8
+https://github.com/Vantage-Ledger-Labs/shieldpoint-frontend/issues/8,Proof History List (Mock Data),strict,1000.0,49.76,,1,0,1777747995.6846654,,,0,1,0,1
+https://github.com/okx/onchainos-skills/issues/30,Gas Station bootstrap deadlock on Base for accounts with zero native token,strict,500.0,62.71,,1,0,1777747993.4010448,,,15,1,0,1
+https://github.com/402shop/402s-shop/issues/1,Conversion audit idea for 402s-shop,strict,49.0,40.72,,1,0,1777747991.2675602,,,0,1,0,1
+https://github.com/vannafinance/Stellar_backend/issues/20,"[P2 High] Portfolio page shows dummy balances, charts, rewards, and positions",strict,1000.0,62.87,,1,0,1777747989.8467064,,,9,1,0,1
+https://github.com/AetherCore-Dev/ag402/issues/9,Integration Proposal: Observer Protocol for Cryptographic Agent Verification,strict,-1.0,19.89,,1,0,1777747977.1227753,,,4,6,0,6
+https://github.com/ObolNetwork/obol-stack/issues/307,feat: first-run wizard + auto-detect inference — turn new users into inference buyers on Day 1,strict,402.0,54.16,,1,0,1777747976.5959864,,,63,9,0,8
+https://github.com/0xLighthouse/ens-metadata/issues/46,Use Case: AI Agents on ENS,strict,-1.0,31.93,,1,0,1777747973.6529298,,,16,3,0,3
+https://github.com/open-wallet-standard/core/issues/125,RFC: Cross-Chain Swap & Bridge via LI.FI Integration,strict,186.31,59.93,,1,0,1777747970.6953018,,,94,8,0,8
+https://github.com/bucketshop69/lpcli/issues/45,video: MagicBlock hackathon submission demo — private transfers & LP positions,strict,361.0,38.61,,1,0,1777747964.5906591,,,5,3,0,3
+https://github.com/ObolNetwork/obol-stack/issues/309,research: mesh-llm integration — p2p inference mesh + model sharding under obol-stack economic layer,strict,402.0,54.72,,1,0,1777747960.0731695,,,63,9,0,8
+https://github.com/ai-village-agents/ai-village-external-agents/issues/26,"A2A Ecosystem Analysis — 10 Contact Attempts, Success Rate & Barriers",strict,149.97,40.76,,1,0,1777747958.192243,,,9,5,0,4
+https://github.com/intuition-box/intuition.box/issues/13,Mission 07: Intuition.box Socials Creation [ROLE],strict,300.0,56.33,,1,0,1777747853.3744745,,,10,2,0,2
+https://github.com/OpenZeppelin/openzeppelin-contracts/issues/2457,Include a RewardDistribution Contract,strict,100.0,58.03,,1,0,1777747852.4741685,,,15,1,0,1
+https://github.com/sierra-research/tau2-bench/issues/100,Adding new domain for co-pilot usage,strict,40000.0,57.9,,1,0,1777747663.335692,,,52,1,0,1
+https://github.com/bucketshop69/lpcli/issues/1,"Agent economy: x402 payments, MCP server, and skills layer",strict,100.0,38.26,,1,0,1777516031.0089006,,,5,3,0,3
+https://github.com/vercel/ai/issues/13822,Integration: Pyrimid x402 Payment Protocol for AI Agent Commerce,strict,-1.0,46.99,,1,0,1777516030.3503501,,,200,3,0,3
+https://github.com/Roger-Base/x402-agent-starter/issues/1,x402 Agent Starter - Accept USDC payments for AI agent APIs,strict,-1.0,26.98,,1,0,1777516028.3618522,,,0,1,0,1
+https://github.com/x402-foundation/x402/issues/1960,Proposal: BCP as an x402 scheme for multi-step negotiated commerce,strict,500.0,62.47,,1,0,1777516025.3027773,,,109,54,2,48
+https://github.com/openclaw/clawhub/issues/1558,False positive: TrencherAI skill flagged for undeclared credentials,strict,-1.0,48.83,,1,0,1777516012.052001,,,117,20,0,20
+https://github.com/intuition-box/Ontology/issues/9,Mission 04: Create Onchain Ontology for Intuition Ecosystem Apps,strict,500.0,55.79,,1,0,1777516008.7723317,,,4,4,0,4
+https://github.com/livekit/agents/issues/4756,Feature: Payment capabilities for voice AI agents,strict,-1.0,47.1,,1,0,1777516008.1991234,,,200,1,0,1
+https://github.com/openclaw/clawhub/issues/1818,False positive: agenttrust-scanner flagged as suspicious,strict,402.0,67.11,,1,0,1777516006.4999995,,,117,20,0,20
+https://github.com/openclaw/clawhub/issues/871,Appeal - https://clawhub.ai/jimitd-ai/ai-content-engine,strict,-1.0,52.9,,1,0,1777515995.4640453,,,117,20,0,20
+https://github.com/openclaw/clawhub/issues/913,runtime-sentinel flagged as suspicious,strict,402.0,67.14,,1,0,1777515992.1798398,,,117,20,0,20
+https://github.com/x402-foundation/x402/issues/1817,Docs: recommend counterparty risk checking before x402 payments,strict,-1.0,40.29,,1,0,1777515991.315521,,,109,54,2,48
+https://github.com/x402-foundation/x402/issues/1195,Proposal: Settlement Attestation Receipt (SAR) - canonical delivery proof format for the x402 ecosystem,strict,-1.0,40.32,,1,0,1777515988.0220408,,,109,54,2,48
+https://github.com/Expensify/App/issues/80025,[$250] Android - Keyboard is not opened on Magic Code screen,strict,250.0,69.68,,1,0,1777515987.2785926,,,200,3,15,3
+https://github.com/vultisig/vultisig-windows/issues/3738,feat: Full ABI parameter decoding for mobile (Phase 2),strict,3150.0,71.61,,1,0,1777515986.8802454,,,123,1,1,1
+https://github.com/strato-net/strato-platform/issues/6449,STRATO as hub chain,strict,100.0,61.16,,1,0,1777515985.504444,,,160,1,0,1
+https://github.com/x402-foundation/x402/issues/2001,Proposal: AI arbitration layer for x402 escrow disputes — N=3 majority vote arbitration,strict,-1.0,44.34,,1,0,1777515983.7686758,,,109,54,2,48
+https://github.com/lidofinance/core/issues/1782,Pre-contest triage for next protocol upgrade — offer,strict,1500.0,69.4,,1,0,1777515975.2741706,,,62,1,0,1
+https://github.com/x402-foundation/x402/issues/2012,Showcase: Base Token Safety Scanner built with x402,strict,-1.0,40.71,,1,0,1777515969.7574587,,,109,54,2,48
+https://github.com/BlockRunAI/ClawRouter/issues/151,Proposal: Observer Protocol Verification Layer Integration,strict,-1.0,29.86,,1,0,1777515962.3131938,,,9,2,0,2
+https://github.com/VangelisTech/archetype-x402/issues/1,Implement archetype-x402 v0.1,strict,-1.0,27.2,,1,0,1777515953.587327,,,0,1,0,1
+https://github.com/x402-foundation/x402/issues/1909,[Proposal]: state channel payment scheme - offchain micropayments for agents and APIs,strict,200.0,63.32,,1,0,1777515951.0771177,,,109,54,2,48
+https://github.com/tetherto/qvac/issues/1749,[Discussion] x402-native settlement layer for QVAC inference — bring-your-own-payment for downstream consumers,strict,-1.0,37.21,,1,0,1777515944.7653031,,,200,6,0,6
+https://github.com/starkware-libs/sequencer/issues/13883,Pre-Contest Audit Triage — sequencer security review before next audit contest,strict,1500.0,69.51,,1,0,1777515923.722101,,,200,1,0,1
+https://github.com/matter-labs/zksync-era/issues/4797,Pre-Contest Audit Triage — sequencer + bridge security review before next upgrade audit,strict,500.0,66.16,,1,0,1777515922.438466,,,51,1,0,1
+https://github.com/bompat49-sudo/mon-cons/issues/3,Pre-contest audit triage: delegatecall safety + storage collision in upgradeable proxies,strict,500.0,36.18,,1,0,1777515912.9127128,,,0,1,0,1
+https://github.com/vhspace/proof-of-thought/issues/5,x402 payment gate + KeeperHub audit trails for PoT Reports,strict,250.0,57.11,,1,0,1777515904.5906286,,,9,3,0,3
+https://github.com/up2itnow0822/agentwallet-sdk/issues/5,Integration: AIMorgan as a treasury backend for AgentWallet,strict,-1.0,21.48,,1,0,1777515902.5896811,,,0,1,0,1
+https://github.com/BlockRunAI/ClawRouter/issues/155,Earn yield on idle USDC reserves with Clicks Protocol,strict,-1.0,30.62,,1,0,1777515892.0371091,,,9,2,0,2
+https://github.com/clawdbotatg/clawd-agent-launcher/issues/1,Earn yield on idle USDC/CLAWD treasury with Clicks Protocol,strict,-1.0,21.62,,1,0,1777515890.2030587,,,0,1,0,1
+https://github.com/x402-foundation/x402/issues/1777,[Extension Proposal] `agent-trust` — DID-based identity and trust scoring for x402 payments,strict,402.0,64.08,,1,0,1777515885.7512074,,,109,54,2,48
+https://github.com/x402-foundation/x402/issues/1566,agent-wallet-sdk: Developer SDK layer for x402 with non-custodial wallets and spending policies,strict,-1.0,42.08,,1,0,1777515873.6531715,,,109,54,2,48
+https://github.com/Ghostkey316/vaultfire-x402/issues/1,Observer Protocol: Free Verification for Vaultfire x402,strict,-1.0,26.09,,1,0,1777515868.580396,,,0,1,0,1
+https://github.com/tetherto/qvac/issues/1762,[Discussion] x402-native settlement layer for QVAC inference — bring-your-own-payment for downstream consumers,strict,-1.0,37.59,,1,0,1777515844.051474,,,200,6,0,6
+https://github.com/cyclofinance/cyclo.site/issues/364,Remove rewards UI/queries/constants now that the rFLR rewards program is finished,strict,-1.0,37.69,,1,0,1777515840.1697536,,,9,2,0,2
+https://github.com/XRPLF/rippled/issues/7026,Pre-contest finding: batch delegate revocation silently clears all delegates (Sherlock XRPL #1260),strict,100.0,61.65,,1,0,1777515834.1494634,,,192,2,0,2
+https://github.com/x402agent/solana-clawd/issues/26,Feature request: PII sanitization layer before LLM calls,strict,149.0,62.84,,1,0,1777515833.6830995,,,21,2,0,2
+https://github.com/0xHoneyJar/loa-freeside/issues/153,Spec: World Container Hosting — ECS task template for sovereign stack worlds,strict,50.0,35.88,,1,0,1777515821.3810768,,,11,2,0,2
+https://github.com/x402-foundation/x402/issues/1982,CDP facilitator drops extensions.bazaar on Base mainnet — /supported reports x402Version: 1,strict,-1.0,47.68,,1,0,1777515807.3746135,,,109,54,2,48
+https://github.com/jazzsequence/jazz-nextjs/issues/42,feat(agent-readiness): Support x402 protocol for agent-native HTTP payments,strict,-1.0,47.1,,1,0,1777515793.2246354,,,19,2,0,2
+https://github.com/openclaw/openclaw/issues/42475,[Feature]: Per-agent cost budget enforcement at the gateway level,strict,500.0,57.15,,1,0,1777515792.6103547,,,200,3,0,2
+https://github.com/UltravioletaDAO/execution-market/issues/101,🤝 AgentPay Integration — Real-World Service Execution Layer,strict,402.0,63.52,,1,0,1777515741.567427,,,20,2,0,2
+https://github.com/microsoft/agent-framework/issues/4203,Precision Decisioning & Agentic Trust: Cryptographic proof of authorization for agent workflows,strict,-1.0,49.29,,1,0,1777515738.0315392,,,200,2,0,2
+https://github.com/deepgram/deepgram-python-sdk/issues/684,"x402 agent payments: let AI agents pay per transcription autonomously (USDC, per-call, no credit pools)",strict,-1.0,37.29,,1,0,1777515737.2382882,,,12,2,0,2
+https://github.com/agent0ai/agent-zero/issues/984,[Feature] Agent Payment & Wallet Extension,strict,-1.0,45.29,,1,0,1777515726.558748,,,68,2,0,2
+https://github.com/OWASP/www-project-top-10-for-large-language-model-applications/issues/802,Runtime Enforcement Mapping for OWASP Agentic Top 10 (ASI01–ASI10),strict,-1.0,18.32,,1,0,1777515720.0900452,,,3,2,0,2
+https://github.com/google-agentic-commerce/AP2/issues/178,AgentPay MCP: Open-source MCP payment server for AP2 scenarios,strict,-1.0,32.23,,1,0,1777515678.4601495,,,6,5,0,5
+https://github.com/up2itnow0822/agentpay-mcp/issues/5,Add AgentPay Skills pack for x402 payment authority in IDE agents,strict,-1.0,33.42,,1,0,1777515667.246554,,,7,7,0,7
+https://github.com/broomva/life/issues/896,CONTRACT.md + billing activation — EIP-2612 permit + prepaid Haima funded,strict,3500.0,69.9,,1,0,1777515645.3411422,,,94,2,0,2
+https://github.com/tetherto/qvac/issues/1793,[Discussion] x402-native settlement layer for QVAC inference — bring-your-own-payment for downstream consumers,strict,-1.0,38.29,,1,0,1777515628.4856613,,,200,6,0,6
+https://github.com/wetware/ww/issues/130,x402 payment integration,strict,-1.0,40.45,,1,0,1777515601.3124938,,,166,2,0,2
+https://github.com/openclaw/clawhub/issues/424,False positive: sebayaki/signet flagged as suspicious,strict,-1.0,48.91,,1,0,1777515598.3758812,,,117,20,0,20
+https://github.com/0xHoneyJar/loa-finn/issues/27,[FEATURE] finnNFT — Per-NFT AI Agents with Persistent Identity (dNFT Daemon Companions),strict,42.96,28.08,,1,0,1777515597.6923687,,,6,2,0,2
+https://github.com/prassanna-ravishankar/a2a-registry/issues/109,"Research: Dead agent postmortem — why do operators stop? (ecosystem study, data attached)",strict,128.0,43.45,,1,0,1777499724.9501934,,,2,1,0,1
+https://github.com/arclayerlabs/streamforge-stellar-rewards/issues/5,Document the complete reward flow in README,strict,-1.0,12.71,,1,0,1777499724.611782,,,0,2,0,1
+https://github.com/duolaAmengweb3/agentstore/issues/5,🔍 Tool candidates for 2026-04-27 — 198 new,strict,-1.0,27.93,,1,0,1777499638.422995,,,0,7,0,7
+https://github.com/broomva/haima/issues/3,🤝 AgentPay + Haima — Agentic Finance × Real-World Services,strict,-1.0,26.91,,1,0,1777499624.060552,,,2,1,0,1
+https://github.com/winsznx/lend402/issues/1,"Classifieds slot on aibtc.news — ""Stripe for paid agent calls"" is the right one-liner to agent visitors (3k sats / 7-day)",strict,-1.0,25.46,,1,0,1777499580.5181673,,,0,1,0,1
+https://github.com/microsoft/autogen/issues/7564,Discussion: Native Agent-to-Agent Commerce and Payment Integration,strict,80.0,45.14,,1,0,1777499568.4579203,,,2,3,2,3
+https://github.com/TSAMBALI/project/issues/15,Astraea: Autonomous Sovereign Analyst,strict,150.0,41.45,,1,0,1777499543.648598,,,0,1,0,1
+https://github.com/Juwebien/agent-marketplace/issues/33,test(contracts): integration test — full workflow on local Anvil,strict,-1.0,15.15,,1,0,1777499512.6729975,,,0,2,0,2
+https://github.com/zaki9501/bounce-smart-contracts/issues/1,# Low-Risk Findings Submission,strict,-1.0,18.34,,1,0,1777499507.2233953,,,0,2,0,2
+https://github.com/zaki9501/bounce-smart-contracts/issues/2,"# Negative Perp Equity Is Clamped to Zero, Overstating Leveraged Token NAV and Enabling Over-Redemption",strict,500.0,37.24,,1,0,1777499504.9508214,,,0,2,0,2
+https://github.com/ss251/ethglobal-openagents/issues/1,ERC-7857 (0G Intelligent NFT) integration evaluation,strict,1500.0,51.07,,1,0,1777499500.6054282,,,0,1,0,1
+https://github.com/Practitionist/familiarise_web/issues/487,Consultant Dashboard — Full PM/UX Audit (All 14 Pages),strict,97827.0,62.8,,1,0,1777499437.8117952,,,59,4,1,4
+https://github.com/mikhail-karan/sol-bug-bench-full/issues/11,[CRITICAL] Transferable share tokens bypass withdrawal delay and enable reward-funded pool draining,strict,-1.0,27.01,,1,0,1777499412.9619033,,,0,2,0,2
+https://github.com/mikhail-karan/sol-bug-bench-full/issues/12,"[HIGH] Reward claims are paid from depositor principal, enabling value extraction and pool insolvency",strict,-1.0,27.01,,1,0,1777499403.530327,,,0,2,0,2
+https://github.com/anthropics/claude-code/issues/54637,Max 20 subscriber — Weekly token limit exhausted in 3 days due to repeated infrastructure failures (April 2026),strict,200.0,50.0,,1,0,1777499348.5509129,,,5,1,2,1
+https://github.com/hien-p/Skillname/issues/13,#4 Paid execution (KeeperHub + x402),strict,3009.0,81.05,,1,0,1777499307.0620275,,,21,1,0,1
+https://github.com/Juwebien/agent-marketplace/issues/10,[SPEC] GitHub → Mission bridge: webhook handler + issue-to-mission mapping,strict,500.0,33.87,,1,0,1777499301.9953818,,,0,2,0,2
+https://github.com/plurigrid/nanoclj-zig/issues/17,Coinbase Payments MCP + RentAHuman: agent-to-wallet stablecoin flow,strict,-1.0,19.76,,1,0,1777499299.423731,,,2,1,0,1
+https://github.com/huggingface/smolagents/issues/2071,Feature: Cryptographic receipts for agent tool execution (AAR),strict,-1.0,23.23,,1,0,1777499291.055073,,,5,3,0,3
+https://github.com/Conway-Research/automaton/issues/300,"Local automaton ran 14 days, 276 goals, .00 revenue, repeated proposal-batch loops",strict,39.26,31.47,,1,0,1777499290.5999987,,,2,2,0,1
+https://github.com/402md/facilitator/issues/10,🤝 AgentPay — Real-World Service Layer built on x402,strict,-1.0,35.81,,1,0,1777499289.8345838,,,9,1,0,1
+https://github.com/intuition-box/Ontology/issues/8,Mission 01: Integrate Intuition Protocol into Ontology,strict,2000.0,57.93,,1,0,1777499288.394421,,,4,4,0,4
+https://github.com/skingem1/Invoica/issues/55,BizDev: X outreach batch — target x402 ecosystem projects (April 2026),strict,-1.0,18.38,,1,0,1777499287.7992141,,,0,1,0,1
+https://github.com/aibtcdev/agent-news/issues/634,"Trial: Editor-in-Chief (EIC) — 400,000 sats/day",strict,1100.0,60.25,,1,0,1777499287.7890036,,,200,9,7,9
+https://github.com/nodecapitalnext/base-agent/issues/1,Integration idea: extend your Base agent to play competitive on-chain games,strict,-1.0,18.76,,1,0,1777499283.2029057,,,0,1,0,1
+https://github.com/x402-index/x402-discovery-index/issues/3,List ag402 and token-rugcheck APIs,strict,-1.0,27.07,,1,0,1777499278.014473,,,0,3,0,3
+https://github.com/Scottcjn/rustchain-bounties/issues/477,[BOUNTY] Cross-Repo Star & Engage Multiplier (Pool: 300 RTC),strict,-1.0,43.47,,1,0,1777494937.628765,,,65,5,37,5
+https://github.com/Scottcjn/rustchain-bounties/issues/2786,[ONBOARD: 3 RTC] Star + Compare RustChain to Another Blockchain Project,strict,50.0,50.92,,1,0,1777494929.362468,,,65,5,37,5
+https://github.com/daydreamsai/lucid-agents/issues/176,,strict,,0.0,,1,0,1776108358.9288208,,,,,,
+https://github.com/cdrn/gauloi-v2/issues/6,,strict,,0.0,,1,0,1776108358.92783,,,,,,
+https://github.com/Conway-Research/automaton/issues/258,,strict,,0.0,,1,0,1776108358.92783,,,,,,
+https://github.com/daydreamsai/lucid-agents/issues/215,,strict,,0.0,,1,0,1776108358.92783,,,,,,
+https://github.com/fetchai/uAgents/issues/771,,strict,,0.0,,1,0,1776108358.92783,,,,,,
+https://github.com/coinbase/agentkit/issues/979,,strict,,0.0,,1,0,1776108358.925821,,,,,,
+https://github.com/AGI-Corporation/Sapient.x/issues/3,,strict,,0.0,,1,0,1776108358.925821,,,,,,
+https://github.com/edehvictor/StellarYield/issues/149,,strict,,0.0,,1,0,1776108358.922825,,,,,,
+https://github.com/dennisonbertram/claude-tauri-boilerplate/issues/376,,strict,,0.0,,1,0,1776108358.922825,,,,,,
+https://github.com/ai-village-agents/ai-village-external-agents/issues/6,,strict,,0.0,,1,0,1776108358.92182,,,,,,
+https://github.com/t0k1dev/vendly/issues/9,,strict,,0.0,,1,0,1776108358.920821,,,,,,
+https://github.com/nirholas/cryptocurrency.cv/issues/36,,strict,,0.0,,1,0,1776108358.918823,,,,,,
+https://github.com/openclaw/openclaw/issues/49971,,strict,,0.0,,1,0,1776108358.918823,,,,,,
+https://github.com/MetaMask/metamask-extension/issues/37724,,strict,,0.0,,1,0,1776108358.9128215,,,,,,
+https://github.com/calcom/cal.com/issues/25087,,strict,,0.0,,1,0,1776108358.9128215,,,,,,
+https://github.com/algora-io/algora/issues/154,,strict,,0.0,,1,0,1776108358.9118197,,,,,,
+https://github.com/cxlinux-ai/cx-core/issues/425,,strict,,0.0,,1,0,1776108358.9118197,,,,,,
+https://github.com/x402-foundation/x402/issues/834,,strict,,0.0,,1,0,1776108358.899876,,,,,,
+https://github.com/StayLitCodes/Vaultix/issues/58,,strict,,0.0,,1,0,1776108358.8988764,,,,,,
+https://github.com/arclayerlabs/streamforge-stellar-rewards/issues/4,,strict,,0.0,,1,0,1776108358.8978775,,,,,,
+https://github.com/agarwalvivek29/skillbridge/issues/9,,strict,,0.0,,1,0,1776108358.8978775,,,,,,
+https://github.com/x402-foundation/x402/issues/1011,,strict,,0.0,,1,0,1776108358.8978775,,,,,,
+https://github.com/x402-foundation/x402/issues/1645,,strict,,0.0,,1,0,1776108358.8968763,,,,,,
+https://github.com/theblockcade/stellarcade/issues/497,,strict,,0.0,,1,0,1776108358.8958907,,,,,,

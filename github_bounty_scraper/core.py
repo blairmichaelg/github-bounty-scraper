@@ -59,6 +59,12 @@ class LeadResult(TypedDict):
     PrevScore: float | None
 
 
+def _append_raw(path: str, line: str) -> None:
+    """Sync helper to append a line to the raw candidate log."""
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(line)
+
+
 # ─── Per-issue processing ───────────────────────────────────────────
 async def process_issue(
     session: aiohttp.ClientSession,
@@ -364,9 +370,6 @@ async def process_issue(
             "body_snippet": body[:300].replace("\n", " ") if body else "",
             "reasons": raw_reasons
         }
-        def _append_raw(path: str, line: str) -> None:
-            with open(path, "a", encoding="utf-8") as fh:
-                fh.write(line)
         await asyncio.get_running_loop().run_in_executor(
             None, _append_raw, "exploration_raw.jsonl", json.dumps(cand) + "\n"
         )

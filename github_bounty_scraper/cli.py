@@ -187,6 +187,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Max concurrent Gemini API calls (default: 5).",
     )
 
+    # ── Dump Dataset Command ──
+    dump_parser = subparsers.add_parser(
+        "dump-dataset",
+        help="Export issue and repo stats to CSV for fine-tuning."
+    )
+    dump_parser.add_argument(
+        "--db-path",
+        type=str,
+        default="bounty_stats.db",
+        help="Path to the SQLite DB (default: bounty_stats.db)"
+    )
+    dump_parser.add_argument(
+        "--out",
+        type=str,
+        required=True,
+        help="Path to the output CSV file (e.g. bounty_dataset.csv)"
+    )
+
     return main_parser
 
 

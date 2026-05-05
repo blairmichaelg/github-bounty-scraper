@@ -6,6 +6,7 @@ from __future__ import annotations
  
 from typing import Any
 
+import csv
 import time
 
 import aiosqlite
@@ -404,3 +405,60 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
         return 0.5
 
     return total_escrows / (total_escrows + rugs)
+
+
+async def dump_dataset(db_path: str, out_path: str) -> None:
+    """Export the issue_stats table joined with repo_stats to a CSV file."""
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        # Ensure schema is at least initialized (if DB was empty/new)
+        await init_db(conn)
+
+        query = """
+            SELECT 
+                i.issue_url,
+                i.title,
+                i.lead_mode,
+                i.numeric_amount,
+                i.score,
+                i.prev_score,
+                i.escrow_verified,
+                i.is_dead_repo,
+                i.checked_at,
+                i.vibe_score,
+                i.vibe_reason,
+                r.merges_last_45d,
+                r.escrows_seen,
+                r.rugs_seen,
+                r.total_escrows_seen
+            FROM issue_stats i
+            LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
+            ORDER BY i.checked_at DESC
+        """
+        async with conn.execute(query) as cursor:
+            rows = await cursor.fetchall()
+
+        # CSV Writing (blocking, but acceptable for this tool)
+        import os
+        
+        # Use a temporary file and rename to ensure atomicity if needed, 
+        # but simple write is fine here.
+        with open(out_path, "w", encoding="utf-8", newline="") as f:
+            if not rows:
+                # Even if empty, write headers
+                writer = csv.writer(f)
+                writer.writerow([
+                    "issue_url", "title", "lead_mode", "numeric_amount", 
+                    "score", "prev_score", "escrow_verified", "is_dead_repo", 
+                    "checked_at", "vibe_score", "vibe_reason", 
+                    "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen"
+                ])
+                log.info("dump-dataset: no rows found, wrote headers to %s", out_path)
+                return
+
+            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(dict(row))
+        
+        log.info("dump-dataset: exported %d rows to %s", len(rows), out_path)

@@ -71,6 +71,9 @@ def main() -> None:
                 model=config.gemini_model,
             )
         )
+    elif command == "dump-dataset":
+        from .db import dump_dataset
+        asyncio.run(dump_dataset(ns.db_path, ns.out))
 
 if __name__ == "__main__":
     main()
