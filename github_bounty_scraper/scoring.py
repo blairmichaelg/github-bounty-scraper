@@ -82,10 +82,7 @@ def compute_score(
     escrow_norm = max(count_norm, weighted_norm)
 
     # ── Vibe component ──
-    if vibe_score_int is None:
-        vibe_norm = 0.5  # neutral; don’t punish unscored issues
-    else:
-        vibe_norm = vibe_score_int / 100.0  # 0–1
+    vibe_component = (vibe_score_int or 0) * 0.25
 
     # ── Weighted composite ──
     raw_score = (
@@ -94,8 +91,7 @@ def compute_score(
         + activity_norm * config.weight_activity
         + escrow_norm * config.weight_escrow_strength
         + repo_reputation * config.w_repo_reputation
-        + vibe_norm * config.w_vibe
-    ) * 100.0
+    ) * 100.0 + vibe_component
 
     # Soft negative penalty.
     if has_negative_soft:

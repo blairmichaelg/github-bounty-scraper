@@ -434,8 +434,27 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
     return total_escrows / (total_escrows + rugs)
 
 
-async def dump_dataset(db_path: str, out_path: str) -> None:
-    """Export the issue_stats table joined with repo_stats to a CSV file."""
+async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl") -> None:
+    """Export the issue_stats table joined with repo_stats and raw body text to a CSV file."""
+    import os
+    import json
+    import asyncio
+
+    # Load bodies from exploration_raw.jsonl to enrich the dataset
+    bodies = {}
+    if os.path.exists(raw_file):
+        def _read():
+            with open(raw_file, "r", encoding="utf-8") as f:
+                return f.read().splitlines()
+        lines = await asyncio.to_thread(_read)
+        for line in lines:
+            if not line.strip(): continue
+            try:
+                obj = json.loads(line)
+                key = obj.get("issue_url") or obj.get("url") or ""
+                bodies[key] = obj.get("body_snippet") or obj.get("body") or ""
+            except: pass
+
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
         # Ensure schema is at least initialized (if DB was empty/new)
@@ -467,27 +486,24 @@ async def dump_dataset(db_path: str, out_path: str) -> None:
         async with conn.execute(query) as cursor:
             rows = await cursor.fetchall()
 
-        # CSV Writing (blocking, but acceptable for this tool)
-        import os
-        
-        # Use a temporary file and rename to ensure atomicity if needed, 
-        # but simple write is fine here.
         with open(out_path, "w", encoding="utf-8", newline="") as f:
+            headers = [
+                "issue_url", "title", "body_snippet", "lead_mode", "numeric_amount", 
+                "score", "prev_score", "escrow_verified", "is_dead_repo", 
+                "checked_at", "vibe_score", "vibe_reason", 
+                "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen"
+            ]
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            
             if not rows:
-                # Even if empty, write headers
-                writer = csv.writer(f)
-                writer.writerow([
-                    "issue_url", "title", "lead_mode", "numeric_amount", 
-                    "score", "prev_score", "escrow_verified", "is_dead_repo", 
-                    "checked_at", "vibe_score", "vibe_reason", 
-                    "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen"
-                ])
                 log.info("dump-dataset: no rows found, wrote headers to %s", out_path)
                 return
 
-            writer = csv.DictWriter(f, fieldnames=rows[0].keys())
-            writer.writeheader()
             for row in rows:
-                writer.writerow(dict(row))
+                d = dict(row)
+                # Join body text from jsonl
+                d["body_snippet"] = bodies.get(d["issue_url"], "")
+                writer.writerow(d)
         
-        log.info("dump-dataset: exported %d rows to %s", len(rows), out_path)
+        log.info("dump-dataset: exported %d rows to %s (enriched with %d bodies)", len(rows), out_path, len(bodies))

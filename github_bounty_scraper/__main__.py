@@ -73,7 +73,13 @@ def main() -> None:
         )
     elif command == "dump-dataset":
         from .db import dump_dataset
-        asyncio.run(dump_dataset(ns.db_path, ns.out))
+        asyncio.run(
+            dump_dataset(
+                db_path=ns.db_path,
+                out_path=ns.out,
+                raw_file=getattr(ns, "raw_file", "exploration_raw.jsonl"),
+            )
+        )
 
 if __name__ == "__main__":
     main()

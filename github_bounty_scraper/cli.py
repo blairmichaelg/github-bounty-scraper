@@ -204,6 +204,13 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to the output CSV file (e.g. bounty_dataset.csv)"
     )
+    dump_parser.add_argument(
+        "--raw-file",
+        type=str,
+        default="exploration_raw.jsonl",
+        dest="raw_file",
+        help="Path to exploration_raw.jsonl used to enrich CSV with body text (default: ./exploration_raw.jsonl).",
+    )
 
     return main_parser
 

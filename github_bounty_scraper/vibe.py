@@ -248,16 +248,6 @@ async def run_vibe_check(
     from .db import init_db
     import aiosqlite
 
-    scored_urls: set[str] = set()
-    if mode == "unscored" and os.path.exists(db_path):
-        async with aiosqlite.connect(db_path) as conn:
-            await init_db(conn)
-            async with conn.execute(
-                "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL"
-            ) as cursor:
-                async for row in cursor:
-                    scored_urls.add(row[0])
-
     connector = aiohttp.TCPConnector(limit=10)
     async with aiohttp.ClientSession(
         connector=connector,
@@ -279,7 +269,8 @@ async def run_vibe_check(
                     if not line.strip(): continue
                     try:
                         obj = json.loads(line)
-                        bodies[obj.get("url", "")] = obj.get("body_snippet", "")
+                        key = obj.get("issue_url") or obj.get("url") or ""
+                        bodies[key] = obj.get("body_snippet") or obj.get("body") or ""
                     except: pass
 
             async with _aiosqlite.connect(db_path) as _conn:
@@ -293,7 +284,7 @@ async def run_vibe_check(
         async def _guarded_vibe(obj: dict) -> tuple[int, str, str]:
             issue_url = obj.get("issue_url") or obj.get("url") or ""
             title = obj.get("title", "").strip()
-            body_snippet = str(obj.get("body_snippet") or obj.get("body") or "")[:500]
+            body_snippet = str(obj.get("body_snippet") or obj.get("body") or "")[:1500]
             
             async with sem:
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
@@ -311,12 +302,15 @@ async def run_vibe_check(
                 break
 
             issue_url = obj.get("issue_url") or obj.get("url") or ""
-            if not issue_url or (mode == "unscored" and issue_url in scored_urls):
+            if not issue_url:
                 continue
 
             try:
                 score, reason, url = await _guarded_vibe(obj)
-                await asyncio.sleep(0.1)
+                if concurrency <= 2:
+                    await asyncio.sleep(0.5)
+                elif concurrency <= 5:
+                    await asyncio.sleep(0.15)
             except Exception as exc:
                 log.warning("Gemini call failed for %s: %s", issue_url, exc)
                 continue
