@@ -1,140 +1,170 @@
-# 🏴‍☠️ GitHub Bounty Scraper
+# GitHub Bounty Scraper
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Async](https://img.shields.io/badge/async-aiohttp%20%2B%20aiosqlite-green.svg)]()
 
-```
- ╔══════════════════════════════════════════╗
- ║   GITHUB  BOUNTY  SCRAPER               ║
- ║   ─────────────────────────              ║
- ║   Discover funded crypto bounties        ║
- ║   on GitHub Issues — async & fast.       ║
- ╚══════════════════════════════════════════╝
-```
-
-> Async Python pipeline that discovers and scores funded crypto bounties on
-> GitHub Issues using GraphQL enrichment, a scoring model, and SQLite caching.
+An async Python pipeline that discovers, enriches, and scores **funded crypto bounties** on GitHub Issues. It uses the GitHub GraphQL API for deep enrichment, a composite scoring model, SQLite caching, and an optional Gemini LLM "vibe check" layer.
 
 ---
 
-## Operational Modes
+## Features
 
-The scraper now supports two distinct operational modes tailored for different risk profiles:
+- **Two operational modes** — Strict (high-precision autopilot) and Opportunistic (high-recall scouting)
+- **GraphQL enrichment** — repo health, PR activity, escrow signals, snipe detection, lane blocking
+- **Composite scoring** — amount · recency · activity · escrow strength, configurable weights
+- **SQLite persistence** — deduplication, per-issue caching with adaptive TTLs, mode flags
+- **Optional LLM annotation** — Gemini 1.5 Flash vibe check with concurrency control
+- **CLI-first** — all features accessible via `github-bounty-scraper` subcommands
 
-### 1. Strict Mode (Default)
-**High-precision, autopilot-ready.**
-- Filters out "dead" repos (0 merges in 45 days).
-- Requires at least 5 stars and excludes single-contributor personal repos.
-- Requires explicit positive escrow signals in the body/comments.
-- Enforces a minimum bounty threshold (default $50).
+---
 
-**Example:**
+## Installation
+
+```bash
+git clone https://github.com/blairmichaelg/github-bounty-scraper.git
+cd github-bounty-scraper
+pip install -e .
+```
+
+**Authentication (choose one):**
+
+```bash
+# Option A — GitHub CLI (recommended)
+gh auth login
+
+# Option B — environment variable
+export GITHUB_TOKEN=ghp_your_token_here
+```
+
+---
+
+## Modes
+
+### Strict (default) — High Precision
+
+Only inserts leads that look like real, funded bounties on active repositories.
+
+| Gate | Requirement |
+|------|-------------|
+| Stars | ≥ 5 |
+| Repo activity | ≥ 1 merge in last 45 days |
+| Escrow signals | Required in body or comments |
+| Minimum amount | ≥ $50 USD (configurable) |
+| Dead repos | Excluded |
+| Raw candidate logging | Disabled |
+
 ```bash
 github-bounty-scraper scrape --since 2025-01-01 --max-issues 300 --mode strict
 ```
 
-### 2. Opportunistic Mode
-**Scouting mode for research and high-recall mining.**
-- Allows dead repos and lower star counts (>= 1).
-- Includes issues with "bounty-ish" titles or labels even if explicit escrow phrases are missing.
-- Allows lower bounty amounts (default $10).
-- Flags leads in the database with `lead_mode='opportunistic'`.
+### Opportunistic — High Recall
 
-**Example:**
+Surfaces edge-case and low-signal bounties. All leads are clearly flagged in the DB.
+
+| Gate | Requirement |
+|------|-------------|
+| Stars | ≥ 1 |
+| Repo activity | Dead repos allowed (`is_dead_repo=1`) |
+| Escrow signals | Optional if bounty cue in title/label |
+| Minimum amount | ≥ $10 or `-1.0` (cue present, amount missing) |
+| Raw candidate logging | Auto-enabled |
+
 ```bash
-github-bounty-scraper scrape --since 2023-01-01 --max-issues 500 --mode opportunistic --log-raw-candidates
+github-bounty-scraper scrape --since 2023-01-01 --max-issues 500 --mode opportunistic
 ```
 
 ---
 
-## Setup
+## CLI Reference
 
-```bash
-# Clone the repository
-git clone https://github.com/blairmichaelg/github-bounty-scraper.git
-cd github-bounty-scraper
+### `scrape`
+```
+github-bounty-scraper scrape [OPTIONS]
 
-# Install as a CLI tool (editable mode)
-pip install -e .
-
-# Authenticate with GitHub (choose one):
-# Option A: GitHub CLI (recommended)
-gh auth login
-
-# Option B: .env file
-echo 'GITHUB_TOKEN=ghp_your_token_here' > .env
+  --since DATE          Only issues updated on or after this date (YYYY-MM-DD)
+  --max-issues N        Cap total issues processed per run (0 = unlimited)
+  --mode MODE           strict (default) or opportunistic
+  --language LANG       Filter by language (repeatable)
+  --no-cache            Skip all TTL caches
+  --dry-run             Run pipeline without writing to DB
+  -v, --verbose         Enable debug logging
+  --log-raw-candidates  Write rejected candidates to exploration_raw.jsonl
 ```
 
----
+### `inspect-leads`
+```
+github-bounty-scraper inspect-leads [OPTIONS]
 
-## Usage
-
-### Scraping Bounties
-```bash
-# Basic run (Strict mode)
-github-bounty-scraper scrape --since 2025-01-01
-
-# Filter by language
-github-bounty-scraper scrape --language Python --language TypeScript
-
-# Opportunistic run with raw logging
-github-bounty-scraper scrape --mode opportunistic --log-raw-candidates
+  --mode MODE     strict | opportunistic | all (default: strict)
+  --limit N       Number of leads to display (default: 20)
+  --db-path PATH  Path to SQLite database (default: bounty_stats.db)
 ```
 
-### Inspecting Leads
-View recently saved leads directly from the command line:
+Output columns: `SCORE · AMOUNT · MODE · ESCROW · DEAD · VIBE · REPO · URL`
 
-```bash
-# View last 20 strict leads (default)
-github-bounty-scraper inspect-leads
-
-# View last 50 opportunistic leads
-github-bounty-scraper inspect-leads --mode opportunistic --limit 50
-
-# View all leads of any mode
-github-bounty-scraper inspect-leads --mode all
-
-# Specify a custom database path
-github-bounty-scraper inspect-leads --mode strict --db-path bounty_stats.db
+### `vibe-check` (optional, requires Gemini API key)
 ```
+github-bounty-scraper vibe-check [OPTIONS]
 
----
+  --mode MODE         unscored (default) | all | rescore
+  --limit N           Max issues to score (default: 50)
+  --concurrency N     Concurrent Gemini API calls (default: 5)
+  --raw-file PATH     Path to exploration_raw.jsonl
+  --db-path PATH      Path to SQLite database
 
-## Exploration & Tools
-
-When running with `--log-raw-candidates`, the scraper saves a noisy pool of structurally sane issues to `exploration_raw.jsonl`. This file is ignored by git and used for signal mining.
-
-Use the provided analysis tool to inspect the raw pool:
-```bash
-python tools/analyze_raw.py
-```
-
-### Vibe Check (LLM Scoring, Optional)
-
-You can optionally run a Gemini 1.5 Flash-based "vibe check" over the raw pool:
-
-```bash
-export GEMINI_API_KEY=your_api_key_here
-
+export GEMINI_API_KEY=your_key_here
 github-bounty-scraper vibe-check --mode unscored --limit 100
 ```
 
-This annotates `issue_stats` with `vibe_score`, `vibe_reason`, and `vibe_checked_at` for any issues that appear in `exploration_raw.jsonl`.
+---
+
+## Configuration
+
+### `scraper_config.json`
+Controls global thresholds, search queries, caching TTLs, concurrency, and scoring weights.
+Key fields:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `min_stars` | `5` | Minimum repo stars (strict) |
+| `min_bounty_amount` | `50.0` | Minimum USD amount (strict) |
+| `opportunistic_min_amount` | `10.0` | Minimum USD amount (opportunistic) |
+| `new_repo_grace_days` | `90` | Grace period before dead-repo check |
+| `semaphore_limit` | `15` | Max concurrent GraphQL enrichments |
+| `cache_ttl_active` | `7200` | Issue TTL for active repos (seconds) |
+
+### `signals_config.json`
+Contains all keyword lists used for signal detection:
+- `positive_escrow` — phrases that indicate funds are locked (e.g. `escrow`, `funded`, `locked`)
+- `negative_filters` — hard-disqualify phrases
+- `kill_labels` — GitHub label names that immediately drop an issue
+- `active_signals` / `stale_signals` — lane status detection
+- `aggregator_repos` — repos to always skip (e.g. bounty aggregators)
 
 ---
 
-## Database Schema (`issue_stats`)
+## Database Schema
 
-The scraper maintains a local SQLite database (`bounty_stats.db`). Each lead is enriched with mode-specific metadata:
+SQLite file: `bounty_stats.db` (git-ignored).
+
+**`issue_stats`** — one row per unique issue URL:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `score` | REAL | Composite score (0–100) |
-| `numeric_amount` | REAL | Parsed USD value (-1 = missing but accepted) |
-| `lead_mode` | TEXT | 'strict' or 'opportunistic' |
-| `escrow_verified` | INTEGER | 1 if positive escrow phrases were found |
-| `is_dead_repo` | INTEGER | 1 if repo has 0 merges in 45 days |
 | `issue_url` | TEXT PK | Full GitHub issue URL |
+| `title` | TEXT | Issue title |
+| `repo_name` | TEXT | `owner/repo` |
+| `score` | REAL | Composite score 0–100 |
+| `numeric_amount` | REAL | Parsed USD value (`-1` = cue present, amount missing) |
+| `raw_display_amount` | TEXT | Original amount string from issue |
+| `currency_symbol` | TEXT | USD, ETH, USDC, etc. |
+| `lead_mode` | TEXT | `strict` or `opportunistic` |
+| `escrow_verified` | INTEGER | 1 if positive escrow phrases found |
+| `is_dead_repo` | INTEGER | 1 if 0 merges in 45 days |
+| `vibe_score` | INTEGER | 0–100 LLM quality score (nullable) |
+| `vibe_reason` | TEXT | LLM one-line rationale (nullable) |
+| `checked_at` | REAL | Unix timestamp of last scrape |
 
 ---
 
@@ -142,19 +172,45 @@ The scraper maintains a local SQLite database (`bounty_stats.db`). Each lead is 
 
 ```
 github-bounty-scraper/
-├── github_bounty_scraper/     # Core package
-│   ├── cli.py                 # Argparse commands (scrape, inspect-leads)
-│   ├── config.py              # Strict vs Opportunistic overrides
-│   ├── core.py                # Pipeline orchestration
-│   ├── db.py                  # Database & inspection logic
-│   └── ...
+├── github_bounty_scraper/
+│   ├── __init__.py        # Package version
+│   ├── __main__.py        # Entry point dispatcher
+│   ├── bounty.py          # Amount extraction (dollar + crypto regex)
+│   ├── cli.py             # Argparse subcommands
+│   ├── config.py          # ScraperConfig dataclass + build_config()
+│   ├── core.py            # Pipeline orchestration (async)
+│   ├── db.py              # SQLite helpers, BatchCommitter, inspect query
+│   ├── discovery.py       # REST search API + query builder
+│   ├── graphql.py         # GraphQL enrichment + TokenBucket rate limiter
+│   ├── log.py             # Logging setup
+│   ├── output.py          # Text/Markdown/JSON output formatters
+│   ├── scoring.py         # Composite scoring model
+│   ├── signals.py         # Hard disqualifiers, soft signals, snipe detection
+│   └── vibe.py            # Optional Gemini LLM annotation layer
 ├── tools/
-│   └── analyze_raw.py         # Exploration analysis helper
-├── scraper_config.json        # Global thresholds & queries
-├── signals_config.json        # Signal keyword lists
-├── pyproject.toml             # Package configuration
-└── README.md
+│   └── analyze_raw.py     # Exploration helper: inspect exploration_raw.jsonl
+├── scraper_config.json    # Global thresholds and search queries
+├── signals_config.json    # Signal keyword lists
+├── pyproject.toml         # Package metadata and dependencies
+├── requirements.txt       # Pinned dependencies
+├── CHANGELOG.md           # Version history
+├── CONTRIBUTING.md        # Contribution guidelines
+└── LICENSE                # MIT License
 ```
+
+---
+
+## Exploration Tools
+
+When `--log-raw-candidates` is enabled, rejected-but-interesting candidates
+are written to `exploration_raw.jsonl` (git-ignored). Inspect them with:
+
+```bash
+python tools/analyze_raw.py
+```
+
+Output includes: total count, amount breakdown, org vs. personal repos,
+sample titles and URLs.
 
 ---
 

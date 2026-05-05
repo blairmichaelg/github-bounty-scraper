@@ -1,60 +1,39 @@
-# Contributing to GitHub Bounty Scraper
+# Contributing
 
-Welcome! This guide will help you get started with development and testing.
+## Prerequisites
+- Python 3.11+
+- A GitHub personal access token with `repo` and `read:org` scopes
+- (Optional) A Gemini API key for `vibe-check`
 
-## Dev Environment Setup
+## Setup
 
-1. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv .venv
-   # Windows
-   .venv\Scripts\activate
-   # macOS/Linux
-   source .venv/bin/activate
-   ```
-
-2. **Install in editable mode with dev dependencies:**
-   ```bash
-   pip install -e ".[dev]"
-   ```
-
-## Code Quality Checks
-
-Run these before submitting any changes:
-
-- **Linting:**
-  ```bash
-  ruff check .
-  ```
-
-- **Type Checking:**
-  ```bash
-  mypy github_bounty_scraper
-  ```
-
-## Smoke Testing
-
-Verify the pipeline with these commands:
-
-### Strict Mode (Default)
-High-precision leads with strict structural filters.
 ```bash
-github-bounty-scraper scrape --since 2025-01-01 --max-issues 50 --mode strict
+git clone https://github.com/blairmichaelg/github-bounty-scraper.git
+cd github-bounty-scraper
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -e ".[dev]"
 ```
 
-### Opportunistic Mode
-Loosened filters for broad signal mining.
+## Running Tests
+
 ```bash
-github-bounty-scraper scrape --since 2023-01-01 --max-issues 50 --mode opportunistic --log-raw-candidates
+pytest
 ```
 
-### Inspecting Leads
-```bash
-github-bounty-scraper inspect-leads --mode opportunistic --limit 10
-```
+## Code Style
+- Follow PEP 8. Run `ruff check .` before submitting.
+- All async functions must be properly awaited — no sync blocking calls in `async def`.
+- New config fields go in `ScraperConfig` with a sensible default and a comment.
+- New signal types go in `signals_config.json`, not hardcoded in Python.
 
-## Exploration Data
-Raw candidates are logged to `exploration_raw.jsonl` when `--log-raw-candidates` is used. Use the analysis tool to inspect them:
-```bash
-python tools/analyze_raw.py
-```
+## Submitting Changes
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature`.
+3. Make your changes with clear, atomic commits.
+4. Open a pull request against `master` with a description of what changed and why.
+
+## Signal List Updates
+To add new escrow keywords, kill labels, or aggregator repos, edit
+`signals_config.json` directly. All signal strings are automatically
+lowercased at load time.

@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+- `inspect-leads` CLI subcommand with `--mode`, `--limit`, and `--db-path` flags
+- `vibe_score` column surfaced in `inspect-leads` table output
+- `--concurrency` flag for `vibe-check` subcommand (default: 5)
+- Gemini API concurrency semaphore with per-call sleep throttle in `vibe.py`
+- `exploration_min_stars_raw` config field for opportunistic raw candidate floor
+
+### Changed
+- `resolve_github_token()` now checks environment variables before invoking `gh` CLI subprocess
+- Raw candidate logging in `core.py` is now non-blocking (async via `run_in_executor`)
+- Search page requests in `discovery.py` now include 0.5s inter-page and 0.3s inter-query sleeps to stay within REST secondary rate limits
+- `vibe-check` now accepts `concurrency` parameter in `run_vibe_check()`
+
+### Fixed
+- Removed duplicate threshold guards in `core.py` that could cause logic confusion in opportunistic mode
+- Fixed tautological `None` check in `signals.py` `_is_assignment_stale()`
+- Removed legacy root-level `scraper.py` shim (use `github-bounty-scraper` CLI or `python -m github_bounty_scraper`)
+
+### Documentation
+- README fully rewritten with mode comparison tables, full CLI reference, config field reference, and DB schema
+- CONTRIBUTING.md rewritten with setup, test, and style guidelines
+- Inline code comments added in `graphql.py` (comment pagination note) and `bounty.py` (short symbol risk note)
+
 ## [2.0.7] - 2026-04-29
 
 ### Fixed
