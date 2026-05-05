@@ -28,6 +28,7 @@ from .db import (
     should_skip_issue,
     upsert_issue_stats,
     upsert_repo_stats,
+    get_repo_reputation,
 )
 from .discovery import discover_issues
 from .graphql import TokenBucket, run_graphql_audit, fetch_graphql
@@ -38,6 +39,7 @@ from .signals import (
     apply_hard_disqualifiers,
     compute_soft_signals,
 )
+from .price_cache import refresh_prices
 
 log = get_logger()
  
@@ -54,6 +56,7 @@ class LeadResult(TypedDict):
     Title: str
     Labels: str
     Link: str
+    PrevScore: float | None
 
 
 # ─── Per-issue processing ───────────────────────────────────────────
@@ -134,6 +137,7 @@ async def process_issue(
             owner, repo, issue_number,
             pr_cap=config.pr_cap,
             tl_max_pages=config.tl_max_pages,
+            tl_page_size=config.timeline_page_size,
         )
 
     if not data or not data.get("repository") or not data["repository"].get("issue"):
@@ -246,6 +250,8 @@ async def process_issue(
     escrow_inc = 0
     rug_inc = 0
     snipe_inc = 0
+    prev_score_for_output: float | None = None
+    vibe_score_val: int | None = None
 
     # ── Hard disqualifiers ──
     disqualified, reason = apply_hard_disqualifiers(
@@ -294,7 +300,7 @@ async def process_issue(
     for c in comments:
         concat_text += " " + c.get("body", "")
 
-    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window)
+    bounty = extract_bounty_amount(concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window, config=config)
 
     num_val = bounty.numeric_amount
     display = bounty.raw_display
@@ -406,12 +412,30 @@ async def process_issue(
     #   num_val >= min_bounty_amount    → verified lead
 
 
+    # ── Repo reputation ──
+    if not config.dry_run:
+        await upsert_repo_stats(
+            db_conn, repo_name,
+            last_merged_pr_at=last_merged_at_ts,
+            merges_last_45d=merges_last_45,
+            escrow_increment=escrow_inc,
+            rug_increment=rug_inc,
+            snipe_increment=snipe_inc,
+            bounty_amount=num_val if num_val >= 0 else 0,
+        )
+        # No tick here; will tick after upsert_issue_stats.
+
+    repo_rep = await get_repo_reputation(db_conn, repo_name)
+
     # ── Scoring ──
     score = compute_score(
         numeric_amount=num_val if num_val > 0 else 0,
         issue_updated_at=issue_updated_at_raw,
         merges_last_45d=merges_last_45,
         positive_escrow_count=soft.positive_escrow_count,
+        positive_escrow_weight_sum=soft.escrow_weight_sum,
+        repo_reputation=repo_rep,
+        vibe_score_int=vibe_score_val if not config.dry_run else None,
         has_negative_soft=soft.has_negative_soft,
         config=config,
     )
@@ -428,6 +452,16 @@ async def process_issue(
         except ValueError:
             _last_updated_ts = 0.0
 
+        # Fetch previous score for delta tracking in output
+        async with db_conn.execute("SELECT score, vibe_score FROM issue_stats WHERE issue_url = ?", (url,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                prev_score_for_output = row[0]
+                vibe_score_val = row[1]
+            else:
+                prev_score_for_output = None
+                vibe_score_val = None
+
         await upsert_issue_stats(
             db_conn, url,
             scraped_amount=num_val,
@@ -442,15 +476,6 @@ async def process_issue(
             escrow_verified=escrow_verified,
             is_dead_repo=is_dead_repo_flag,
         )
-        await upsert_repo_stats(
-            db_conn, repo_name,
-            last_merged_pr_at=last_merged_at_ts,
-            merges_last_45d=merges_last_45,
-            escrow_increment=escrow_inc,
-            rug_increment=rug_inc,
-            snipe_increment=snipe_inc,
-            bounty_amount=num_val if num_val >= 0 else 0,
-        )
         await committer.tick()
 
     label_names = [la["name"] for la in labels]
@@ -464,6 +489,7 @@ async def process_issue(
         "Title": title,
         "Labels": f"[{', '.join(label_names)}]" if label_names else "[]",
         "Link": url,
+        "PrevScore": prev_score_for_output if not config.dry_run else None,
     }
 
 
@@ -529,6 +555,10 @@ async def run_pipeline(config: ScraperConfig) -> None:
     start_time = time.time()
 
     signals = load_signals(config.signals_config_file)
+
+    if config.enable_live_prices:
+        from .config import CRYPTO_KEYWORDS
+        await refresh_prices(CRYPTO_KEYWORDS)
 
     async with aiosqlite.connect(config.db_file) as db_conn:
         await init_db(db_conn)

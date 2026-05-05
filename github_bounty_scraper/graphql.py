@@ -93,7 +93,7 @@ async def fetch_graphql(
 
 # ─── Initial enrichment query ───────────────────────────────────────
 _ENRICHMENT_QUERY = """
-query($owner: String!, $name: String!, $issue: Int!) {
+query($owner: String!, $name: String!, $issue: Int!, $tl_page_size: Int!) {
   repository(owner: $owner, name: $name) {
     createdAt
     stargazerCount
@@ -118,7 +118,7 @@ query($owner: String!, $name: String!, $issue: Int!) {
         nodes { body createdAt }
         pageInfo { hasPreviousPage startCursor }
       }
-      timelineItems(first: 100, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
+      timelineItems(first: $tl_page_size, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
         nodes {
           __typename
           ... on CrossReferencedEvent { createdAt willCloseTarget source { ... on PullRequest { state isDraft createdAt updatedAt } } }
@@ -147,10 +147,10 @@ query($owner: String!, $name: String!, $after: String!) {
 
 # ─── Timeline pagination query ───────────────────────────────────────────
 _TIMELINE_PAGE_QUERY = """
-query($owner: String!, $name: String!, $issue: Int!, $after: String!) {
+query($owner: String!, $name: String!, $issue: Int!, $after: String!, $tl_page_size: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $issue) {
-      timelineItems(first: 100, after: $after,
+      timelineItems(first: $tl_page_size, after: $after,
         itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
         nodes {
           __typename
@@ -182,6 +182,7 @@ async def run_graphql_audit(
     issue_number: int,
     pr_cap: int = 200,
     tl_max_pages: int = 5,
+    tl_page_size: int = 25,
 ) -> dict | None:
     """Fetch detailed issue + repo health data via GraphQL.
 
@@ -191,7 +192,7 @@ async def run_graphql_audit(
 
     Returns the full ``data`` dict or ``None`` on failure.
     """
-    variables = {"owner": owner, "name": repo, "issue": issue_number}
+    variables = {"owner": owner, "name": repo, "issue": issue_number, "tl_page_size": tl_page_size}
     data = await fetch_graphql(session, bucket, token, _ENRICHMENT_QUERY, variables)
 
     if not data or not data.get("repository"):
@@ -264,7 +265,7 @@ async def run_graphql_audit(
 
             tl_data = await fetch_graphql(
                 session, bucket, token, _TIMELINE_PAGE_QUERY,
-                {"owner": owner, "name": repo, "issue": issue_number, "after": tl_cursor},
+                {"owner": owner, "name": repo, "issue": issue_number, "after": tl_cursor, "tl_page_size": tl_page_size},
             )
             if not tl_data or not tl_data.get("repository"):
                 break

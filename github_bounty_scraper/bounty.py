@@ -12,7 +12,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .config import STABLECOIN_SYMBOLS
+from .config import STABLECOIN_SYMBOLS, ScraperConfig
+from .price_cache import get_usd_price
 
 # ─── Result container ────────────────────────────────────────────────
 
@@ -84,6 +85,7 @@ def extract_bounty_amount(
     text: str,
     max_sane: float = 1e7,
     proximity_window: int = 300,
+    config: ScraperConfig | None = None,
 ) -> BountyResult:
     """Parse ``text`` for an explicit bounty dollar or token amount.
 
@@ -143,12 +145,22 @@ def extract_bounty_amount(
             continue
         symbol = m.group(2).upper()
         # Normalise stablecoins to USD value.
-        currency = "USD" if symbol in STABLECOIN_SYMBOLS or symbol == "USD" else symbol
+        if symbol in STABLECOIN_SYMBOLS or symbol == "USD":
+            currency = "USD"
+            norm_val = val
+        else:
+            currency = symbol
+            norm_val = val
+            if config and config.enable_live_prices:
+                price = get_usd_price(symbol)
+                if price > 0:
+                    norm_val = val * price
+
         prox = _proximity_score(text, m.start(), proximity_window)
         # Title-region bonus: first 200 chars are usually the issue title.
         if m.start() < 200 and prox == 0.0:
             prox = 0.5  # Conservative bonus — title amounts are high signal.
-        candidates.append((val, raw.strip(), currency, prox))
+        candidates.append((norm_val, raw.strip(), currency, prox))
 
     # ── Generic matches ──
     for m in _BOUNTY_VALUE_RE.finditer(text):

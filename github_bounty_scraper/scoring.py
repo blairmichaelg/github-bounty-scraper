@@ -20,6 +20,9 @@ def compute_score(
     issue_updated_at: str | None,
     merges_last_45d: int,
     positive_escrow_count: int,
+    positive_escrow_weight_sum: float,
+    repo_reputation: float,
+    vibe_score_int: int | None,
     has_negative_soft: bool,
     config: ScraperConfig,
 ) -> float:
@@ -68,11 +71,21 @@ def compute_score(
     # ── Activity component ──
     activity_norm = min(merges_last_45d, 20) / 20.0
 
-    # ── Escrow strength component ──
     # 5+ distinct positive escrow signal hits = full escrow score.
     # (Using the total signal list length as divisor made this nearly
     # always ~0, since the config list has 25+ entries.)
-    escrow_norm = min(positive_escrow_count / 5.0, 1.0)
+    count_norm = min(positive_escrow_count / 5.0, 1.0)
+    
+    # New weighted norm; cap at a reasonable max (e.g. 5.0)
+    weighted_norm = min(positive_escrow_weight_sum / 5.0, 1.0)
+    
+    escrow_norm = max(count_norm, weighted_norm)
+
+    # ── Vibe component ──
+    if vibe_score_int is None:
+        vibe_norm = 0.5  # neutral; don’t punish unscored issues
+    else:
+        vibe_norm = vibe_score_int / 100.0  # 0–1
 
     # ── Weighted composite ──
     raw_score = (
@@ -80,6 +93,8 @@ def compute_score(
         + recency_norm * config.weight_recency
         + activity_norm * config.weight_activity
         + escrow_norm * config.weight_escrow_strength
+        + repo_reputation * config.w_repo_reputation
+        + vibe_norm * config.w_vibe
     ) * 100.0
 
     # Soft negative penalty.

@@ -29,6 +29,7 @@ class SignalResult:
     """Aggregated soft signal strengths for an issue."""
 
     positive_escrow_count: int = 0  # Number of unique positive escrow signals matched
+    escrow_weight_sum: float = 0.0  # Heuristic weight sum of matched escrow signals
     negative_filter_count: int = 0  # Number of negative filter hits (usually 0 if not disqualified)
     stale_signal_count: int = 0     # Number of stale-work indicators matched
     active_signal_count: int = 0    # Number of active-work indicators matched
@@ -123,7 +124,20 @@ def compute_soft_signals(
         for s in pos_signals:
             if s in c_lower:
                 escrow_hits.add(s)
+
     result.positive_escrow_count = len(escrow_hits)
+    
+    # Calculate weighted sum for the unique hits
+    for s in escrow_hits:
+        base = 1.0
+        if "escrow" in s:
+            base += 1.0
+        if "address" in s or "0x" in s:
+            base += 1.0
+        if "paid on merge" in s or "reward" in s:
+            base += 0.5
+        result.escrow_weight_sum += base
+
     result.has_positive_escrow = result.positive_escrow_count > 0
 
     # ── Soft negative signals ──

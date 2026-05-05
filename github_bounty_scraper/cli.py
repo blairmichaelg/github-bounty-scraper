@@ -5,6 +5,7 @@ Argparse-based CLI for the GitHub Bounty Scraper.
 from __future__ import annotations
 
 import argparse
+import datetime
 
 from .config import ScraperConfig, build_config
 from .log import setup_logging
@@ -26,6 +27,8 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable DEBUG-level logging.",
     )
+    
+    _DEFAULT_SINCE = (datetime.date.today() - datetime.timedelta(days=90)).isoformat()
     
     subparsers = main_parser.add_subparsers(dest="command", required=True)
     
@@ -49,8 +52,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--since",
         type=str,
+        default=_DEFAULT_SINCE,
         metavar="YYYY-MM-DD",
-        help="Only consider issues updated on or after this date.",
+        help="Only consider issues updated on or after this date (default: 90 days ago, %(default)s).",
     )
     parser.add_argument(
         "--max-issues",

@@ -109,9 +109,19 @@ def write_markdown_output(
         lines.append("| Score | Amount | Currency | Repo | Title | Labels | Link |")
         lines.append("|-------|--------|----------|------|-------|--------|------|")
         for lead in verified:
-            safe_title = lead["Title"].replace("|", "\\|")[:80]
+            score = lead.get("Score", 0.0)
+            prev = lead.get("PrevScore")
+            prefix = ""
+            if prev is not None:
+                delta = score - prev
+                if delta >= 1.0:
+                    prefix = "↑ "
+                elif delta <= -1.0:
+                    prefix = "↓ "
+            
+            safe_title = (prefix + lead["Title"]).replace("|", "\\|")[:80]
             lines.append(
-                f"| {lead.get('Score', '')} | {lead['Amount']} "
+                f"| {score} | {lead['Amount']} "
                 f"| {lead.get('Currency', 'USD')} | {lead['Repo']} | {safe_title} "
                 f"| {lead['Labels']} | [link]({lead['Link']}) |"
             )

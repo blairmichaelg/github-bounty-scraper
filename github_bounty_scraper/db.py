@@ -90,11 +90,26 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "vibe_score INTEGER",
         "vibe_reason TEXT",
         "vibe_checked_at REAL",
+        "prev_score REAL",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
         except aiosqlite.OperationalError:
             pass  # Column already exists.
+
+    # ── Indexes ──
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at "
+        "ON issue_stats(checked_at DESC);"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode "
+        "ON issue_stats(lead_mode);"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_issue_stats_score "
+        "ON issue_stats(score DESC);"
+    )
 
     await conn.commit()
 
@@ -167,6 +182,7 @@ async def upsert_issue_stats(
              title, repo_name, lead_mode, escrow_verified, is_dead_repo)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
+            prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
             scraped_amount     = excluded.scraped_amount,
             first_seen_at      = COALESCE(issue_stats.first_seen_at, excluded.first_seen_at),
@@ -312,7 +328,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
         await init_db(conn)
-        query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
+        query = "SELECT score, prev_score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
         params: list[Any] = []
         if mode != "all":
             query += " WHERE lead_mode = ?"
@@ -367,3 +383,24 @@ async def set_issue_vibe(
             )
 
         await conn.commit()
+
+
+async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> float:
+    """Return a reputation score in [0, 1] based on historical escrows vs rugs.
+    
+    If no history is available, returns 0.5 (neutral prior).
+    """
+    async with conn.execute(
+        "SELECT total_escrows_seen, rugs_seen FROM repo_stats WHERE repo_name = ?",
+        (repo_name,),
+    ) as cursor:
+        row = await cursor.fetchone()
+
+    if not row:
+        return 0.5
+
+    total_escrows, rugs = row
+    if total_escrows == 0 and rugs == 0:
+        return 0.5
+
+    return total_escrows / (total_escrows + rugs)

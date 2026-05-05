@@ -21,10 +21,18 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         print(f"No leads found for mode={mode} yet.")
         sys.exit(0)
     
-    print(f"{'SCORE':<7} | {'AMOUNT':<12} | {'MODE':<14} | {'ESCROW':<6} | {'DEAD':<4} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
-    print("-" * 135)
+    print(f"{'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'ESCROW':<6} | {'DEAD':<4} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
+    print("-" * 142)
     for L in leads:
-        score = f"{L['score']:.2f}"
+        score_val = L['score']
+        score_str = f"{score_val:.2f}"
+        
+        prev_val = L.get("prev_score")
+        if prev_val is not None:
+            diff = score_val - prev_val
+            delta_str = f"{'+' if diff >= 0 else ''}{diff:.2f}"
+        else:
+            delta_str = "—"
         
         val = L.get("numeric_amount")
         if val is None or val == 0.0:
@@ -41,7 +49,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         repo = str(L.get('repo_name', ''))[:30]
         url = str(L.get('issue_url', ''))
         
-        print(f"{score:<7} | {amt:<12} | {mode_str:<14} | {escrow:<6} | {dead:<4} | {vibe:<5} | {repo:<30} | {url}")
+        print(f"{score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {escrow:<6} | {dead:<4} | {vibe:<5} | {repo:<30} | {url}")
 
 
 def main() -> None:

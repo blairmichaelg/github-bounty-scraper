@@ -113,17 +113,23 @@ class ScraperConfig:
     """Number of DB ops before commit.  Default: 25."""
 
     # ── Scoring weights ──
-    weight_amount: float = 0.4
-    """Weight for bounty amount in score calculation.  Default: 0.4."""
+    weight_amount: float = 0.30
+    """Weight for bounty amount in score calculation.  Default: 0.30."""
 
-    weight_recency: float = 0.25
-    """Weight for issue recency.  Default: 0.25."""
+    weight_recency: float = 0.20
+    """Weight for issue recency.  Default: 0.20."""
 
     weight_activity: float = 0.20
     """Weight for repo activity.  Default: 0.20."""
 
     weight_escrow_strength: float = 0.15
     """Weight for escrow signal strength.  Default: 0.15."""
+
+    w_repo_reputation: float = 0.10
+    """Weight for repo reputation term (escrows vs rugs). Default: 0.10."""
+
+    w_vibe: float = 0.05
+    """Weight for LLM vibe score term. Default: 0.05."""
 
     # ── Output ──
     output_format: str = "text"  # text | markdown | json
@@ -144,6 +150,12 @@ class ScraperConfig:
     output_file: str = ""  # Base name for output files (e.g. 'results' -> results.md, results.json)
     """Base name for output files.  Default: ''."""
 
+    enable_live_prices: bool = False
+    """Toggle live crypto price normalization. Default: False (use static)."""
+
+    live_price_timeout_seconds: int = 5
+    """Timeout for live price fetching. Default: 5."""
+
     # ── Filtering behaviour ──
     allow_assigned_if_stale: bool = True
     """Include assigned issues when assignment is stale.  Default: True."""
@@ -160,6 +172,9 @@ class ScraperConfig:
 
     tl_max_pages: int = 5
     """Max pages for timeline items.  Default: 5."""
+
+    timeline_page_size: int = 25
+    """Page size for timelineItems in GraphQL; 25 is a safe default."""
 
     # ── Paths ──
     db_file: str = "bounty_stats.db"
@@ -336,6 +351,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     total_weight = (
         cfg.weight_amount + cfg.weight_recency
         + cfg.weight_activity + cfg.weight_escrow_strength
+        + cfg.w_repo_reputation + cfg.w_vibe
     )
     if not (0.99 <= total_weight <= 1.01):
         log.warning(

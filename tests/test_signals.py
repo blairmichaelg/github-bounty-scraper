@@ -120,3 +120,25 @@ def test_compute_soft_signals():
     assert res.has_positive_escrow is False
     assert res.has_negative_soft is False
     assert res.lane_blocked is False
+
+def test_escrow_weight_sum():
+    signals = {
+        "positive_escrow": ["bounty", "escrow address", "paid on merge"],
+    }
+    
+    # "bounty" -> base 1.0
+    # "escrow address" -> base 1.0 + 1.0 (escrow) + 1.0 (address) = 3.0
+    # "paid on merge" -> base 1.0 + 0.5 (paid on merge) = 1.5
+    # Total = 5.5
+    
+    res = compute_soft_signals(
+        body="here is a bounty. the escrow address is 0x123. will be paid on merge.",
+        comments=[],
+        labels_nodes=[],
+        timeline_nodes=[],
+        issue={"assignees": {"totalCount": 0}},
+        signals=signals
+    )
+    
+    assert res.positive_escrow_count == 3
+    assert res.escrow_weight_sum == 5.5
