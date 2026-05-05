@@ -301,7 +301,6 @@ async def mark_issue_checked(
         """,
         (issue_url, checked_at, checked_at, checked_at),
     )
-    await conn.commit()
 
 
 async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
@@ -348,7 +347,7 @@ async def set_issue_vibe(
         await init_db(conn)
 
         # Try to update existing row first
-        await conn.execute(
+        cursor = await conn.execute(
             """
             UPDATE issue_stats
             SET
@@ -359,7 +358,7 @@ async def set_issue_vibe(
             """,
             (vibe_score, vibe_reason, checked_at, issue_url),
         )
-        if conn.total_changes == 0:
+        if cursor.rowcount == 0:
             log.debug(
                 "vibe-check: no issue_stats row for %s — skipping orphan insert.",
                 issue_url,

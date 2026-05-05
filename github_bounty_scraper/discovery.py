@@ -113,6 +113,11 @@ async def fetch_rest_search(
         except aiohttp.ClientError as exc:
             log.warning("Search HTTP error (attempt %d): %s", attempt, exc)
             await asyncio.sleep(2 * (attempt + 1))
+    log.error(
+        "Search query failed after %d retries (last status: rate-limit "
+        "or network error). Results may be incomplete.",
+        retries,
+    )
     return []
 
 
@@ -130,17 +135,18 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
              len(queries) * config.max_pages_per_query)
 
     unique_issues: dict[str, dict] = {}
-    max_cap = config.max_issues or float("inf")
     per_page = 100
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=30)
+    ) as session:
         for qi, query in enumerate(queries, 1):
-            if len(unique_issues) >= max_cap:
+            if config.max_issues and len(unique_issues) >= config.max_issues:
                 break
             await asyncio.sleep(0.3)
 
             for page in range(1, config.max_pages_per_query + 1):
-                if len(unique_issues) >= max_cap:
+                if config.max_issues and len(unique_issues) >= config.max_issues:
                     break
 
                 items = await fetch_rest_search(

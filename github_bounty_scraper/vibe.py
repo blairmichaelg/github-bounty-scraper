@@ -44,14 +44,9 @@ async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
         log.warning("Raw file %s does not exist; nothing to vibe-check.", raw_file)
         return
 
-    loop = asyncio.get_running_loop()
-
-    # Read the file in a thread to avoid blocking the event loop on disk IO.
-    def _read_lines() -> list[str]:
-        with open(raw_file, "r", encoding="utf-8") as fh:
-            return fh.readlines()
-
-    lines = await loop.run_in_executor(None, _read_lines)
+    lines = await asyncio.to_thread(
+        lambda: open(raw_file, "r", encoding="utf-8").read().splitlines()
+    )
     for line in lines:
         line = line.strip()
         if not line:
@@ -200,7 +195,9 @@ async def run_vibe_check(
                     scored_urls.add(row[0])
 
     vibe_sem = asyncio.Semaphore(concurrency)
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=35)
+    ) as session:
         count = 0
         async for obj in iter_raw_candidates(raw_file):
             if limit and count >= limit:

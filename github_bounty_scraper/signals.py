@@ -67,7 +67,8 @@ def apply_hard_disqualifiers(
       - Kill labels present.
       - Negative filter signals present.
     """
-    # Issue state
+    # Safety net: core.py fast-paths CLOSED before calling here,
+    # but guard in case future callers skip that check.
     if issue_state and issue_state.upper() == "CLOSED":
         return True, "issue is CLOSED"
 
@@ -129,7 +130,7 @@ def compute_soft_signals(
     if soft_neg:
         all_text = body_lower
         for c in comments:
-            all_text += " " + c.get("body", "").lower()
+            all_text += "\n" + c.get("body", "").lower()
         if any(s in all_text for s in soft_neg):
             result.has_negative_soft = True
 
@@ -178,6 +179,8 @@ def _is_lane_blocked(
             if max_active_ts is None or dt > max_active_ts:
                 max_active_ts = dt
 
+    now = datetime.datetime.now(datetime.timezone.utc)
+
     # Label-based active signal: treat matching labels as a recent claim.
     if labels_nodes:
         active_label_signals = signals.get("active_label_signals", [])
@@ -186,10 +189,7 @@ def _is_lane_blocked(
             if any(s in l_name for s in active_label_signals):
                 # GitHub doesn't expose label timestamps easily,
                 # so treat as max_active_ts = now − 1 day conservatively.
-                candidate = (
-                    datetime.datetime.now(datetime.timezone.utc)
-                    - datetime.timedelta(days=1)
-                )
+                candidate = now - datetime.timedelta(days=1)
                 if max_active_ts is None or candidate > max_active_ts:
                     max_active_ts = candidate
 
@@ -197,7 +197,7 @@ def _is_lane_blocked(
         max_stale_ts is None or max_active_ts > max_stale_ts
     ):
         # Age cap: if the active claim is too old, treat as stale.
-        age_days = (datetime.datetime.now(datetime.timezone.utc) - max_active_ts).days
+        age_days = (now - max_active_ts).days
         if age_days > active_signal_max_age_days:
             return False  # Active claim is too old — treat as stale.
         return True
@@ -258,11 +258,9 @@ def _check_ghost_squatter(
     When *allow_assigned_if_stale* is True, stale/re-opened assignments
     are allowed through.
     """
+    # Safety net: Verify assignees exist before checking for staleness.
     if issue.get("assignees", {}).get("totalCount", 0) > 0:
         if allow_assigned_if_stale and _is_assignment_stale(comments, timeline_nodes, signals):
             return False  # Stale assignment — let it through.
         return True  # Fresh assignment — skip.
-    return False
-
-
     return False

@@ -191,6 +191,7 @@ async def process_issue(
                 log.debug("Dead repo (0 merges, not new): %s", repo_name)
                 if not config.dry_run:
                     await mark_issue_checked(db_conn, url, time.time())
+                    await committer.tick()
                 return None
 
     labels = issue.get("labels", {}).get("nodes", [])
@@ -243,6 +244,7 @@ async def process_issue(
         log.debug("Lane blocked: %s", url)
         if not config.dry_run:
             await mark_issue_checked(db_conn, url, time.time())
+            await committer.tick()
         return None
 
     # ── Bounty amount extraction ──
@@ -296,7 +298,6 @@ async def process_issue(
 
     # ── Raw Candidate Logging ──
     if config.log_raw_candidates and not detect_snipe(timeline_nodes) and not soft.ghost_squatter and not is_lead_candidate:
-        import json
         cand = {
             "url": url,
             "repo_name": repo_name,
@@ -488,6 +489,13 @@ async def run_pipeline(config: ScraperConfig) -> None:
         if config.max_issues and len(issues) > config.max_issues:
             issues = issues[: config.max_issues]
             
+        if len(issues) > MAX_ISSUES_PER_RUN:
+            log.warning(
+                "Issue list (%d) exceeded MAX_ISSUES_PER_RUN=%d; "
+                "processing first %d only. Lower --max-issues to suppress.",
+                len(issues), MAX_ISSUES_PER_RUN, MAX_ISSUES_PER_RUN,
+            )
+
         issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]
 
         log.info(

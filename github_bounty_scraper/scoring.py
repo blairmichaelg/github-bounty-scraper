@@ -57,7 +57,7 @@ def compute_score(
                 datetime.datetime.now(datetime.timezone.utc) - updated_dt
             ).total_seconds() / 86400.0
             # Exponential decay, half-life = 30 days.
-            recency_norm = math.exp(-0.693 * days_ago / 30.0)
+            recency_norm = math.exp(-math.log(2) * days_ago / 30.0)
         except ValueError:
             pass
 
