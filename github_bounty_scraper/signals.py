@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import dataclass
+from typing import Any, cast
 
 from .log import get_logger
 
@@ -27,16 +28,16 @@ __all__ = [
 class SignalResult:
     """Aggregated soft signal strengths for an issue."""
 
-    positive_escrow_count: int = 0
-    negative_filter_count: int = 0
-    stale_signal_count: int = 0
-    active_signal_count: int = 0
-    kill_label_hit: bool = False
-    lane_blocked: bool = False
-    ghost_squatter: bool = False
-    is_closed: bool = False
-    has_negative_soft: bool = False
-    has_positive_escrow: bool = False
+    positive_escrow_count: int = 0  # Number of unique positive escrow signals matched
+    negative_filter_count: int = 0  # Number of negative filter hits (usually 0 if not disqualified)
+    stale_signal_count: int = 0     # Number of stale-work indicators matched
+    active_signal_count: int = 0    # Number of active-work indicators matched
+    kill_label_hit: bool = False    # True if a 'kill' label (e.g., 'invalid') was matched
+    lane_blocked: bool = False      # True if an active claim is newer than any stale signal
+    ghost_squatter: bool = False    # True if the issue has a fresh, non-stale assignee
+    is_closed: bool = False         # True if the issue state is CLOSED
+    has_negative_soft: bool = False # True if non-critical negative signals were found
+    has_positive_escrow: bool = False # True if at least one escrow signal matched
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -58,7 +59,7 @@ def apply_hard_disqualifiers(
     labels_nodes: list[dict],
     body: str,
     comments: list[dict],
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
 ) -> tuple[bool, str]:
     """Return ``(disqualified, reason)`` for hard-filter checks.
 
@@ -73,14 +74,14 @@ def apply_hard_disqualifiers(
         return True, "issue is CLOSED"
 
     # Kill labels
-    kill_switches = signals.get("kill_labels", [])
+    kill_switches = cast(list[str], signals.get("kill_labels", []))
     for label in labels_nodes:
         l_name = label.get("name", "").lower()
         if any(k in l_name for k in kill_switches):
             return True, f"kill label '{l_name}'"
 
     # Negative filters
-    neg_signals = signals.get("negative_filters", [])
+    neg_signals = cast(list[str], signals.get("negative_filters", []))
     body_lower = body.lower()
     if any(s in body_lower for s in neg_signals):
         return True, "negative filter in body"
@@ -99,7 +100,7 @@ def compute_soft_signals(
     labels_nodes: list[dict],
     timeline_nodes: list[dict],
     issue: dict,
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
     allow_assigned_if_stale: bool = True,
     active_signal_max_age_days: int = 90,
 ) -> SignalResult:
@@ -112,7 +113,7 @@ def compute_soft_signals(
     body_lower = body.lower()
 
     # ── Positive escrow count (set-based: count unique signal types) ──
-    pos_signals = signals.get("positive_escrow", [])
+    pos_signals = cast(list[str], signals.get("positive_escrow", []))
     escrow_hits: set[str] = set()
     for s in pos_signals:
         if s in body_lower:
@@ -126,7 +127,7 @@ def compute_soft_signals(
     result.has_positive_escrow = result.positive_escrow_count > 0
 
     # ── Soft negative signals ──
-    soft_neg = signals.get("soft_negative_signals", [])
+    soft_neg = cast(list[str], signals.get("soft_negative_signals", []))
     if soft_neg:
         all_text = body_lower
         for c in comments:
@@ -150,7 +151,7 @@ def compute_soft_signals(
 
 # ─── Lane blocked (renamed from evaluate_lane_status for clarity) ───
 def _is_lane_blocked(
-    comments: list[dict], signals: dict[str, list[str]],
+    comments: list[dict], signals: dict[str, list[str] | list[dict[str, Any]]],
     active_signal_max_age_days: int = 90,
     labels_nodes: list[dict] | None = None,
 ) -> bool:
@@ -160,8 +161,8 @@ def _is_lane_blocked(
     Claims older than *active_signal_max_age_days* are treated as stale.
     Also checks issue labels for active claim indicators.
     """
-    stale_signals = signals.get("stale_signals", [])
-    active_signals = signals.get("active_signals", [])
+    stale_signals = cast(list[str], signals.get("stale_signals", []))
+    active_signals = cast(list[str], signals.get("active_signals", []))
 
     max_stale_ts: datetime.datetime | None = None
     max_active_ts: datetime.datetime | None = None
@@ -183,7 +184,7 @@ def _is_lane_blocked(
 
     # Label-based active signal: treat matching labels as a recent claim.
     if labels_nodes:
-        active_label_signals = signals.get("active_label_signals", [])
+        active_label_signals = cast(list[str], signals.get("active_label_signals", []))
         for label in labels_nodes:
             l_name = label.get("name", "").lower()
             if any(s in l_name for s in active_label_signals):
@@ -208,10 +209,10 @@ def _is_lane_blocked(
 def _is_assignment_stale(
     comments: list[dict],
     timeline_nodes: list[dict],
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
 ) -> bool:
     """Return True if the most recent assignment looks stale."""
-    stale_signals = signals.get("stale_signals", [])
+    stale_signals = cast(list[str], signals.get("stale_signals", []))
 
     last_assigned_ts: datetime.datetime | None = None
     last_unassigned_ts: datetime.datetime | None = None
@@ -250,7 +251,7 @@ def _check_ghost_squatter(
     issue: dict,
     comments: list[dict],
     timeline_nodes: list[dict],
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
     allow_assigned_if_stale: bool,
 ) -> bool:
     """Return True if the issue has a **fresh** (non-stale) assignee.

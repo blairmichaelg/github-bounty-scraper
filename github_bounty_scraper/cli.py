@@ -20,6 +20,12 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Discover and score funded crypto bounties on GitHub Issues.",
         argument_default=argparse.SUPPRESS,
     )
+
+    main_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable DEBUG-level logging.",
+    )
     
     subparsers = main_parser.add_subparsers(dest="command", required=True)
     
@@ -103,11 +109,6 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Base name for output files (e.g. 'results' -> results.md, results.json). Only written if this flag is passed.",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable DEBUG-level logging.",
-    )
 
     parser.add_argument(
         "--mode",
@@ -185,18 +186,16 @@ def _build_parser() -> argparse.ArgumentParser:
     return main_parser
 
 
-def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, ScraperConfig | None]:
-    """Parse CLI arguments. Returns (command, namespace, ScraperConfig if scrape)."""
+def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, ScraperConfig]:
+    """Parse CLI arguments. Returns (command, namespace, ScraperConfig)."""
     parser = _build_parser()
     ns = parser.parse_args(argv)
     
-    if ns.command in ("inspect-leads", "vibe-check"):
-        return ns.command, ns, None
-
     # vars(ns) now contains ONLY keys the user explicitly provided.
     overrides = dict(vars(ns))
     overrides.pop("command", None)
 
+    # build_config handles this by ignoring unknown keys.
     config = build_config(overrides)
 
     # Logging must be set up before anything else logs.

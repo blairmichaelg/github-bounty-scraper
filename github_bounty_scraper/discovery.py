@@ -85,7 +85,7 @@ async def fetch_rest_search(
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json",
     }
-    params = {
+    params: dict[str, str | int] = {
         "q": query,
         "sort": sort_by,
         "order": "desc",

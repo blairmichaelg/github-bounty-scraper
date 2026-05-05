@@ -28,7 +28,22 @@ STABLECOIN_SYMBOLS = {"USDC", "USDT", "DAI", "BUSD"}
 
 @dataclass
 class ScraperConfig:
-    """Runtime configuration assembled from defaults → config file → CLI."""
+    """Runtime configuration for the GitHub Bounty Scraper.
+
+    Configuration is assembled with the following precedence:
+    1.  CLI arguments (highest priority)
+    2.  `scraper_config.json` file
+    3.  Dataclass defaults (lowest priority)
+
+    Sections:
+        - Authentication: GitHub PAT resolution.
+        - Search: API filters (stars, since, languages).
+        - Thresholds: Bounty amount and repo activity limits.
+        - Caching: TTLs for SQLite repo metadata cache.
+        - Concurrency: Semaphores and rate-limit token buckets.
+        - Scoring: Weights for the composite score formula.
+        - Output: File paths and formats.
+    """
 
     # ── Authentication ──
     github_token: str = ""
@@ -183,6 +198,9 @@ class ScraperConfig:
     exploration_min_stars_raw: int = 1
     """Min stars for exploration logging.  Default: 1."""
 
+    gemini_model: str = "gemini-2.5-flash"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
+    """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
+
 
 # ─── GitHub token resolution ────────────────────────────────────────
 def resolve_github_token() -> str:
@@ -209,7 +227,7 @@ def resolve_github_token() -> str:
 
 
 # ─── Signal config loader ───────────────────────────────────────────
-def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str]]:
+def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list[dict[str, Any]]]:
     """Load signal keyword lists from an external JSON file.
 
     All signal strings are lowercased at load time for case-insensitive
@@ -218,7 +236,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str]]:
     Falls back to empty lists if the file is missing or malformed.
     """
     log = get_logger()
-    defaults: dict[str, list[str]] = {
+    defaults: dict[str, list[str] | list[dict[str, Any]]] = {
         "positive_escrow": [],
         "negative_filters": [],
         "stale_signals": [],

@@ -7,7 +7,8 @@ import sys
 
 # Encoding safety (Windows terminals).
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
 
 from .cli import parse_args  # noqa: E402
 from .core import run_pipeline  # noqa: E402
@@ -59,6 +60,7 @@ def main() -> None:
                 limit=ns.limit,
                 mode=ns.mode,
                 concurrency=ns.concurrency,
+                model=config.gemini_model,
             )
         )
 

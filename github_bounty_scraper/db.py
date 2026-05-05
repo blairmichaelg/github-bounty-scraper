@@ -3,6 +3,8 @@ Database initialisation, schema migration, and caching helpers.
 """
 
 from __future__ import annotations
+ 
+from typing import Any
 
 import time
 
@@ -311,7 +313,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         conn.row_factory = aiosqlite.Row
         await init_db(conn)
         query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
-        params = []
+        params: list[Any] = []
         if mode != "all":
             query += " WHERE lead_mode = ?"
             params.append(mode)

@@ -26,6 +26,7 @@
   "exploration_min_stars_raw": 0,
   "opportunistic_allow_no_escrow": true,
   "opportunistic_allow_dead_repos": true,
+  "gemini_model": "gemini-2.5-flash",
 
   "search_queries": [
     "is:open is:issue label:\"💎 Bounty\" -author:app/renovate -author:renovate[bot] -author:dependabot[bot]",

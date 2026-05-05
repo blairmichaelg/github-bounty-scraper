@@ -39,6 +39,10 @@ def compute_score(
     A soft negative penalty of −10 is applied if soft negative signals are
     present but didn't trigger a hard disqualifier.
     """
+    # Composite Score Formula:
+    # Score = (W_amt * AmountNorm + W_rec * RecencyNorm + W_act * ActivityNorm + W_esc * EscrowNorm) * 100
+    # where all Norm values are [0, 1] and Weights sum to 1.0.
+
     # ── Amount component ──
     if numeric_amount <= 0:
         amount_norm = 0.0

@@ -11,9 +11,9 @@ import asyncio
 import datetime
 import json
 import time
-from typing import Any
+from typing import Any, TypedDict, cast
 
-MAX_ISSUES_PER_RUN = 1000
+
 
 import aiohttp
 import aiosqlite
@@ -40,6 +40,20 @@ from .signals import (
 )
 
 log = get_logger()
+ 
+# Hard safety cap — prevents runaway API usage on large result sets.
+MAX_ISSUES_PER_RUN = 1000
+ 
+class LeadResult(TypedDict):
+    """Enriched lead data for reporting."""
+    AmountNum: float
+    Amount: str
+    Currency: str
+    Score: float
+    Repo: str
+    Title: str
+    Labels: str
+    Link: str
 
 
 # ─── Per-issue processing ───────────────────────────────────────────
@@ -50,12 +64,40 @@ async def process_issue(
     db_conn: aiosqlite.Connection,
     sem: asyncio.Semaphore,
     config: ScraperConfig,
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
-) -> dict[str, Any] | None:
-    """Enrich a single issue via GraphQL and apply pipeline filters.
+) -> LeadResult | None:
+    """Execute the full 15-stage enrichment and scoring pipeline for a single issue.
 
-    Returns a lead dict on success, or ``None`` if filtered out.
+    Pipeline Stages:
+        1.  Token bucket acquisition (rate limit safety).
+        2.  Repo metadata cache check (SQLite).
+        3.  Skip check (already processed in current mode).
+        4.  GraphQL enrichment (Labels, Comments, Repository stats).
+        5.  Dead-repo kill (0 merges in 45 days, new-repo grace period).
+        6.  Hard disqualifiers (CLOSED status, kill labels, negative filters).
+        7.  Lane blocking check (active claim detection).
+        8.  Bounty amount extraction (USD/Crypto regex heuristics).
+        9.  Mode-specific thresholding (Strict vs. Opportunistic).
+        10. Raw candidate logging (exploration_raw.jsonl).
+        11. Snipe detection (comment-based claim detection).
+        12. Ghost squatter detection (fresh assignee check).
+        13. Composite scoring (Amount, Recency, Activity, Escrow).
+        14. Database upsert (Issue stats + Repo stats).
+        15. Batch commit tick.
+
+    Args:
+        session: Active aiohttp ClientSession.
+        bucket: Rate-limiting TokenBucket.
+        issue_item: Raw issue item from the discovery phase.
+        db_conn: aiosqlite connection.
+        sem: Concurrency semaphore.
+        config: ScraperConfig instance.
+        signals: Signals dictionary.
+        committer: BatchCommitter instance.
+
+    Returns:
+        LeadResult dict if the issue is a verified lead, else None.
     """
     url = issue_item.get("html_url", "")
     if not url:
@@ -69,7 +111,7 @@ async def process_issue(
     repo_name = f"{owner}/{repo}"
 
     # Skip known aggregator repos (loaded from signals_config.json).
-    aggregator_repos = signals.get("aggregator_repos", [])
+    aggregator_repos = cast(list[str], signals.get("aggregator_repos", []))
     if any(a in repo_name.lower() for a in aggregator_repos):
         log.debug("Skipping aggregator repo: %s", repo_name)
         return None
@@ -433,10 +475,10 @@ async def _process_with_retry(
     db_conn: aiosqlite.Connection,
     sem: asyncio.Semaphore,
     config: ScraperConfig,
-    signals: dict[str, list[str]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
     max_retries: int = 2,
-) -> dict[str, Any] | None:
+) -> LeadResult | None:
     """Wrap ``process_issue`` with a simple retry for transient errors."""
     for attempt in range(max_retries + 1):
         try:
@@ -468,7 +510,21 @@ async def _process_with_retry(
 
 # ─── Main pipeline ──────────────────────────────────────────────────
 async def run_pipeline(config: ScraperConfig) -> None:
-    """Run the full discovery → enrichment → scoring → output pipeline."""
+    """Run the full discovery → enrichment → scoring → output pipeline.
+
+    Phases:
+        1. Discovery: Search GitHub for potential bounty issues via REST API.
+        2. Enrichment: Concurrently fetch deep metadata via GraphQL and score.
+        3. Output: Generate Markdown/JSON reports and commit to DB.
+
+    Args:
+        config: Assembled ScraperConfig.
+
+    Side Effects:
+        - Creates/updates 'bounty_stats.db' SQLite database.
+        - Appends to 'exploration_raw.jsonl' if enabled.
+        - Writes 'output.md' and 'output.json' (if not dry-run).
+    """
     log.info("Initiating GitHub Bounty Scraper pipeline …")
     start_time = time.time()
 

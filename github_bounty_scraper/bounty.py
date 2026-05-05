@@ -95,6 +95,17 @@ def extract_bounty_amount(
     -------
     BountyResult
         Parsed result object containing numeric amount and display metadata.
+
+    Examples:
+        >>> res = extract_bounty_amount("Bounty: $500 for fixing this bug")
+        >>> res.numeric_amount
+        500.0
+        >>> res = extract_bounty_amount("Reward: 1 ETH")
+        >>> res.currency_symbol
+        'ETH'
+        >>> res = extract_bounty_amount("No money here, just a thank you")
+        >>> res.numeric_amount
+        0.0
     """
     result = BountyResult()
     seen: set[str] = set()
