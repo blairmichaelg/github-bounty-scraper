@@ -1,5 +1,11 @@
 """
 Entry point for ``python -m github_bounty_scraper``.
+
+Subcommands:
+- scrape: Run the main discovery and enrichment pipeline.
+- inspect-leads: View recently discovered bounty candidates.
+- vibe-check: Run LLM-based audit on exploration candidates.
+- dump-dataset: Export stats to CSV for model training.
 """
 
 import asyncio
@@ -78,8 +84,10 @@ def main() -> None:
                 db_path=ns.db_path,
                 out_path=ns.out,
                 raw_file=getattr(ns, "raw_file", "exploration_raw.jsonl"),
+                label_threshold=getattr(ns, "label_threshold", 25.0),
             )
         )
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,29 @@
 """
 Scoring model — computes a composite score for each issue based on
 bounty amount, recency, repo activity, and escrow signal strength.
+
+Formula
+-------
+Score = (W_amt * AmountNorm + W_rec * RecencyNorm + W_act * ActivityNorm +
+         W_esc * EscrowNorm + W_repo * RepoRepNorm + W_vibe * VibeNorm) * 100.0
+
+Ceiling Guarantee
+-----------------
+The score is guaranteed to be in [0, 100] as long as the weights sum to 1.0.
+
+Weights used from ScraperConfig:
+- weight_amount
+- weight_recency
+- weight_activity
+- weight_escrow_strength
+- w_repo_reputation
+- weight_vibe
+
+Example
+-------
+>>> from github_bounty_scraper.config import ScraperConfig
+>>> cfg = ScraperConfig(weight_amount=0.2, weight_recency=0.2, weight_activity=0.2, weight_escrow_strength=0.15, w_repo_reputation=0.1, weight_vibe=0.15)
+>>> score = compute_score(numeric_amount=500.0, issue_updated_at="2026-05-01T12:00:00Z", merges_last_45d=10, positive_escrow_count=3, positive_escrow_weight_sum=2.5, repo_reputation=0.8, vibe_score_int=85, has_negative_soft=False, config=cfg)
 """
 
 from __future__ import annotations
@@ -28,19 +51,19 @@ def compute_score(
 ) -> float:
     """Compute a composite score in [0, 100] for an issue.
 
-    Components
-    ----------
-    1. **Amount** — ``log10(amount + 1)`` normalised to [0, 1], capped at
-       $100k.  Weight: ``config.weight_amount``.
-    2. **Recency** — Exponential decay with 30-day half-life based on
-       ``issue_updated_at``.  Weight: ``config.weight_recency``.
-    3. **Repo activity** — ``min(merges_45d, 20) / 20``.
-       Weight: ``config.weight_activity``.
-    4. **Escrow strength** — ``min(positive_escrow_count / 5, 1)``.  5+ distinct
-       escrow signal hits = full score.  Weight: ``config.weight_escrow_strength``.
+    Args:
+        numeric_amount: Parsed USD value of the bounty.
+        issue_updated_at: GitHub ISO-8601 timestamp of last issue update.
+        merges_last_45d: Number of merged PRs in the repo in the last 45 days.
+        positive_escrow_count: Number of unique positive escrow signals found.
+        positive_escrow_weight_sum: Heuristic sum of weights for matched signals.
+        repo_reputation: Historical reliability score [0, 1] for the repo.
+        vibe_score_int: Optional [0, 100] score from Gemini vibe-check.
+        has_negative_soft: True if minor negative signals were detected.
+        config: ScraperConfig containing weights and thresholds.
 
-    A soft negative penalty of −10 is applied if soft negative signals are
-    present but didn't trigger a hard disqualifier.
+    Returns:
+        A composite score rounded to 2 decimal places.
     """
     # Composite Score Formula:
     # Score = (W_amt * AmountNorm + W_rec * RecencyNorm + W_act * ActivityNorm + W_esc * EscrowNorm) * 100

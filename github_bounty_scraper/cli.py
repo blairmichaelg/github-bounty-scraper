@@ -211,6 +211,12 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="raw_file",
         help="Path to exploration_raw.jsonl used to enrich CSV with body text (default: ./exploration_raw.jsonl).",
     )
+    dump_parser.add_argument(
+        "--label-threshold",
+        type=float,
+        default=25.0,
+        help="Minimum numeric_amount to label a row is_bounty=1. Default: 25.0.",
+    )
 
     return main_parser
 

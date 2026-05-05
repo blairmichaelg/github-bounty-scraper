@@ -148,6 +148,64 @@ Contains all keyword lists used for signal detection:
 
 ---
 
+## Fine-Tuning Pipeline
+
+Follow these steps to generate a high-quality training dataset for model fine-tuning.
+
+### Step 1 — Scrape (populate exploration_raw.jsonl)
+```powershell
+.\venv\Scripts\python.exe -m github_bounty_scraper scrape `
+    --log-raw-candidates `
+    --mode opportunistic `
+    --max-issues 500 `
+    --since 2025-11-01 `
+    --output-format json `
+    --output-file results
+```
+
+### Step 2 — Vibe-check all raw candidates
+```powershell
+.\venv\Scripts\python.exe -m github_bounty_scraper -v vibe-check `
+    --mode unscored `
+    --limit 500 `
+    --concurrency 3 `
+    --raw-file exploration_raw.jsonl `
+    --db-path bounty_stats.db
+```
+
+### Step 3 — Export fine-tuning dataset
+```powershell
+.\venv\Scripts\python.exe -m github_bounty_scraper dump-dataset `
+    --db-path bounty_stats.db `
+    --raw-file exploration_raw.jsonl `
+    --label-threshold 25.0 `
+    --out bounty_dataset.csv
+```
+
+### Step 4 — Sanity check CSV
+```powershell
+.\venv\Scripts\python.exe -c "
+import csv, collections
+rows = list(csv.DictReader(open('bounty_dataset.csv', encoding='utf-8')))
+labels = collections.Counter(r['is_bounty'] for r in rows)
+has_body = sum(1 for r in rows if r['body_snippet'].strip())
+print(f'Total rows     : {len(rows)}')
+print(f'is_bounty dist : {dict(labels)}')
+print(f'Rows with body : {has_body}/{len(rows)}')
+print(f'Vibe scored    : {sum(1 for r in rows if r[\"vibe_score\"])}')
+"
+```
+
+Target numbers for a usable training set:
+- ≥200 rows total
+- ≥60 rows is_bounty=1, ≥60 rows is_bounty=0
+- ≥70% of rows with non-empty body_snippet
+- ≥80% of rows with vibe_score present
+
+---
+
+---
+
 ## Database Schema
 
 SQLite file: `bounty_stats.db` (git-ignored).

@@ -26,23 +26,45 @@ __all__ = [
 
 @dataclass
 class SignalResult:
-    """Aggregated soft signal strengths for an issue."""
+    """Aggregated soft signal strengths for an issue.
 
-    positive_escrow_count: int = 0  # Number of unique positive escrow signals matched
-    escrow_weight_sum: float = 0.0  # Heuristic weight sum of matched escrow signals
-    negative_filter_count: int = 0  # Number of negative filter hits (usually 0 if not disqualified)
-    stale_signal_count: int = 0     # Number of stale-work indicators matched
-    active_signal_count: int = 0    # Number of active-work indicators matched
-    kill_label_hit: bool = False    # True if a 'kill' label (e.g., 'invalid') was matched
-    lane_blocked: bool = False      # True if an active claim is newer than any stale signal
-    ghost_squatter: bool = False    # True if the issue has a fresh, non-stale assignee
-    is_closed: bool = False         # True if the issue state is CLOSED
-    has_negative_soft: bool = False # True if non-critical negative signals were found
-    has_positive_escrow: bool = False # True if at least one escrow signal matched
+    Attributes:
+        positive_escrow_count: Number of unique positive escrow signals matched.
+        escrow_weight_sum: Heuristic weight sum of matched escrow signals.
+        negative_filter_count: Number of negative filter hits (usually 0 if not disqualified).
+        stale_signal_count: Number of stale-work indicators matched.
+        active_signal_count: Number of active-work indicators matched.
+        kill_label_hit: True if a 'kill' label (e.g., 'invalid') was matched.
+        lane_blocked: True if an active claim is newer than any stale signal.
+        ghost_squatter: True if the issue has a fresh, non-stale assignee.
+        is_closed: True if the issue state is CLOSED.
+        has_negative_soft: True if non-critical negative signals were found.
+        has_positive_escrow: True if at least one escrow signal matched.
+    """
+
+    positive_escrow_count: int = 0
+    escrow_weight_sum: float = 0.0
+    negative_filter_count: int = 0
+    stale_signal_count: int = 0
+    active_signal_count: int = 0
+    kill_label_hit: bool = False
+    lane_blocked: bool = False
+    ghost_squatter: bool = False
+    is_closed: bool = False
+    has_negative_soft: bool = False
+    has_positive_escrow: bool = False
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
 def _parse_gh_ts(raw: str | None) -> datetime.datetime | None:
+    """Parse a GitHub ISO-8601 timestamp string into a UTC datetime.
+
+    Args:
+        raw: The raw timestamp string from the GitHub API.
+
+    Returns:
+        A timezone-aware datetime object, or None if the input is empty or malformed.
+    """
     if not raw:
         return None
     try:
@@ -57,17 +79,22 @@ def _parse_gh_ts(raw: str | None) -> datetime.datetime | None:
 def apply_hard_disqualifiers(
     *,
     issue_state: str,
-    labels_nodes: list[dict],
+    labels_nodes: list[dict[str, Any]],
     body: str,
-    comments: list[dict],
+    comments: list[dict[str, Any]],
     signals: dict[str, list[str] | list[dict[str, Any]]],
 ) -> tuple[bool, str]:
     """Return ``(disqualified, reason)`` for hard-filter checks.
 
-    Hard disqualifiers:
-      - Issue is CLOSED.
-      - Kill labels present.
-      - Negative filter signals present.
+    Args:
+        issue_state: The state of the issue (e.g., 'OPEN', 'CLOSED').
+        labels_nodes: List of label objects associated with the issue.
+        body: The main text content of the issue.
+        comments: List of comment objects associated with the issue.
+        signals: Configuration dictionary containing signal keyword lists.
+
+    Returns:
+        A tuple of (is_disqualified, reason_string).
     """
     # Safety net: core.py fast-paths CLOSED before calling here,
     # but guard in case future callers skip that check.
@@ -97,18 +124,28 @@ def apply_hard_disqualifiers(
 def compute_soft_signals(
     *,
     body: str,
-    comments: list[dict],
-    labels_nodes: list[dict],
-    timeline_nodes: list[dict],
-    issue: dict,
+    comments: list[dict[str, Any]],
+    labels_nodes: list[dict[str, Any]],
+    timeline_nodes: list[dict[str, Any]],
+    issue: dict[str, Any],
     signals: dict[str, list[str] | list[dict[str, Any]]],
     allow_assigned_if_stale: bool = True,
     active_signal_max_age_days: int = 90,
 ) -> SignalResult:
     """Compute soft signal strengths without filtering.
 
-    Populates counts for positive escrow hits, stale/active signals,
-    lane-blocked status, and ghost-squatter status.
+    Args:
+        body: The main text content of the issue.
+        comments: List of comment objects associated with the issue.
+        labels_nodes: List of label objects associated with the issue.
+        timeline_nodes: List of timeline events (assigned, unassigned, etc.).
+        issue: The raw issue object from the GraphQL API.
+        signals: Configuration dictionary containing signal keyword lists.
+        allow_assigned_if_stale: Whether to treat assigned issues as open if assignment is stale.
+        active_signal_max_age_days: Age threshold for active work signals.
+
+    Returns:
+        A SignalResult object containing aggregated signal strengths.
     """
     result = SignalResult()
     body_lower = body.lower()
@@ -165,15 +202,21 @@ def compute_soft_signals(
 
 # ─── Lane blocked (renamed from evaluate_lane_status for clarity) ───
 def _is_lane_blocked(
-    comments: list[dict], signals: dict[str, list[str] | list[dict[str, Any]]],
+    comments: list[dict[str, Any]],
+    signals: dict[str, list[str] | list[dict[str, Any]]],
     active_signal_max_age_days: int = 90,
-    labels_nodes: list[dict] | None = None,
+    labels_nodes: list[dict[str, Any]] | None = None,
 ) -> bool:
     """Return True if an active claim is more recent than any stale signal.
 
-    ``True`` means the lane is **blocked** — someone is actively working.
-    Claims older than *active_signal_max_age_days* are treated as stale.
-    Also checks issue labels for active claim indicators.
+    Args:
+        comments: List of comment objects.
+        signals: Configuration dictionary.
+        active_signal_max_age_days: Threshold for signal staleness.
+        labels_nodes: Optional list of labels to check for active signals.
+
+    Returns:
+        True if the issue "lane" is actively occupied by a contributor.
     """
     stale_signals = cast(list[str], signals.get("stale_signals", []))
     active_signals = cast(list[str], signals.get("active_signals", []))
@@ -221,11 +264,20 @@ def _is_lane_blocked(
 
 # ─── Assignment staleness ───────────────────────────────────────────
 def _is_assignment_stale(
-    comments: list[dict],
-    timeline_nodes: list[dict],
+    comments: list[dict[str, Any]],
+    timeline_nodes: list[dict[str, Any]],
     signals: dict[str, list[str] | list[dict[str, Any]]],
 ) -> bool:
-    """Return True if the most recent assignment looks stale."""
+    """Return True if the most recent assignment looks stale.
+
+    Args:
+        comments: List of comment objects.
+        timeline_nodes: List of timeline events (AssignedEvent, etc.).
+        signals: Configuration dictionary.
+
+    Returns:
+        True if there is evidence that the current assignee has abandoned the task.
+    """
     stale_signals = cast(list[str], signals.get("stale_signals", []))
 
     last_assigned_ts: datetime.datetime | None = None
@@ -262,16 +314,23 @@ def _is_assignment_stale(
 
 # ─── Ghost squatter ─────────────────────────────────────────────────
 def _check_ghost_squatter(
-    issue: dict,
-    comments: list[dict],
-    timeline_nodes: list[dict],
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    timeline_nodes: list[dict[str, Any]],
     signals: dict[str, list[str] | list[dict[str, Any]]],
     allow_assigned_if_stale: bool,
 ) -> bool:
     """Return True if the issue has a **fresh** (non-stale) assignee.
 
-    When *allow_assigned_if_stale* is True, stale/re-opened assignments
-    are allowed through.
+    Args:
+        issue: Raw issue object.
+        comments: List of comments.
+        timeline_nodes: List of timeline events.
+        signals: Configuration dictionary.
+        allow_assigned_if_stale: Whether to bypass filtering for stale assignments.
+
+    Returns:
+        True if the issue is considered "squatted" by an active assignee.
     """
     # Safety net: Verify assignees exist before checking for staleness.
     if issue.get("assignees", {}).get("totalCount", 0) > 0:

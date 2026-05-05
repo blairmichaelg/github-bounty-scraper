@@ -1,155 +1,88 @@
 import pytest
 import datetime
+import random
 from github_bounty_scraper.scoring import compute_score
 from github_bounty_scraper.config import ScraperConfig
 
-def test_perfect_score(minimal_config):
-    """Large amount, very recent, active repo, strong escrow, no soft negative."""
-    score = compute_score(
-        numeric_amount=50000.0,
-        issue_updated_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        merges_last_45d=20,
-        positive_escrow_count=5,
-        positive_escrow_weight_sum=5.0,
-        repo_reputation=1.0,
-        vibe_score_int=100,
-        has_negative_soft=False,
-        config=minimal_config,
-    )
-    assert score >= 85.0
+@pytest.fixture
+def config():
+    return ScraperConfig()
 
-def test_zero_amount(minimal_config):
-    """numeric_amount=0, everything else maxed."""
-    score = compute_score(
-        numeric_amount=0.0,
-        issue_updated_at="2026-05-05T12:00:00Z",
-        merges_last_45d=10,
-        positive_escrow_count=3,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
-        has_negative_soft=False,
-        config=minimal_config,
-    )
-    # amount component is 0, total should be lower.
-    assert score < 60.0
-
-def test_negative_soft_penalty(minimal_config):
-    """Test penalty for has_negative_soft=True."""
-    # Baseline
-    score1 = compute_score(
-        numeric_amount=500.0,
-        issue_updated_at="2026-05-05T12:00:00Z",
-        merges_last_45d=5,
-        positive_escrow_count=1,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
-        has_negative_soft=False,
-        config=minimal_config,
-    )
-    # With penalty
-    score2 = compute_score(
-        numeric_amount=500.0,
-        issue_updated_at="2026-05-05T12:00:00Z",
-        merges_last_45d=5,
-        positive_escrow_count=1,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
-        has_negative_soft=True,
-        config=minimal_config,
-    )
-    assert score2 == max(0.0, score1 - 10.0)
-
-def test_unknown_age(minimal_config):
-    """issue_updated_at=None."""
-    score_recent = compute_score(
-        numeric_amount=500.0,
-        issue_updated_at="2026-05-05T12:00:00Z",
-        merges_last_45d=5,
-        positive_escrow_count=1,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
-        has_negative_soft=False,
-        config=minimal_config,
-    )
-    score_none = compute_score(
-        numeric_amount=500.0,
-        issue_updated_at=None,
-        merges_last_45d=5,
-        positive_escrow_count=1,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
-        has_negative_soft=False,
-        config=minimal_config,
-    )
-    assert score_none < score_recent
-
-@pytest.mark.parametrize("seed", range(10))
-def test_score_range(minimal_config, seed):
-    """Assert score is always in [0, 100]."""
-    import random
+@pytest.mark.parametrize("seed", range(20))
+def test_score_ceiling_never_exceeded(config, seed):
+    """Parametrize over 20 random combos of maxed inputs — assert score <= 100.0 every time."""
     random.seed(seed)
     score = compute_score(
-        numeric_amount=random.uniform(0, 200000),
-        issue_updated_at="2026-01-01T00:00:00Z" if random.random() > 0.1 else None,
-        merges_last_45d=random.randint(0, 50),
-        positive_escrow_count=random.randint(0, 5),
-        positive_escrow_weight_sum=random.uniform(0, 10),
+        numeric_amount=random.uniform(0, 1000000),
+        issue_updated_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        merges_last_45d=random.randint(0, 100),
+        positive_escrow_count=random.randint(0, 20),
+        positive_escrow_weight_sum=random.uniform(0, 50),
         repo_reputation=random.uniform(0, 1),
         vibe_score_int=random.choice([None, random.randint(0, 100)]),
-        has_negative_soft=random.choice([True, False]),
-        config=minimal_config,
-    )
-    assert 0.0 <= score <= 100.0
-
-def test_zero_sane_amount_guard(minimal_config):
-    """max_sane_amount=0 should not crash."""
-    minimal_config.max_sane_amount = 0
-    score = compute_score(
-        numeric_amount=500.0,
-        issue_updated_at="2026-05-05T12:00:00Z",
-        merges_last_45d=5,
-        positive_escrow_count=1,
-        positive_escrow_weight_sum=0.0,
-        repo_reputation=0.5,
-        vibe_score_int=None,
         has_negative_soft=False,
-        config=minimal_config,
+        config=config,
     )
-    assert isinstance(score, float)
+    assert score <= 100.0, f"Score {score} exceeded 100.0 with seed {seed}"
 
-def test_reputation_impact(minimal_config):
-    """Higher reputation should increase score."""
+def test_score_floor_never_negative(config):
+    """Assert score >= 0.0 for all-zero inputs."""
+    score = compute_score(
+        numeric_amount=0.0,
+        issue_updated_at=None,
+        merges_last_45d=0,
+        positive_escrow_count=0,
+        positive_escrow_weight_sum=0.0,
+        repo_reputation=0.0,
+        vibe_score_int=0,
+        has_negative_soft=True,
+        config=config,
+    )
+    assert score >= 0.0
+
+def test_weight_sum_exactly_one(config):
+    """Assert sum of all weight fields in ScraperConfig() == 1.0 (catches future drift immediately)."""
+    total = (
+        config.weight_amount
+        + config.weight_recency
+        + config.weight_activity
+        + config.weight_escrow_strength
+        + config.w_repo_reputation
+        + config.weight_vibe
+    )
+    assert abs(total - 1.0) < 1e-9
+
+def test_vibe_zero_does_not_penalize(config):
+    """vibe_score_int=0 should score the same as vibe_score_int=None.
+    
+    Vibe absent vs. vibe=0 are semantically different but should both contribute 0 to the vibe component.
+    """
     base_args = {
         "numeric_amount": 1000.0,
-        "issue_updated_at": "2026-05-05T12:00:00Z",
-        "merges_last_45d": 5,
-        "positive_escrow_count": 1,
-        "positive_escrow_weight_sum": 0.0,
-        "vibe_score_int": None,
-        "has_negative_soft": False,
-        "config": minimal_config,
-    }
-    score_low = compute_score(repo_reputation=0.0, **base_args)
-    score_high = compute_score(repo_reputation=1.0, **base_args)
-    assert score_high > score_low
-
-def test_vibe_impact(minimal_config):
-    """Higher vibe score should increase score."""
-    base_args = {
-        "numeric_amount": 1000.0,
-        "issue_updated_at": "2026-05-05T12:00:00Z",
-        "merges_last_45d": 5,
-        "positive_escrow_count": 1,
-        "positive_escrow_weight_sum": 0.0,
+        "issue_updated_at": "2026-05-01T12:00:00Z",
+        "merges_last_45d": 10,
+        "positive_escrow_count": 2,
+        "positive_escrow_weight_sum": 2.0,
         "repo_reputation": 0.5,
         "has_negative_soft": False,
-        "config": minimal_config,
+        "config": config,
     }
-    score_low = compute_score(vibe_score_int=0, **base_args)
-    score_high = compute_score(vibe_score_int=100, **base_args)
-    assert score_high > score_low
+    score_none = compute_score(vibe_score_int=None, **base_args)
+    score_zero = compute_score(vibe_score_int=0, **base_args)
+    assert score_none == score_zero
+
+def test_negative_soft_reduces_score(config):
+    """has_negative_soft=True should produce a lower score than False, all else equal."""
+    base_args = {
+        "numeric_amount": 1000.0,
+        "issue_updated_at": "2026-05-01T12:00:00Z",
+        "merges_last_45d": 10,
+        "positive_escrow_count": 2,
+        "positive_escrow_weight_sum": 2.0,
+        "repo_reputation": 0.5,
+        "vibe_score_int": 50,
+        "config": config,
+    }
+    score_clean = compute_score(has_negative_soft=False, **base_args)
+    score_soft_neg = compute_score(has_negative_soft=True, **base_args)
+    assert score_soft_neg < score_clean

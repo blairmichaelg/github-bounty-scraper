@@ -434,8 +434,15 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
     return total_escrows / (total_escrows + rugs)
 
 
-async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl") -> None:
-    """Export the issue_stats table joined with repo_stats and raw body text to a CSV file."""
+async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0) -> None:
+    """Export the issue_stats table joined with repo_stats and raw body text to a CSV file.
+
+    Args:
+        db_path: Path to the SQLite database.
+        out_path: Path to the output CSV file.
+        raw_file: Path to exploration_raw.jsonl for body enrichment.
+        label_threshold: Minimum numeric_amount to label a row is_bounty=1.
+    """
     import os
     import json
     import asyncio
@@ -505,12 +512,12 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             for row in rows:
                 d = dict(row)
                 d["body_snippet"] = bodies.get(d["issue_url"], "")
-                # is_bounty = 1 when: explicit numeric amount >= 10 AND vibe_score >= 50
+                # is_bounty = 1 when: explicit numeric amount >= label_threshold AND vibe_score >= 50
                 # is_bounty = 0 when: vibe_score < 30 OR no numeric amount
                 # is_bounty = NULL (empty) when: ambiguous — let the model decide
                 amount = d.get("numeric_amount") or 0
                 vibe = d.get("vibe_score")
-                if amount >= 10 and (vibe is None or vibe >= 50):
+                if amount >= label_threshold and (vibe is None or vibe >= 50):
                     d["is_bounty"] = 1
                 elif vibe is not None and vibe < 30:
                     d["is_bounty"] = 0

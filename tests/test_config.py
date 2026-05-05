@@ -6,12 +6,12 @@ def test_defaults():
     cfg = build_config({"config_file": "non_existent_config.json"})
     # Check some defaults
     assert cfg.min_stars == 5
-    assert cfg.weight_amount == 0.3
+    assert cfg.weight_amount == 0.2
 
 def test_override():
     cfg = build_config({"min_stars": 10, "config_file": "non_existent_config.json"})
     assert cfg.min_stars == 10
-    assert cfg.weight_amount == 0.3 # stays default
+    assert cfg.weight_amount == 0.2 # stays default
 
 def test_unknown_key_warning():
     with pytest.warns(UserWarning, match="unrecognized keys"):
