@@ -303,6 +303,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         return []
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
+        await init_db(conn)
         query = "SELECT score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
         params = []
         if mode != "all":
@@ -352,49 +353,9 @@ async def set_issue_vibe(
             (vibe_score, vibe_reason, checked_at, issue_url),
         )
         if conn.total_changes == 0:
-            # No existing row; insert minimal entry with vibe fields
-            await conn.execute(
-                """
-                INSERT INTO issue_stats (
-                    issue_url,
-                    checked_at,
-                    first_seen_at,
-                    last_seen_at,
-                    last_updated_at,
-                    numeric_amount,
-                    raw_display_amount,
-                    currency_symbol,
-                    score,
-                    title,
-                    repo_name,
-                    lead_mode,
-                    escrow_verified,
-                    is_dead_repo,
-                    vibe_score,
-                    vibe_reason,
-                    vibe_checked_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    issue_url,
-                    checked_at,
-                    checked_at,
-                    checked_at,
-                    0.0,
-                    -1.0,
-                    "",
-                    "",
-                    0.0,
-                    "",
-                    "",
-                    "opportunistic",
-                    0,
-                    0,
-                    vibe_score,
-                    vibe_reason,
-                    checked_at,
-                ),
+            log.debug(
+                "vibe-check: no issue_stats row for %s — skipping orphan insert.",
+                issue_url,
             )
 
         await conn.commit()

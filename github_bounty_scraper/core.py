@@ -23,6 +23,7 @@ from .config import ScraperConfig, load_signals
 from .db import (
     BatchCommitter,
     init_db,
+    mark_issue_checked,
     repo_cache_check,
     should_skip_issue,
     upsert_issue_stats,
@@ -189,6 +190,8 @@ async def process_issue(
                 pass
             else:
                 log.debug("Dead repo (0 merges, not new): %s", repo_name)
+                if not config.dry_run:
+                    await mark_issue_checked(db_conn, url, time.time())
                 return None
 
     labels = issue.get("labels", {}).get("nodes", [])
@@ -221,6 +224,7 @@ async def process_issue(
                 merges_last_45d=merges_last_45,
                 rug_increment=rug_inc,
             )
+            await mark_issue_checked(db_conn, url, time.time())
             await committer.tick()
         return None
 
@@ -310,12 +314,11 @@ async def process_issue(
             "body_snippet": body[:300].replace("\n", " ") if body else "",
             "reasons": raw_reasons
         }
-        _line = json.dumps(cand) + "\n"
-        _path = "exploration_raw.jsonl"
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: open(_path, "a", encoding="utf-8").write(_line),
+        def _append_raw(path: str, line: str) -> None:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(line)
+        await asyncio.get_running_loop().run_in_executor(
+            None, _append_raw, "exploration_raw.jsonl", json.dumps(cand) + "\n"
         )
 
     # ── Lead Checks ──
@@ -533,4 +536,5 @@ async def run_pipeline(config: ScraperConfig) -> None:
     )
 
     # Output.
-    write_output(all_leads, elapsed, config)
+    if not config.dry_run:
+        write_output(all_leads, elapsed, config)

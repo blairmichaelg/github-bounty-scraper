@@ -37,7 +37,7 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     # Build suffix fragments.
     suffixes: list[str] = []
     if config.min_stars and config.min_stars > 0:
-        suffixes.append(f"stars:>{config.min_stars}")
+        suffixes.append(f"stars:>={config.min_stars}")
     if config.since:
         suffixes.append(f"updated:>={config.since}")
 

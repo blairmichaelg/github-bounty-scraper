@@ -9,7 +9,8 @@ from typing import Any, AsyncIterator
 
 import aiohttp
 
-from .db import set_issue_vibe, get_logger
+from .db import set_issue_vibe
+from .log import get_logger
 
 log = get_logger()
 
@@ -97,7 +98,7 @@ async def call_gemini(
         },
     }
 
-    async with session.post(GEMINI_ENDPOINT, params=params, json=payload, timeout=30) as resp:
+    async with session.post(GEMINI_ENDPOINT, params=params, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as resp:
         resp.raise_for_status()
         data = await resp.json()
 
