@@ -75,6 +75,7 @@ async def process_issue(
     config: ScraperConfig,
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
+    seen_aggregators: set[str],
 ) -> LeadResult | None:
     """Execute the full 15-stage enrichment and scoring pipeline for a single issue.
 
@@ -122,7 +123,9 @@ async def process_issue(
     # Skip known aggregator repos (loaded from signals_config.json).
     aggregator_repos = cast(list[str], signals.get("aggregator_repos", []))
     if any(a in repo_name.lower() for a in aggregator_repos):
-        log.debug("Skipping aggregator repo: %s", repo_name)
+        if repo_name not in seen_aggregators:
+            seen_aggregators.add(repo_name)
+            log.debug("Skipping aggregator repo: %s", repo_name)
         return None
 
     issue_number = int(parts[3])
@@ -506,6 +509,7 @@ async def _process_with_retry(
     config: ScraperConfig,
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
+    seen_aggregators: set[str],
     max_retries: int = 2,
 ) -> LeadResult | None:
     """Wrap ``process_issue`` with a simple retry for transient errors."""
@@ -513,7 +517,7 @@ async def _process_with_retry(
         try:
             return await process_issue(
                 session, bucket, issue_item, db_conn, sem,
-                config, signals, committer,
+                config, signals, committer, seen_aggregators,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt < max_retries:
@@ -594,6 +598,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
 
         # Phase 2: Enrichment + scoring (with error isolation)
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
+        seen_aggregators: set[str] = set()
 
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -609,7 +614,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
             tasks = [
                 _process_with_retry(
                     session, bucket, issue, db_conn, sem,
-                    config, signals, committer,
+                    config, signals, committer, seen_aggregators,
                 )
                 for issue in issues_to_enrich
             ]

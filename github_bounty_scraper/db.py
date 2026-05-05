@@ -26,6 +26,13 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     await conn.execute("PRAGMA journal_mode=WAL;")
     await conn.execute("PRAGMA synchronous=NORMAL;")
 
+    # ── Migration: Ghost row cleanup ──
+    async with conn.execute("SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL") as cursor:
+        ghost_count = (await cursor.fetchone())[0]
+        if ghost_count > 0:
+            log.info("Migration: Purging %d zero-score ghost rows from issue_stats …", ghost_count)
+            await conn.execute("DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL")
+
     # ── repo_stats ──
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS repo_stats (
@@ -111,6 +118,14 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_issue_stats_score "
         "ON issue_stats(score DESC);"
     )
+
+    # ── checked_cache ──
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS checked_cache (
+            issue_url   TEXT PRIMARY KEY,
+            checked_at  REAL NOT NULL
+        );
+    """)
 
     await conn.commit()
 
@@ -222,10 +237,14 @@ async def should_skip_issue(
       - The issue's updatedAt hasn't changed since our last check AND
       - Our last check is within *ttl* seconds of now.
     """
-    async with conn.execute(
-        "SELECT last_seen_at, last_updated_at FROM issue_stats WHERE issue_url = ?",
-        (issue_url,),
-    ) as cursor:
+    query = """
+        SELECT MAX(checked_at), MAX(last_updated_at) FROM (
+            SELECT checked_at, last_updated_at FROM issue_stats WHERE issue_url = ?
+            UNION ALL
+            SELECT checked_at, 0.0 as last_updated_at FROM checked_cache WHERE issue_url = ?
+        )
+    """
+    async with conn.execute(query, (issue_url, issue_url)) as cursor:
         row = await cursor.fetchone()
 
     if row is None:
@@ -309,17 +328,13 @@ class BatchCommitter:
 async def mark_issue_checked(
     conn: aiosqlite.Connection, issue_url: str, checked_at: float
 ) -> None:
-    """Update or insert the check timestamp to refresh the cache TTL."""
+    """Insert or update a check timestamp in the tombstone cache."""
     await conn.execute(
-        """
-        INSERT INTO issue_stats (issue_url, checked_at, first_seen_at, last_seen_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(issue_url) DO UPDATE SET
-            checked_at   = excluded.checked_at,
-            last_seen_at = excluded.last_seen_at
-        """,
-        (issue_url, checked_at, checked_at, checked_at),
+        "INSERT OR REPLACE INTO checked_cache (issue_url, checked_at) VALUES (?, ?)",
+        (issue_url, checked_at),
     )
+    # We no longer need to commit here if using BatchCommitter, but for safety:
+    # await conn.commit()
 
 
 async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
@@ -433,6 +448,7 @@ async def dump_dataset(db_path: str, out_path: str) -> None:
                 r.total_escrows_seen
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
+            WHERE i.score > 0 OR i.numeric_amount > 0
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:

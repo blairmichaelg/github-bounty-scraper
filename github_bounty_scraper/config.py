@@ -216,6 +216,15 @@ class ScraperConfig:
     gemini_model: str = "gemini-2.5-flash"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
     """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
 
+    def __repr__(self) -> str:
+        import dataclasses
+        d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+        if d.get("github_token"):
+            d["github_token"] = "ghp_***REDACTED***"
+        return f"ScraperConfig({d})"
+
+    __str__ = __repr__
+
 
 # ─── GitHub token resolution ────────────────────────────────────────
 def resolve_github_token() -> str:
@@ -337,7 +346,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     # ── Mode overrides ──
     if cfg.mode == "opportunistic":
-        cfg.log_raw_candidates = True  # Auto-log raw candidates in opportunistic mode
+        pass  # Previously auto-enabled raw logging, now respect explicit default/override.
 
     # 4. Resolve token if not already set.
     if not cfg.github_token:

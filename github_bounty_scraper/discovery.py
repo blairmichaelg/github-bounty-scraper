@@ -93,7 +93,7 @@ async def fetch_rest_search(
         "page": page,
     }
 
-    for attempt in range(retries):
+    for attempt in range(retries + 1):
         try:
             async with session.get(
                 "https://api.github.com/search/issues",
@@ -101,7 +101,8 @@ async def fetch_rest_search(
                 params=params,
             ) as resp:
                 if resp.status in (403, 429):
-                    wait_t = 5 * (2 ** attempt)
+                    retry_delays = [5, 10, 20, 40]
+                    wait_t = retry_delays[attempt] if attempt < len(retry_delays) else retry_delays[-1]
                     log.warning("Search rate limit hit — sleeping %ds …", wait_t)
                     await asyncio.sleep(wait_t)
                     continue
@@ -116,7 +117,7 @@ async def fetch_rest_search(
     log.error(
         "Search query failed after %d retries (last status: rate-limit "
         "or network error). Results may be incomplete.",
-        retries,
+        retries + 1,
     )
     return []
 
