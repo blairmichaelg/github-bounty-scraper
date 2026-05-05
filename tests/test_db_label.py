@@ -45,12 +45,9 @@ def test_label_threshold_default_matches_config():
     """Assert that the default label_threshold in dump_dataset() equals ScraperConfig().min_bounty_amount."""
     import inspect
     from github_bounty_scraper.db import dump_dataset
+    from github_bounty_scraper.config import ScraperConfig
     
     sig = inspect.signature(dump_dataset)
     default_val = sig.parameters["label_threshold"].default
     
-    # Wait, the user said "equals ScraperConfig().min_bounty_amount".
-    # In my code I set it to 25.0 as a default in the function signature.
-    # In config.py, min_bounty_amount is 50.0 (Wait, did I change it?)
-    # Let me check config.py.
-    assert default_val == 25.0  # As requested in Fix 1a.
+    assert default_val == ScraperConfig().min_bounty_amount
