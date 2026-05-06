@@ -183,7 +183,11 @@
     "bounty was already paid",
     "already been claimed",
     "work has been delivered",
-    "payout has been processed"
+    "payout has been processed",
+    "agent completed",
+    "bot submitted pr",
+    "ai-generated solution",
+    "this pr was auto-generated"
   ],
   "stale_signals": [
     "bounty expired",
@@ -215,7 +219,11 @@
     "funds released to",
     "paid on merge",
     "bounty closed and paid",
-    "reward has been released"
+    "reward has been released",
+    "maintainer unresponsive",
+    "no response from maintainer",
+    "is this still active",
+    "is this bounty still valid"
   ],
   "active_signals": [
     "/attempt",
@@ -274,7 +282,9 @@
     "x402agent",
     "spectral-finance/lux",
     "livepeer/bounties",
-    "dasharo/dasharo-issues"
+    "dasharo/dasharo-issues",
+    "microg/GmsCore",
+    "commaai/openpilot"
   ],
   "active_label_signals": [
     "claimed",
@@ -286,7 +296,10 @@
     "being worked on"
   ],
   "blocked_authors": [
-    "faiyaz2139-del"
+    "faiyaz2139-del",
+    "lmee",
+    "Asobu01",
+    "templarx"
   ],
   "blocked_domains": [
     "mfkvault.com",

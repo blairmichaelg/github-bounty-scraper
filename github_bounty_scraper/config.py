@@ -63,7 +63,7 @@ class ScraperConfig:
     threshold are hard-disqualified in strict mode (ignored in
     opportunistic mode).  Range: 0–∞.  Default: 5."""
 
-    since: str = ""  # YYYY-MM-DD
+    since: str = ""  # YYYY-MM-DD — override in scraper_config.json; recommend "2026-01-01"
     """Only consider issues updated on or after this date.  Default: ''."""
 
     max_issues: int = 0  # 0 = unlimited
