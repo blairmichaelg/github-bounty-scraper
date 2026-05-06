@@ -98,6 +98,14 @@
     "assigned", "wip", "work in progress",
     "being worked on"
   ],
+  "blocked_authors": [
+    "faiyaz2139-del"
+  ],
+  "blocked_domains": [
+    "mfkvault.com",
+    "mfkvault",
+    "mfk-vault"
+  ],
   "soft_negative_signals": [
     "wip", "work in progress", "on hold", "blocked", "postponed",
     "not accepting", "not taking submissions", "paused",

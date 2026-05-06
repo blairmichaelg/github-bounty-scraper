@@ -110,6 +110,7 @@ query($owner: String!, $name: String!, $issue: Int!, $tl_page_size: Int!) {
       url
       state
       updatedAt
+      author { login }
       assignees(first: 1) { totalCount }
       labels(first: 10) { nodes { name } }
       # NOTE: Only the last 50 comments are fetched. Backward pagination is

@@ -56,6 +56,8 @@ class SignalResult:
     has_onchain_escrow: bool = False
     mentions_no_kyc: bool = False
     mentions_wallet_payout: bool = False
+    is_blocked: bool = False
+    block_reason: str = ""
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -146,7 +148,29 @@ def compute_soft_signals(
         A SignalResult object containing aggregated signal strengths.
     """
     result = SignalResult()
+
+    # Load blocked lists from config
+    blocked_authors = signals.get("blocked_authors", [])
+    blocked_domains = signals.get("blocked_domains", [])
+
+    issue_author = (issue.get("author", {}) or issue.get("user", {}) or {}).get("login", "").lower()
+    
     body_lower = body.lower()
+    all_text_lower = body_lower
+    for c in comments:
+        all_text_lower += "\n" + c.get("body", "").lower()
+    all_text_lower = ((issue.get("title") or "") + " " + all_text_lower).lower()
+
+    if issue_author in [a.lower() for a in blocked_authors]:
+        result.is_blocked = True
+        result.block_reason = f"blocked author: {issue_author}"
+        return result
+
+    if any(d.lower() in all_text_lower for d in blocked_domains):
+        result.is_blocked = True
+        result.block_reason = f"blocked domain in body"
+        return result
+
     all_text = body_lower
     for c in comments:
         all_text += "\n" + c.get("body", "").lower()

@@ -306,6 +306,13 @@ async def process_issue(
         active_signal_max_age_days=config.active_signal_max_age_days,
     )
 
+    if soft.is_blocked:
+        log.debug("BLOCKED: %s — %s", url, soft.block_reason)
+        if not config.dry_run:
+            await mark_issue_checked(db_conn, url, time.time())
+            await committer.tick()
+        return None
+
     if soft.lane_blocked:
         log.debug("Lane blocked: %s", url)
         if not config.dry_run:

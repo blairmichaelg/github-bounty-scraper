@@ -98,6 +98,7 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "vibe_reason TEXT",
         "vibe_checked_at REAL",
         "prev_score REAL",
+        "label INTEGER",
         "has_onchain_escrow INTEGER DEFAULT 0",
         "mentions_no_kyc INTEGER DEFAULT 0",
         "mentions_wallet_payout INTEGER DEFAULT 0",
