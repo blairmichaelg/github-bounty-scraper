@@ -283,6 +283,8 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "aggregator_repos": [],
         "active_label_signals": [],
         "soft_negative_signals": [],
+        "no_kyc_phrases": [],
+        "wallet_payout_phrases": [],
     }
     try:
         with open(path, "r", encoding="utf-8") as fh:

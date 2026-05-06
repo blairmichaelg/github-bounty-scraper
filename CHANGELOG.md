@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Payout signal threading: `has_onchain_escrow`, `mentions_no_kyc`, `mentions_wallet_payout` now flow through entire pipeline and are displayed in text/markdown/JSON output
+- Payout preference tie-breaking in output sorting: verified leads now sorted by score → escrow signals → wallet payout signals → no-KYC signals → amount
+- Markdown table "Payout" column with emoji badges: 🔒 (on-chain escrow), 💳 (direct wallet), 🆓 (no-KYC)
+- JSON output includes `has_onchain_escrow`, `mentions_wallet_payout`, `mentions_no_kyc` fields for all leads
+- Console output displays "Payout:" line with signal labels (ON-CHAIN ESCROW, WALLET PAYOUT, NO KYC) for both verified and unknown leads
 - `inspect-leads` CLI subcommand with `--mode`, `--limit`, and `--db-path` flags
 - `vibe_score` column surfaced in `inspect-leads` table output
 - `--concurrency` flag for `vibe-check` subcommand (default: 5)
@@ -10,20 +15,25 @@
 - `exploration_min_stars_raw` config field for opportunistic raw candidate floor
 
 ### Changed
+- Output formatters fully refactored: removed debug statements, added clean badge/signal rendering, consistent payout handling across all three formats
 - `resolve_github_token()` now checks environment variables before invoking `gh` CLI subprocess
 - Raw candidate logging in `core.py` is now non-blocking (async via `run_in_executor`)
 - Search page requests in `discovery.py` now include 0.5s inter-page and 0.3s inter-query sleeps to stay within REST secondary rate limits
 - `vibe-check` now accepts `concurrency` parameter in `run_vibe_check()`
 
 ### Fixed
+- Critical: `body_snippet` now assigned before `log_raw_candidates` block to prevent NameError on DB writes when `log_raw_candidates=False`
 - Removed duplicate threshold guards in `core.py` that could cause logic confusion in opportunistic mode
 - Fixed tautological `None` check in `signals.py` `_is_assignment_stale()`
 - Removed legacy root-level `scraper.py` shim (use `github-bounty-scraper` CLI or `python -m github_bounty_scraper`)
+- output.py: cleaned up debug print, added payout badges to unknown leads section, fixed markdown table headers
 
 ### Documentation
 - README fully rewritten with mode comparison tables, full CLI reference, config field reference, and DB schema
 - CONTRIBUTING.md rewritten with setup, test, and style guidelines
 - Inline code comments added in `graphql.py` (comment pagination note) and `bounty.py` (short symbol risk note)
+- Updated database schema docs to include payout signal columns (`has_onchain_escrow`, `mentions_no_kyc`, `mentions_wallet_payout`)
+- Added "Model Integrity Notes" section to README documenting feature prioritization and leakage-free model training
 
 ## [2.0.7] - 2026-04-29
 

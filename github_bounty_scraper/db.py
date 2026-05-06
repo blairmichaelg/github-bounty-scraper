@@ -534,9 +534,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 r.total_escrows_seen
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
-            WHERE i.score > 0
-               OR (i.numeric_amount IS NOT NULL AND i.numeric_amount != 0)
-               OR i.vibe_score IS NOT NULL
+            WHERE i.issue_url IS NOT NULL
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:
@@ -588,16 +586,23 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 if not d.get("mentions_wallet_payout"):
                     d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
 
-                # Task 3a: New safe label rule (decoupled from vibe_score)
+                # Labeling rule from Section 5
                 amount = d.get("numeric_amount") or 0
-                pos_escrow = d.get("positive_escrow_count") or 0
+                vibe = d.get("vibe_score")
+                mode = str(d.get("lead_mode") or "").lower()
+
+                is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) or \
+                              ("closed" in mode and vibe is not None and vibe >= 50)
                 
-                is_positive = (amount >= label_threshold or pos_escrow >= 1)
-                
+                is_negative = (vibe is not None and vibe < 30) or \
+                              (amount == 0 and vibe is None)
+
                 if is_positive:
                     d["is_bounty"] = 1
-                else:
+                elif is_negative:
                     d["is_bounty"] = 0
+                else:
+                    d["is_bounty"] = ""
                 
                 writer.writerow(d)
         

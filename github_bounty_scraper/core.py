@@ -57,6 +57,9 @@ class LeadResult(TypedDict):
     Labels: str
     Link: str
     PrevScore: float | None
+    HasOnchainEscrow: bool
+    MentionsNoKyc: bool
+    MentionsWalletPayout: bool
 
 
 def _append_raw(path: str, line: str) -> None:
@@ -257,6 +260,7 @@ async def process_issue(
     labels = issue.get("labels", {}).get("nodes", [])
     comments = issue.get("comments", {}).get("nodes", [])
     body = issue.get("body") or ""
+    body_snippet = body[:300].replace("\n", " ")
     title = issue.get("title") or ""
     timeline_nodes = issue.get("timelineItems", {}).get("nodes", [])
 
@@ -511,6 +515,9 @@ async def process_issue(
         "Labels": f"[{', '.join(label_names)}]" if label_names else "[]",
         "Link": url,
         "PrevScore": prev_score_for_output if not config.dry_run else None,
+        "HasOnchainEscrow": soft.has_onchain_escrow,
+        "MentionsNoKyc": soft.mentions_no_kyc,
+        "MentionsWalletPayout": soft.mentions_wallet_payout,
     }
 
 

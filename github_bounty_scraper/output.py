@@ -28,15 +28,27 @@ def write_output(
     verified = [lead for lead in leads if lead["AmountNum"] > 0]
     unknown = [lead for lead in leads if lead["AmountNum"] < 0]
 
-    # Sort verified by score (desc), then amount as tie-breaker.
-    verified.sort(key=lambda x: (x.get("Score", 0), x["AmountNum"]), reverse=True)
+    # Sort: score desc, then payout-preference tie-breakers, then amount.
+    verified.sort(
+        key=lambda x: (
+            x.get("Score", 0),
+            int(x.get("HasOnchainEscrow", False)),
+            int(x.get("MentionsWalletPayout", False)),
+            int(x.get("MentionsNoKyc", False)),
+            x["AmountNum"],
+        ),
+        reverse=True,
+    )
 
-    # Console output is suppressed for JSON-only runs.
     suppress_console = config.output_format == "json"
     write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
 
-    md_path = f"{config.output_file}.md" if config.output_file else config.output_md_file
-    json_path = f"{config.output_file}.json" if config.output_file else config.output_json_file
+    md_path = (
+        f"{config.output_file}.md" if config.output_file else config.output_md_file
+    )
+    json_path = (
+        f"{config.output_file}.json" if config.output_file else config.output_json_file
+    )
 
     if config.output_format == "markdown":
         write_markdown_output(verified, unknown, elapsed, md_path)
@@ -47,8 +59,11 @@ def write_output(
 
 # ─── Console (text) output ───────────────────────────────────────────
 def write_text_output(
-    verified: list[dict], unknown: list[dict], elapsed: float,
-    *, suppress_console: bool = False,
+    verified: list[dict],
+    unknown: list[dict],
+    elapsed: float,
+    *,
+    suppress_console: bool = False,
 ) -> None:
     if suppress_console:
         return
@@ -66,9 +81,21 @@ def write_text_output(
             if lead.get("Currency") and lead["Currency"] != "USD":
                 print(f"Currency: {lead['Currency']}")
             print(f"Repo    : {lead['Repo']}")
-            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            safe_title = (
+                str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            )
             print(f"Title   : {safe_title} {lead['Labels']}")
             print(f"Link    : {lead['Link']}")
+            # Payout-preference tags
+            tags = []
+            if lead.get("HasOnchainEscrow"):
+                tags.append("ON-CHAIN ESCROW")
+            if lead.get("MentionsWalletPayout"):
+                tags.append("WALLET PAYOUT")
+            if lead.get("MentionsNoKyc"):
+                tags.append("NO KYC")
+            if tags:
+                print(f"Payout  : {' | '.join(tags)}")
             print("-" * 60)
 
     if unknown:
@@ -79,9 +106,20 @@ def write_text_output(
             print(f"Score   : {lead.get('Score', 'N/A')}")
             print(f"Amount  : {lead['Amount']}")
             print(f"Repo    : {lead['Repo']}")
-            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            safe_title = (
+                str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
+            )
             print(f"Title   : {safe_title} {lead['Labels']}")
             print(f"Link    : {lead['Link']}")
+            tags = []
+            if lead.get("HasOnchainEscrow"):
+                tags.append("ON-CHAIN ESCROW")
+            if lead.get("MentionsWalletPayout"):
+                tags.append("WALLET PAYOUT")
+            if lead.get("MentionsNoKyc"):
+                tags.append("NO KYC")
+            if tags:
+                print(f"Payout  : {' | '.join(tags)}")
             print("-" * 60)
 
     print(f"Pipeline executed in {elapsed:.2f} seconds.")
@@ -94,7 +132,10 @@ def write_markdown_output(
     elapsed: float,
     path: str,
 ) -> None:
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
+    now_str = (
+        datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        + " UTC"
+    )
     lines = [
         "# GitHub Bounty Scraper — Results\n",
         f"**Generated:** {now_str}  ",
@@ -106,8 +147,12 @@ def write_markdown_output(
 
     if verified:
         lines.append("## Verified Bounty Leads\n")
-        lines.append("| Score | Amount | Currency | Repo | Title | Labels | Link |")
-        lines.append("|-------|--------|----------|------|-------|--------|------|")
+        lines.append(
+            "| Score | Amount | Currency | Repo | Title | Labels | Payout | Link |"
+        )
+        lines.append(
+            "|-------|--------|----------|------|-------|--------|--------|------|"
+        )
         for lead in verified:
             score = lead.get("Score", 0.0)
             prev = lead.get("PrevScore")
@@ -118,24 +163,46 @@ def write_markdown_output(
                     prefix = "↑ "
                 elif delta <= -1.0:
                     prefix = "↓ "
-            
-            safe_title = (prefix + lead["Title"]).replace("|", "\\|")[:80]
+
+            badges = []
+            if lead.get("HasOnchainEscrow"):
+                badges.append("🔒")
+            if lead.get("MentionsWalletPayout"):
+                badges.append("💳")
+            if lead.get("MentionsNoKyc"):
+                badges.append("🆓")
+            badge_str = " ".join(badges) if badges else "—"
+
+            safe_title = (prefix + lead["Title"]).replace("|", "\\|")[:75]
             lines.append(
                 f"| {score} | {lead['Amount']} "
                 f"| {lead.get('Currency', 'USD')} | {lead['Repo']} | {safe_title} "
-                f"| {lead['Labels']} | [link]({lead['Link']}) |"
+                f"| {lead['Labels']} | {badge_str} | [link]({lead['Link']}) |"
             )
         lines.append("")
 
     if unknown:
         lines.append("## Unknown / Custom Token Leads\n")
-        lines.append("| Score | Amount | Repo | Title | Labels | Link |")
-        lines.append("|-------|--------|------|-------|--------|------|")
+        lines.append(
+            "| Score | Amount | Repo | Title | Labels | Payout | Link |"
+        )
+        lines.append(
+            "|-------|--------|------|-------|--------|--------|------|"
+        )
         for lead in unknown:
+            badges = []
+            if lead.get("HasOnchainEscrow"):
+                badges.append("🔒")
+            if lead.get("MentionsWalletPayout"):
+                badges.append("💳")
+            if lead.get("MentionsNoKyc"):
+                badges.append("🆓")
+            badge_str = " ".join(badges) if badges else "—"
+
             safe_title = lead["Title"].replace("|", "\\|")[:80]
             lines.append(
                 f"| {lead.get('Score', '')} | {lead['Amount']} | {lead['Repo']} "
-                f"| {safe_title} | {lead['Labels']} | [link]({lead['Link']}) |"
+                f"| {safe_title} | {lead['Labels']} | {badge_str} | [link]({lead['Link']}) |"
             )
         lines.append("")
 
@@ -161,7 +228,9 @@ def write_json_output(
 ) -> None:
     """Write all leads to a JSON file with key fields."""
     output = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+        "generated_at": (
+            datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+        ),
         "pipeline_time_seconds": round(elapsed, 2),
         "total_leads": len(leads),
         "leads": [
@@ -174,6 +243,9 @@ def write_json_output(
                 "title": lead.get("Title", ""),
                 "labels": lead.get("Labels", ""),
                 "link": lead.get("Link", ""),
+                "has_onchain_escrow": lead.get("HasOnchainEscrow", False),
+                "mentions_wallet_payout": lead.get("MentionsWalletPayout", False),
+                "mentions_no_kyc": lead.get("MentionsNoKyc", False),
             }
             for lead in leads
         ],
