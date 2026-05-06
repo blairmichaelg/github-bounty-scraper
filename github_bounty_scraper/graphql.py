@@ -259,7 +259,7 @@ async def run_graphql_audit(
     if issue_data:
         first_c = issue_data.get("firstComments", {}).get("nodes", [])
         last_c = issue_data.get("lastComments", {}).get("nodes", [])
-        
+
         seen_dates = set()
         merged_comments = []
         for c in (first_c or []) + (last_c or []):

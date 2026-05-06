@@ -3,9 +3,9 @@ Live crypto price normalization and caching.
 """
 
 import time
-import asyncio
+
 import aiohttp
-from typing import Any
+
 from .log import get_logger
 
 log = get_logger()
@@ -105,11 +105,11 @@ async def refresh_prices(symbols: list[str]) -> None:
 def get_usd_price(symbol: str) -> float:
     """Return the cached or fallback USD price for a symbol."""
     sym = symbol.lower()
-    
+
     # Check cache (1 hour TTL)
     if sym in _PRICE_CACHE:
         price, fetched_at = _PRICE_CACHE[sym]
         if time.time() - fetched_at < 3600:
             return price
-            
+
     return HARDCODED_FALLBACKS.get(sym, 0.0)

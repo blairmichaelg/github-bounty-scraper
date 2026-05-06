@@ -30,7 +30,7 @@
   "exploration_min_stars_raw": 100,
   "opportunistic_allow_no_escrow": true,
   "opportunistic_allow_dead_repos": false,
-  "gemini_model": "gemini-2.5-flash-lite",
+  "gemini_model": "gemini-2.5-pro",
   "vibe_check_concurrency": 3,
   "vibe_check_limit": 25,
   "since": "2026-01-01",

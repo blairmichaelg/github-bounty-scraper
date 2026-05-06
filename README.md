@@ -29,7 +29,7 @@ An async Python pipeline that discovers, enriches, and scores **funded crypto bo
 - **GraphQL enrichment** — repo health, PR activity, escrow signals, snipe detection, lane blocking
 - **Composite scoring** — amount · recency · activity · escrow strength, configurable weights
 - **SQLite persistence** — deduplication, per-issue caching with adaptive TTLs, mode flags
-- **Optional LLM annotation** — Gemini 1.5 Flash vibe check with concurrency control
+- **Optional LLM annotation** — Gemini 2.5 Pro vibe check with concurrency control
 - **CLI-first** — all features accessible via `github-bounty-scraper` subcommands
 
 ---

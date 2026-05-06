@@ -1,5 +1,7 @@
 import datetime
+
 from github_bounty_scraper.signals import apply_hard_disqualifiers, compute_soft_signals
+
 
 def test_hard_disqualify_closed():
     """CLOSED issue is no longer hard-disqualified in signals.py (handled in core.py)."""
@@ -26,35 +28,37 @@ def test_hard_disqualify_kill_label():
 
 def test_lane_blocked_fresh_claim():
     """Active claim comment with recent date returns lane_blocked=True."""
+    import re
     recent = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = compute_soft_signals(
         body="hello",
-        comments=[{"body": "i am working on this", "createdAt": recent}],
+        comments=[{"body": "i am working on this right now please assign me", "createdAt": recent}],
         labels_nodes=[],
         timeline_nodes=[],
         issue={"assignees": {"totalCount": 0}},
         signals={
-            "active_signals": ["working on this"],
-            "stale_signals": [],
-            "positive_escrow": []
+            "active_signals_re": re.compile("working on this"),
+            "stale_signals_re": None,
+            "positive_escrow_re": None
         }
     )
     assert res.lane_blocked is True
 
 def test_lane_blocked_stale_claim():
     """Active claim older than active_signal_max_age_days returns lane_blocked=False."""
+    import re
     # Default is 90 days.
     old = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=100)).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = compute_soft_signals(
         body="hello",
-        comments=[{"body": "i am working on this", "createdAt": old}],
+        comments=[{"body": "i am working on this right now please assign me", "createdAt": old}],
         labels_nodes=[],
         timeline_nodes=[],
         issue={"assignees": {"totalCount": 0}},
         signals={
-            "active_signals": ["working on this"],
-            "stale_signals": [],
-            "positive_escrow": []
+            "active_signals_re": re.compile("working on this"),
+            "stale_signals_re": None,
+            "positive_escrow_re": None
         },
         active_signal_max_age_days=90
     )
@@ -62,6 +66,7 @@ def test_lane_blocked_stale_claim():
 
 def test_ghost_squatter_fresh():
     """Issue with assignee and no stale signal returns ghost_squatter=True."""
+    import re
     res = compute_soft_signals(
         body="hello",
         comments=[],
@@ -71,15 +76,16 @@ def test_ghost_squatter_fresh():
         ],
         issue={"assignees": {"totalCount": 1}},
         signals={
-            "stale_signals": ["abandoned"],
-            "active_signals": [],
-            "positive_escrow": []
+            "stale_signals_re": re.compile("abandoned"),
+            "active_signals_re": None,
+            "positive_escrow_re": None
         }
     )
     assert res.ghost_squatter is True
 
 def test_ghost_squatter_stale():
     """Assignee exists but stale signal in comment after assignment returns ghost_squatter=False."""
+    import re
     assigned_at = "2026-05-01T12:00:00Z"
     stale_at = "2026-05-02T12:00:00Z"
     res = compute_soft_signals(
@@ -91,9 +97,9 @@ def test_ghost_squatter_stale():
         ],
         issue={"assignees": {"totalCount": 1}},
         signals={
-            "stale_signals": ["abandoned"],
-            "active_signals": [],
-            "positive_escrow": []
+            "stale_signals_re": re.compile("abandoned"),
+            "active_signals_re": None,
+            "positive_escrow_re": None
         },
         allow_assigned_if_stale=True
     )

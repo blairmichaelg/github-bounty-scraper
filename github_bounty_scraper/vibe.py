@@ -256,7 +256,6 @@ async def run_vibe_check(
 
     sem = _make_sem(concurrency)
 
-    from .db import init_db
     import aiosqlite
 
     connector = aiohttp.TCPConnector(limit=10)
@@ -270,7 +269,7 @@ async def run_vibe_check(
             issue_url = obj.get("issue_url") or obj.get("url") or ""
             title = obj.get("title", "").strip()
             body_snippet = str(obj.get("body_snippet") or obj.get("body") or "")[:1500]
-            
+
             async with sem:
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
                 return s, r, issue_url
@@ -284,7 +283,7 @@ async def run_vibe_check(
                     async with _conn.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0") as cur:
                         async for r in cur:
                             scored_urls.add(r[0])
-            
+
             # Load optional retry list
             allowlist = set()
             if os.path.exists("vibe_retry.txt"):
@@ -312,7 +311,7 @@ async def run_vibe_check(
                                 continue
                             if not allowlist and url in scored_urls:
                                 continue
-                            
+
                             amt = float(obj.get("numeric_amount") or 0)
                             _offsets.append((amt, pos))
                         except Exception:

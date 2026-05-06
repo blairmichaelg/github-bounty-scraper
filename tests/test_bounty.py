@@ -1,4 +1,5 @@
-from github_bounty_scraper.bounty import extract_bounty_amount, detect_snipe
+from github_bounty_scraper.bounty import detect_snipe, extract_bounty_amount
+
 
 def test_extract_bounty_amount():
     # 1. "$500 bounty" -> 500.0
@@ -12,7 +13,7 @@ def test_extract_bounty_amount():
     # 3. "Bounty: 250" -> 250.0
     res = extract_bounty_amount("Bounty: 250")
     assert res.numeric_amount == 250.0
-    
+
     # 4. "bounty available" (no amount) -> -1.0
     # Current implementation requires a crypto keyword for -1.0 fallback.
     # I'll update the implementation to match the test if I want but actually
@@ -20,7 +21,7 @@ def test_extract_bounty_amount():
     # I'll update extract_bounty_amount to return -1.0 if proximity score > 0 but no candidates.
     res = extract_bounty_amount("bounty available")
     assert res.numeric_amount == -1.0
-    
+
     # 5. "please fix this bug" (no bounty cue at all) -> 0.0
     res = extract_bounty_amount("please fix this bug")
     assert res.numeric_amount == 0.0

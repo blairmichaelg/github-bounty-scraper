@@ -1,5 +1,7 @@
 import pytest
+
 from github_bounty_scraper.config import ScraperConfig
+
 
 @pytest.fixture
 def minimal_config():

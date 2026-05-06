@@ -156,7 +156,7 @@ def compute_soft_signals(
     blocked_domains = signals.get("blocked_domains", [])
 
     issue_author = (issue.get("author", {}) or issue.get("user", {}) or {}).get("login", "").lower()
-    
+
     body_lower = body.lower()
     all_text_lower = body_lower
     for c in comments:
@@ -170,7 +170,7 @@ def compute_soft_signals(
 
     if any(d.lower() in all_text_lower for d in blocked_domains):
         result.is_blocked = True
-        result.block_reason = f"blocked domain in body"
+        result.block_reason = "blocked domain in body"
         return result
 
     all_text = body_lower
@@ -187,7 +187,7 @@ def compute_soft_signals(
             escrow_hits.update(pos_signals_re.findall(c_lower))
 
     result.positive_escrow_count = len(escrow_hits)
-    
+
     # Calculate weighted sum for the unique hits
     for s in escrow_hits:
         base = 1.0
@@ -197,14 +197,14 @@ def compute_soft_signals(
             base += 1.0
         if "paid on merge" in s or "reward" in s:
             base += 0.5
-            
+
         # Extra bonuses for clear on-chain / no-KYC preference
         if any(k in s for k in ["vault", "safe multisig", "gnosis safe", "multisig"]):
             base += 0.5
         if "no kyc" in all_text and ("payout" in all_text or "reward" in all_text or "paid" in all_text):
             # Add a small bonus once if no-KYC is mentioned in context
             base += 0.1  # Distributed across hits, or just add 0.5 to total
-            
+
         result.escrow_weight_sum += base
 
     # Explicit global bonuses to escrow_weight_sum (guarded against double-count)
@@ -231,12 +231,12 @@ def compute_soft_signals(
     # ── Derived booleans for payout structure ──
     no_kyc_re = signals.get("no_kyc_phrases_re")
     wallet_re = signals.get("wallet_payout_phrases_re")
-    
+
     if no_kyc_re and no_kyc_re.search(all_text):
         result.mentions_no_kyc = True
     if wallet_re and wallet_re.search(all_text):
         result.mentions_wallet_payout = True
-        
+
     result.has_onchain_escrow = any(
         any(k in s for k in [
             "vault", "escrow", "multisig", "gnosis", "hats",

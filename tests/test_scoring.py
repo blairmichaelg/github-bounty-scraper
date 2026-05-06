@@ -1,8 +1,11 @@
-import pytest
 import datetime
 import random
-from github_bounty_scraper.scoring import compute_score
+
+import pytest
+
 from github_bounty_scraper.config import ScraperConfig
+from github_bounty_scraper.scoring import compute_score
+
 
 @pytest.fixture
 def config():

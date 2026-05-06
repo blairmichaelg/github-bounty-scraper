@@ -27,11 +27,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable DEBUG-level logging.",
     )
-    
+
     _DEFAULT_SINCE = (datetime.date.today() - datetime.timedelta(days=90)).isoformat()
-    
+
     subparsers = main_parser.add_subparsers(dest="command", required=True)
-    
+
     # ── Scrape Command ──
     parser = subparsers.add_parser("scrape", help="Run the scraper pipeline", argument_default=argparse.SUPPRESS)
 
@@ -243,7 +243,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
     """Parse CLI arguments. Returns (command, namespace, ScraperConfig)."""
     parser = _build_parser()
     ns = parser.parse_args(argv)
-    
+
     # vars(ns) now contains ONLY keys the user explicitly provided.
     overrides = dict(vars(ns))
     command = overrides.pop("command", None)

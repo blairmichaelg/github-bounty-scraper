@@ -1,6 +1,6 @@
 import json
-import sys
 import os
+import sys
 
 RAW_FILE = "exploration_raw.jsonl"
 
@@ -8,7 +8,7 @@ def main():
     if not os.path.exists(RAW_FILE):
         print(f"No raw candidate file yet ({RAW_FILE} not found).")
         sys.exit(0)
-        
+
     cands = []
     try:
         with open(RAW_FILE, "r", encoding="utf-8") as f:

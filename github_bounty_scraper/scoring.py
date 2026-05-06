@@ -105,10 +105,10 @@ def compute_score(
     # (Using the total signal list length as divisor made this nearly
     # always ~0, since the config list has 25+ entries.)
     count_norm = min(positive_escrow_count / 5.0, 1.0)
-    
+
     # New weighted norm; cap at a reasonable max (e.g. 5.0)
     weighted_norm = min(positive_escrow_weight_sum / 5.0, 1.0)
-    
+
     escrow_norm = max(count_norm, weighted_norm)
 
     # Payout quality bonuses — capped so escrow_norm stays <= 1.0

@@ -1,5 +1,7 @@
 import pytest
-from github_bounty_scraper.config import build_config, ScraperConfig
+
+from github_bounty_scraper.config import build_config
+
 
 def test_defaults():
     # Pass a non-existent config file to ensure we only get defaults

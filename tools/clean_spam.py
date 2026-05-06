@@ -1,4 +1,5 @@
 import sqlite3
+
 conn = sqlite3.connect('bounty_stats.db')
 spam_urls = [
     'https://github.com/sickn33/antigravity-awesome-skills/issues/550',

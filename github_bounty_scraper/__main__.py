@@ -21,8 +21,12 @@ from .core import run_pipeline  # noqa: E402
 
 
 async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
-    import os, joblib, numpy as np, json
-    
+    import json
+    import os
+
+    import joblib
+    import numpy as np
+
     # Task 5: Assert leakage-free model
     meta = {}
     if os.path.exists("best_threshold.json"):
@@ -32,7 +36,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
                 print("\nFATAL: Model in bounty_model.pkl is NOT leakage-free (detected by best_threshold.json).")
                 print("Run tools/train_bounty_model.py to generate a production-ready model.")
                 sys.exit(1)
-    
+
     prod_features = meta.get("features") or [
         'vibe_score','positive_escrow_count','escrow_weight_sum',
         'has_onchain_escrow','mentions_no_kyc','mentions_wallet_payout',
@@ -44,7 +48,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
     if not leads:
         print(f"No leads found for mode={mode} yet.")
         sys.exit(0)
-    
+
     # Attempt to load ML model for probability lift
     model = None
     if os.path.exists("bounty_model.pkl"):
@@ -94,14 +98,14 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         ml_prob_str = f"{L.get('ml_prob', 0)*100:3.0f}%"
         score_val = L['score']
         score_str = f"{score_val:.2f}"
-        
+
         prev_val = L.get("prev_score")
         if prev_val is not None:
             diff = score_val - prev_val
             delta_str = f"{'+' if diff >= 0 else ''}{diff:.2f}"
         else:
             delta_str = "—"
-        
+
         val = L.get("numeric_amount")
         if val is None or val == 0.0:
             amt = "Unknown"
@@ -109,12 +113,12 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
             amt = "Custom Token"
         else:
             amt = f"${val:,.2f}"
-        
+
         mode_str = str(L.get('lead_mode', 'strict'))
         vibe = str(L.get("vibe_score")) if L.get("vibe_score") is not None else "—"
         repo = str(L.get('repo_name', ''))[:30]
         url = str(L.get('issue_url', ''))
-        
+
         print(f"{ml_prob_str:<5} | {score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {vibe:<5} | {repo:<30} | {url}")
 
         # Task 3c: Add WHY tags
@@ -124,7 +128,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         if L.get("mentions_no_kyc"):          why_parts.append("no KYC")
         if L.get("vibe_score") and L.get("vibe_score") >= 70:  why_parts.append(f"vibe={L['vibe_score']}")
         if val and val > 0:                   why_parts.append(f"${val:.0f}")
-        
+
         why = " · ".join(why_parts) if why_parts else "weak signals"
         print(f"  ↳ {why}")
 
@@ -133,7 +137,8 @@ def main() -> None:
     command, ns, config = parse_args()
     if command == "scrape":
         if getattr(ns, 'auto_refresh', False):
-            import sqlite3, time
+            import sqlite3
+            import time
             db_path = getattr(ns, 'db_path', 'bounty_stats.db')
             refresh_days = getattr(ns, 'refresh_days', 3)
             try:

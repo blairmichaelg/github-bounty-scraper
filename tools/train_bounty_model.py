@@ -1,11 +1,12 @@
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import StratifiedKFold
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import f1_score, roc_auc_score, precision_recall_curve
 import json
 import os
+
 import joblib
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import precision_recall_curve, roc_auc_score
+from sklearn.model_selection import StratifiedKFold
 
 TRAIN_FILE = "bounty_dataset_train.csv"
 
@@ -15,7 +16,7 @@ def train_and_eval():
         return
 
     df = pd.read_csv(TRAIN_FILE)
-    
+
     # Filter only labeled rows for training
     df = df[df['is_bounty'].notnull()].copy()
     df['is_bounty'] = df['is_bounty'].astype(int)
@@ -26,7 +27,7 @@ def train_and_eval():
     df['merges_last_45d'] = pd.to_numeric(df['merges_last_45d'], errors='coerce').fillna(0)
     df['positive_escrow_count'] = pd.to_numeric(df['positive_escrow_count'], errors='coerce').fillna(0)
     df['escrow_weight_sum'] = pd.to_numeric(df['escrow_weight_sum'], errors='coerce').fillna(0)
-    
+
     # Strategy 1 — Amount-blind label
     df['is_bounty_v2'] = (
         (df['vibe_score'] >= 55) & (df['positive_escrow_count'] >= 1)
@@ -38,7 +39,7 @@ def train_and_eval():
         'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
         'merges_last_45d', 'is_closed'
     ]
-    
+
     features_clean = [
         'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
         'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
@@ -50,7 +51,7 @@ def train_and_eval():
         skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         cv_aucs = []
         all_probs = np.zeros(len(y))
-        
+
         for train_idx, val_idx in skf.split(X, y):
             X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
             y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
@@ -59,19 +60,19 @@ def train_and_eval():
             probs = m.predict_proba(X_val)[:, 1]
             all_probs[val_idx] = probs
             cv_aucs.append(roc_auc_score(y_val, probs))
-            
+
         precisions, recalls, thresholds = precision_recall_curve(y, all_probs)
         f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-9)
         best_idx = np.argmax(f1_scores)
         best_threshold = float(thresholds[min(best_idx, len(thresholds)-1)])
         max_f1 = float(f1_scores[best_idx])
         avg_auc = np.mean(cv_aucs)
-        
+
         print(f"\n--- {name} ---")
         print(f"CV ROC-AUC: {avg_auc:.4f}")
         print(f"Best Threshold: {best_threshold:.4f}")
         print(f"Max F1 Score: {max_f1:.4f}")
-        
+
         # Feature importance
         final_model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
         final_model.fit(X, y)
@@ -79,7 +80,7 @@ def train_and_eval():
         print("Feature Importances:")
         for f, imp in sorted(importances.items(), key=lambda x: x[1], reverse=True):
             print(f"  {f:<22}: {imp:.4f}")
-            
+
         return avg_auc, max_f1, best_threshold, importances, final_model
 
     y_orig = df['is_bounty']
@@ -126,10 +127,10 @@ def train_and_eval():
         "features": prod_features,
         "importances": prod_imp
     }
-    
+
     joblib.dump(prod_model, "bounty_model.pkl")
     print(f"Saved Model {prod_model_name} to bounty_model.pkl")
-    
+
     with open("best_threshold.json", "w") as f:
         json.dump(results, f, indent=2)
     print("Saved best_threshold.json")

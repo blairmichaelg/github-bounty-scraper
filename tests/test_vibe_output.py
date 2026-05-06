@@ -1,11 +1,10 @@
-import pytest
 from github_bounty_scraper.output import write_markdown_output
-from github_bounty_scraper.config import ScraperConfig
+
 
 def test_markdown_vibe_arrows(tmp_path):
     """Verify that score deltas produce ↑ or ↓ arrows in Markdown output."""
     output_file = tmp_path / "test.md"
-    
+
     verified = [
         {
             "Score": 80.0,
@@ -38,9 +37,9 @@ def test_markdown_vibe_arrows(tmp_path):
             "Link": "https://github.com/..."
         }
     ]
-    
+
     write_markdown_output(verified, [], 1.0, str(output_file))
-    
+
     content = output_file.read_text(encoding="utf-8")
     assert "↑ Increased Score" in content
     assert "↓ Decreased Score" in content

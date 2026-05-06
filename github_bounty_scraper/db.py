@@ -3,16 +3,14 @@ Database initialisation, schema migration, and caching helpers.
 """
 
 from __future__ import annotations
- 
-from typing import Any
 
 import csv
 import time
+from typing import Any
 
 import aiosqlite
 
 from .log import get_logger
-from .signals import SignalResult
 
 log = get_logger()
 
@@ -226,7 +224,7 @@ async def upsert_issue_stats(
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
-    
+
     # Task 2b: Re-compute signals from title + body if not already positive
     all_text = ((title or "") + " " + (body_snippet or "")).lower()
     if not has_onchain_escrow:
@@ -444,7 +442,7 @@ async def set_issue_vibe(
 
         # Task 2c: Extract signals from vibe_reason bonus
         reason_lower = (vibe_reason or "").lower()
-        
+
         # We can use the globally compiled regexes or define local ones if lists differ.
         # Here we just use local fast regexes since lists differ slightly from global ones.
         has_onchain_escrow = int(bool(re.search(r'on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract', reason_lower)))
@@ -468,7 +466,7 @@ async def set_issue_vibe(
             (vibe_score, vibe_reason, checked_at, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout, issue_url),
         )
         if cursor.rowcount == 0:
-            # If not exists, insert a minimal row. 
+            # If not exists, insert a minimal row.
             # Note: other fields (title, etc) will be NULL until a proper scrape matches it.
             await conn.execute(
                 """
@@ -510,9 +508,9 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
     - 0: vibe < 30 OR amount == 0 AND vibe is NULL.
     - '': ambiguous.
     """
-    import os
-    import json
     import asyncio
+    import json
+    import os
 
     # Load bodies from exploration_raw.jsonl to enrich the dataset
     bodies = {}
@@ -550,9 +548,9 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
 
         with open(out_path, "w", encoding="utf-8", newline="") as f:
             headers = [
-                "issue_url", "title", "body_snippet", "lead_mode", "numeric_amount", 
-                "score", "prev_score", "escrow_verified", "is_dead_repo", 
-                "checked_at", "vibe_score", "vibe_reason", 
+                "issue_url", "title", "body_snippet", "lead_mode", "numeric_amount",
+                "score", "prev_score", "escrow_verified", "is_dead_repo",
+                "checked_at", "vibe_score", "vibe_reason",
                 "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen",
                 "has_onchain_escrow", "mentions_no_kyc", "mentions_wallet_payout",
                 "positive_escrow_count", "escrow_weight_sum",
@@ -560,7 +558,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             ]
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
-            
+
             # Phrase lists for derived features (already global regexes ESCROW_RE, NO_KYC_RE, WALLET_PAYOUT_RE)
             # The lists below were redundant.
 
@@ -571,9 +569,9 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             for row in rows:
                 raw_d = dict(row)
                 body = bodies.get(raw_d["issue_url"], "")
-                
+
                 text = (str(raw_d.get("title") or "") + " " + body).lower()
-                
+
                 # Build the export dict using only the specified headers
                 d = {}
                 for h in headers:
@@ -585,11 +583,11 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                         d[h] = ""
 
                 # Special overrides for derived features if not in DB yet
-                if not d.get("has_onchain_escrow"):
+                if d.get("has_onchain_escrow") in (None, ""):
                     d["has_onchain_escrow"] = 1 if bool(ESCROW_RE.search(text)) else 0
-                if not d.get("mentions_no_kyc"):
+                if d.get("mentions_no_kyc") in (None, ""):
                     d["mentions_no_kyc"] = 1 if bool(NO_KYC_RE.search(text)) else 0
-                if not d.get("mentions_wallet_payout"):
+                if d.get("mentions_wallet_payout") in (None, ""):
                     d["mentions_wallet_payout"] = 1 if bool(WALLET_PAYOUT_RE.search(text)) else 0
 
                 # Labeling rule from Section 5
@@ -599,7 +597,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
 
                 is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) or \
                               ("closed" in mode and vibe is not None and vibe >= 50)
-                
+
                 is_negative = (vibe is not None and vibe < 30) or \
                               (amount == 0 and vibe is None)
 
@@ -609,7 +607,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                     d["is_bounty"] = 0
                 else:
                     d["is_bounty"] = ""
-                
+
                 writer.writerow(d)
-        
+
         log.info("dump-dataset: exported %d rows to %s (enriched with %d bodies)", len(rows), out_path, len(bodies))

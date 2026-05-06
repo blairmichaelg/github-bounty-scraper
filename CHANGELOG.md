@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-05-06
+
+### Added
+- Wired `hardware_dependency_phrases` and `completion_signals` into `signals_config.json` for granular penalty checks and blocked lane tracking.
+
+### Changed
+- Upgraded default LLM to `gemini-2.5-pro` for higher accuracy in vibe-checks and explanations.
+- Bounded the `asyncio.Queue` in `core.py` to prevent OOM errors during high-throughput discovery spikes.
+- Increased `aiohttp` client session timeout for GraphQL API from 15s to 30s to mitigate transient timeouts on large PR/timeline paginations.
+
+### Fixed
+- Fixed redundant regex evaluation bug in `db.py` `dump_dataset` by explicitly checking for `None` or `""` instead of falsy `0`.
+- Fixed flaky tests in `test_signals.py` caused by short comment strings failing length constraints.
 ### Added
 - Payout signal threading: `has_onchain_escrow`, `mentions_no_kyc`, `mentions_wallet_payout` now flow through entire pipeline and are displayed in text/markdown/JSON output
 - Payout preference tie-breaking in output sorting: verified leads now sorted by score → escrow signals → wallet payout signals → no-KYC signals → amount

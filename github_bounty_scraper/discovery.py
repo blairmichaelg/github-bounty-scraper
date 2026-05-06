@@ -58,7 +58,7 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     suffix = " ".join(suffixes)
 
     expanded: list[str] = []
-    
+
     # GitHub search query length limit is 256 characters.
     # To reduce API calls, we combine languages using OR, but we chunk them
     # to avoid overly long queries if there are many languages.
@@ -147,6 +147,7 @@ async def fetch_rest_search(
 
 # ─── Discovery orchestrator ─────────────────────────────────────────
 from typing import AsyncIterator
+
 
 async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
     """Run all search queries with pagination, dedup by URL.

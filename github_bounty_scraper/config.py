@@ -211,7 +211,7 @@ class ScraperConfig:
 
     log_raw_candidates: bool = False
     """Log rejected candidates to raw file.  Default: False."""
-    
+
     opportunistic_allow_dead_repos: bool = True
     """Allow dead repos in opportunistic mode.  Default: True."""
 
@@ -300,11 +300,11 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
                 defaults[key] = [s.lower() for s in data[key]]
     except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
         log.warning("Could not load %s: %s — using empty defaults.", path, exc)
-        
+
     # Compile regexes for text matching optimization
     regex_keys = [
-        "positive_escrow", "negative_filters", "stale_signals", 
-        "active_signals", "active_label_signals", "soft_negative_signals", 
+        "positive_escrow", "negative_filters", "stale_signals",
+        "active_signals", "active_label_signals", "soft_negative_signals",
         "no_kyc_phrases", "wallet_payout_phrases",
         "hardware_dependency_phrases", "completion_signals"
     ]
@@ -347,10 +347,10 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     # 2. Load config file and apply.
     data = load_config_file(config_path)
-    
+
     from dataclasses import fields as dc_fields
     known = {f.name for f in dc_fields(ScraperConfig)}
-    
+
     if data:
         unknown = set(data) - known
         if unknown:
@@ -371,7 +371,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
             # config_file is a known override but not in ScraperConfig
             if k != "config_file":
                 cli_unknown.add(k)
-    
+
     if cli_unknown:
         import warnings
         warnings.warn(

@@ -340,5 +340,25 @@
     "payout in eth",
     "payout in usdc",
     "payout in tokens"
+  ],
+  "hardware_dependency_phrases": [
+    "hardware",
+    "raspberry pi",
+    "physical device",
+    "arduino",
+    "gpu required",
+    "macbook required",
+    "pcie",
+    "device needed",
+    "fpga"
+  ],
+  "completion_signals": [
+    "bounty completed",
+    "paid out",
+    "reward sent",
+    "funds distributed",
+    "successfully claimed",
+    "pr merged and paid",
+    "payment released"
   ]
 }

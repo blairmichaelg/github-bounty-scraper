@@ -1,4 +1,6 @@
-import csv, random
+import csv
+import random
+
 random.seed(42)
 
 rows = list(csv.DictReader(open('bounty_dataset_v5.csv', encoding='utf-8')))

@@ -13,39 +13,37 @@ import json
 import time
 from typing import Any, TypedDict, cast
 
-
-
 import aiohttp
 import aiosqlite
 
-from .bounty import extract_bounty_amount, detect_snipe
+from .bounty import detect_snipe, extract_bounty_amount
 from .config import ScraperConfig, load_signals
 from .db import (
     BatchCommitter,
+    get_repo_reputation,
     init_db,
     mark_issue_checked,
     repo_cache_check,
     should_skip_issue,
     upsert_issue_stats,
     upsert_repo_stats,
-    get_repo_reputation,
 )
 from .discovery import discover_issues_stream
-from .graphql import TokenBucket, run_graphql_audit, fetch_graphql
+from .graphql import TokenBucket, fetch_graphql, run_graphql_audit
 from .log import get_logger
 from .output import write_output
+from .price_cache import refresh_prices
 from .scoring import compute_score
 from .signals import (
     apply_hard_disqualifiers,
     compute_soft_signals,
 )
-from .price_cache import refresh_prices
 
 log = get_logger()
- 
+
 # Hard safety cap — prevents runaway API usage on large result sets.
 MAX_ISSUES_PER_RUN = 1000
- 
+
 class LeadResult(TypedDict):
     """Enriched lead data for reporting."""
     AmountNum: float
@@ -157,11 +155,11 @@ async def process_issue(
         return None
 
     repository = data["repository"]
-    
+
     repo_stars = repository.get("stargazerCount", 0)
     owner_type = repository.get("owner", {}).get("__typename", "")
     contrib_count = repository.get("mentionableUsers", {}).get("totalCount", 0)
-    
+
     is_lead_candidate = True
     raw_reasons = []
 
@@ -612,17 +610,17 @@ async def run_pipeline(config: ScraperConfig) -> None:
         # Phase 1 & 2: Streaming Discovery and Enrichment
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
         seen_aggregators: set[str] = set()
-        queue: asyncio.Queue = asyncio.Queue()
-        
+        queue: asyncio.Queue = asyncio.Queue(maxsize=config.semaphore_limit * 3)
+
         # We need to adapt the user's requested worker pattern.
-        # However, the user asked to replace "issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]" 
-        # but that line is gone since we already streamed. 
+        # However, the user asked to replace "issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]"
+        # but that line is gone since we already streamed.
         # So I will keep my producer but use the user's exact worker/queue logic
-        
+
         results: list[Any] = []
         completed = 0
         discovered = 0
-        
+
         async def producer():
             nonlocal discovered
             try:
@@ -650,7 +648,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
                 except Exception as exc:
                     log.error("Unhandled error processing issue: %s", exc)
                     result = None
-                
+
                 if result:
                     results.append(result)
                 completed += 1
@@ -658,7 +656,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
                     log.info("Progress: %d issues processed ...", completed)
                 queue.task_done()
 
-        timeout = aiohttp.ClientTimeout(total=15)
+        timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # Pre-enrichment rate limit check
             rl_query = "query { rateLimit { remaining resetAt } }"
