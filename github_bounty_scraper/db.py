@@ -522,8 +522,12 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 vibe = d.get("vibe_score")
                 lead_mode = str(d.get("lead_mode") or "").lower()
 
-                is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) \
-                           or ("closed" in lead_mode and vibe is not None and vibe >= 50)
+                sentinel = (amount == -1.0)   # confirmed bounty, amount unknown
+                is_positive = (
+                    (amount >= label_threshold and vibe is not None and vibe >= 50)
+                    or (sentinel and vibe is not None and vibe >= 50)
+                    or ("closed" in lead_mode and vibe is not None and vibe >= 50)
+                )
                 
                 if is_positive:
                     d["is_bounty"] = 1
