@@ -146,3 +146,18 @@ async def test_set_issue_vibe_signal_extraction(tmp_path):
             assert rows["url3"]["has_onchain_escrow"] == 0
             assert rows["url3"]["mentions_no_kyc"] == 0
             assert rows["url3"]["mentions_wallet_payout"] == 0
+
+def test_model_feature_count_matches_json():
+    import joblib, json, os, pytest
+    if not os.path.exists("bounty_model.pkl"):
+        pytest.skip("bounty_model.pkl not found")
+    model = joblib.load("bounty_model.pkl")
+    with open("best_threshold.json") as f:
+        meta = json.load(f)
+    saved_feats = meta.get("features", [])
+    assert model.n_features_in_ == len(saved_feats), (
+        f"Model expects {model.n_features_in_} features "
+        f"but best_threshold.json lists {len(saved_feats)}: {saved_feats}"
+    )
+    assert meta.get("leakage_free") is True, \
+        "best_threshold.json missing leakage_free:true"

@@ -24,6 +24,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
     import os, joblib, numpy as np, json
     
     # Task 5: Assert leakage-free model
+    meta = {}
     if os.path.exists("best_threshold.json"):
         with open("best_threshold.json", "r") as f:
             meta = json.load(f)
@@ -32,6 +33,12 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
                 print("Run tools/train_bounty_model.py to generate a production-ready model.")
                 sys.exit(1)
     
+    prod_features = meta.get("features") or [
+        'vibe_score','positive_escrow_count','escrow_weight_sum',
+        'has_onchain_escrow','mentions_no_kyc','mentions_wallet_payout',
+        'merges_last_45d','is_closed'
+    ]
+
     from .db import get_recent_leads
     leads = await get_recent_leads(db_path, mode, limit)
     if not leads:
@@ -47,25 +54,25 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
 
     for L in leads:
         if model:
-            # Prepare features for ML model
-            # ['log_amount', 'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
-            #  'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
-            #  'merges_last_45d', 'is_closed']
             try:
-                log_amt = np.log10(max(0, float(L.get("numeric_amount") or 0)) + 1)
-                feats = np.array([[
-                    log_amt,
-                    float(L.get("vibe_score") or 0),
-                    float(L.get("positive_escrow_count") or 0),
-                    float(L.get("escrow_weight_sum") or 0.0),
-                    int(L.get("has_onchain_escrow") or 0),
-                    int(L.get("mentions_no_kyc") or 0),
-                    int(L.get("mentions_wallet_payout") or 0),
-                    float(L.get("merges_last_45d") or 0),
-                    1 if 'closed' in str(L.get('lead_mode', '')).lower() else 0
-                ]])
-                L["ml_prob"] = float(model.predict_proba(feats)[0, 1])
-            except:
+                row = {}
+                row['log_amount']            = np.log10(max(0, float(L.get("numeric_amount") or 0)) + 1)
+                row['vibe_score']            = float(L.get("vibe_score") or 0)
+                row['positive_escrow_count'] = float(L.get("positive_escrow_count") or 0)
+                row['escrow_weight_sum']     = float(L.get("escrow_weight_sum") or 0.0)
+                row['has_onchain_escrow']    = int(L.get("has_onchain_escrow") or 0)
+                row['mentions_no_kyc']       = int(L.get("mentions_no_kyc") or 0)
+                row['mentions_wallet_payout']= int(L.get("mentions_wallet_payout") or 0)
+                row['merges_last_45d']       = float(L.get("merges_last_45d") or 0)
+                row['is_closed']             = 1 if 'closed' in str(L.get('lead_mode', '')).lower() else 0
+
+                feat_vec = np.array([[row[f] for f in prod_features]])
+                assert feat_vec.shape[1] == len(prod_features), (
+                    f"Feature mismatch: model expects {len(prod_features)} "
+                    f"features, got {feat_vec.shape[1]}"
+                )
+                L["ml_prob"] = float(model.predict_proba(feat_vec)[0, 1])
+            except Exception:
                 L["ml_prob"] = 0.0
         else:
             L["ml_prob"] = 0.0
