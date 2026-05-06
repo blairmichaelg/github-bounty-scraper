@@ -1,18 +1,10 @@
 {
-  "production_model": "A",
-  "best_threshold": 0.7755017548683035,
-  "f1_score": 0.9964664305954126,
-  "roc_auc": 0.999873577749684,
-  "signal_only_auc": 0.999873577749684,
-  "signal_only_f1": 0.9964664305954126,
-  "model_b_metrics": {
-    "f1_score": 0.9964664305954126,
-    "roc_auc": 0.999873577749684,
-    "best_threshold": 0.7755017548683035,
-    "model_b_circular_leak": true
-  },
+  "production_model": "C",
+  "leakage_free": true,
+  "best_threshold": 0.2703596117917395,
+  "f1_score": 0.7985865719381687,
+  "roc_auc": 0.942805102663586,
   "features": [
-    "log_amount",
     "vibe_score",
     "positive_escrow_count",
     "escrow_weight_sum",
@@ -23,14 +15,13 @@
     "is_closed"
   ],
   "importances": {
-    "log_amount": 0.36341528045183724,
-    "vibe_score": 0.03415672170463278,
-    "positive_escrow_count": 0.2310721818694503,
-    "escrow_weight_sum": 0.1877412484006066,
-    "has_onchain_escrow": 0.14527579557899536,
-    "mentions_no_kyc": 5.2245733845054e-06,
-    "mentions_wallet_payout": 0.0010193951496020475,
-    "merges_last_45d": 0.031633705460883565,
-    "is_closed": 0.005680446810607548
+    "vibe_score": 0.08615800824267998,
+    "positive_escrow_count": 0.30427090972055143,
+    "escrow_weight_sum": 0.299520656409482,
+    "has_onchain_escrow": 0.17274384257972258,
+    "mentions_no_kyc": 2.7897130228469292e-05,
+    "mentions_wallet_payout": 0.004130696942724181,
+    "merges_last_45d": 0.11712062084535067,
+    "is_closed": 0.016027368129260717
   }
 }

@@ -424,21 +424,25 @@ async def set_issue_vibe(
     If the issue already exists in issue_stats, update only the vibe_* fields.
     If it does not exist, insert a minimal row with these fields populated.
     """
-    import os
-
-    if not os.path.exists(db_path):
-        # If the DB does not exist yet, nothing to update.
-        return
-
     async with aiosqlite.connect(db_path) as conn:
         # Ensure schema is initialized/migrated
         await init_db(conn)
 
         # Task 2c: Extract signals from vibe_reason bonus
-        reason_lower = vibe_reason.lower()
-        wallet_bonus = 1 if "direct wallet payout" in reason_lower else 0
-        escrow_bonus = 1 if "on-chain escrow" in reason_lower else 0
-        nokyc_bonus = 1 if "no kyc" in reason_lower else 0
+        reason_lower = (vibe_reason or "").lower()
+        has_onchain_escrow = int(any(k in reason_lower for k in [
+            "on-chain escrow", "vault", "gnosis safe", "multisig",
+            "hats vault", "immunefi vault", "escrowed", "locked in contract"
+        ]))
+        mentions_no_kyc = int(any(k in reason_lower for k in [
+            "no kyc", "without kyc", "no identity", "anonymous payout",
+            "pseudonymous payout"
+        ]))
+        mentions_wallet_payout = int(any(k in reason_lower for k in [
+            "direct wallet payout", "direct wallet", "wallet payout",
+            "wallet address", "crypto address", "0x", "payout in eth",
+            "payout in usdc", "payout in tokens", "token transfer"
+        ]))
 
         # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(
@@ -453,7 +457,7 @@ async def set_issue_vibe(
                 mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
             WHERE issue_url = ?
             """,
-            (vibe_score, vibe_reason, checked_at, escrow_bonus, nokyc_bonus, wallet_bonus, issue_url),
+            (vibe_score, vibe_reason, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout, issue_url),
         )
         if cursor.rowcount == 0:
             # If not exists, insert a minimal row. 
@@ -463,7 +467,7 @@ async def set_issue_vibe(
                 INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (issue_url, vibe_score, vibe_reason, checked_at, escrow_bonus, nokyc_bonus, wallet_bonus),
+                (issue_url, vibe_score, vibe_reason, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout),
             )
 
         await conn.commit()

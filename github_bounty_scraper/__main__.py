@@ -21,7 +21,17 @@ from .core import run_pipeline  # noqa: E402
 
 
 async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
-    import os, joblib, numpy as np
+    import os, joblib, numpy as np, json
+    
+    # Task 5: Assert leakage-free model
+    if os.path.exists("best_threshold.json"):
+        with open("best_threshold.json", "r") as f:
+            meta = json.load(f)
+            if not meta.get("leakage_free"):
+                print("\nFATAL: Model in bounty_model.pkl is NOT leakage-free (detected by best_threshold.json).")
+                print("Run tools/train_bounty_model.py to generate a production-ready model.")
+                sys.exit(1)
+    
     from .db import get_recent_leads
     leads = await get_recent_leads(db_path, mode, limit)
     if not leads:

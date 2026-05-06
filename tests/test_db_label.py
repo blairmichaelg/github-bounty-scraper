@@ -113,3 +113,36 @@ async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
         row = next(reader)
         
     assert row["is_bounty"] == "0"
+async def test_set_issue_vibe_signal_extraction(tmp_path):
+    """Verify that set_issue_vibe extracts boolean signals from the reason text."""
+    db_path = str(tmp_path / "test_vibe_signals.db")
+    import time
+    from github_bounty_scraper.db import set_issue_vibe
+    
+    # 1. Wallet + No KYC
+    reason_1 = "Payout is direct wallet payout in ETH. No KYC."
+    await set_issue_vibe(db_path, "url1", 80, reason_1, time.time())
+    
+    # 2. Escrow
+    reason_2 = "On-chain escrow via Gnosis Safe vault."
+    await set_issue_vibe(db_path, "url2", 90, reason_2, time.time())
+    
+    # 3. Centralized
+    reason_3 = "Centralized platform with KYC. Payout method unspecified."
+    await set_issue_vibe(db_path, "url3", 30, reason_3, time.time())
+    
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT * FROM issue_stats ORDER BY issue_url") as cur:
+            rows = {r["issue_url"]: dict(r) for r in await cur.fetchall()}
+            
+            assert rows["url1"]["mentions_wallet_payout"] == 1
+            assert rows["url1"]["mentions_no_kyc"] == 1
+            assert rows["url1"]["has_onchain_escrow"] == 0
+            
+            assert rows["url2"]["has_onchain_escrow"] == 1
+            assert rows["url2"]["mentions_wallet_payout"] == 0
+            
+            assert rows["url3"]["has_onchain_escrow"] == 0
+            assert rows["url3"]["mentions_no_kyc"] == 0
+            assert rows["url3"]["mentions_wallet_payout"] == 0

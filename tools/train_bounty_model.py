@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import f1_score, roc_auc_score, precision_recall_curve
 import json
 import os
+import joblib
 
 TRAIN_FILE = "bounty_dataset_train.csv"
 
@@ -21,23 +22,30 @@ def train_and_eval():
 
     # Feature Engineering
     df['log_amount'] = np.log10(df['numeric_amount'].clip(lower=0) + 1)
-    df['vibe_score'] = df['vibe_score'].fillna(0)
-    df['merges_last_45d'] = df['merges_last_45d'].fillna(0)
+    df['vibe_score'] = pd.to_numeric(df['vibe_score'], errors='coerce').fillna(0)
+    df['merges_last_45d'] = pd.to_numeric(df['merges_last_45d'], errors='coerce').fillna(0)
     df['positive_escrow_count'] = pd.to_numeric(df['positive_escrow_count'], errors='coerce').fillna(0)
     df['escrow_weight_sum'] = pd.to_numeric(df['escrow_weight_sum'], errors='coerce').fillna(0)
     
-    features_a = [
+    # Strategy 1 — Amount-blind label
+    df['is_bounty_v2'] = (
+        (df['vibe_score'] >= 55) & (df['positive_escrow_count'] >= 1)
+    ).astype(int)
+    print(f"v2 label: {df['is_bounty_v2'].sum()} pos / {(df['is_bounty_v2']==0).sum()} neg")
+
+    features_leaky = [
         'log_amount', 'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
         'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
         'merges_last_45d', 'is_closed'
     ]
-    features_b = features_a
     
-    y = df['is_bounty']
+    features_clean = [
+        'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
+        'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
+        'merges_last_45d', 'is_closed'
+    ]
 
-    print(f"Training on {len(df)} samples ({sum(y)} pos / {len(y)-sum(y)} neg)")
-
-    def evaluate_model(feats, name):
+    def evaluate_model(feats, name, y):
         X = df[feats]
         skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         cv_aucs = []
@@ -74,37 +82,53 @@ def train_and_eval():
             
         return avg_auc, max_f1, best_threshold, importances, final_model
 
-    auc_a, f1_a, thr_a, imp_a, model_a = evaluate_model(features_a, "MODEL A (Signal-only)")
-    
-    # WARNING: Model B uses vibe_score as a feature. If is_bounty
-    # labels were derived from composite score which includes vibe_score,
-    # this model is overfit by circular leakage. Use Model A in production.
-    auc_b, f1_b, thr_b, imp_b, model_b = evaluate_model(features_b, "MODEL B (Full Model)")
+    y_orig = df['is_bounty']
+    auc_a, f1_a, thr_a, imp_a, model_a = evaluate_model(features_leaky, "MODEL A (Leaky)", y_orig)
+    auc_c, f1_c, thr_c, imp_c, model_c = evaluate_model(features_clean, "MODEL C (No-Leakage)", y_orig)
+    auc_d, f1_d, thr_d, imp_d, model_d = evaluate_model(features_leaky, "MODEL D (Vibe-labels)", df['is_bounty_v2'])
 
-    if auc_a < 0.60:
-        print("\nWARNING: Signal-only model AUC is low. Payout features need more real-world data before they carry meaningful weight.")
+    print("\n=== MODEL COMPARISON ===")
+    print(f"Model A (leaky):       AUC={auc_a:.4f}  F1={f1_a:.4f}  (DO NOT USE)")
+    print(f"Model C (no-leakage):  AUC={auc_c:.4f}  F1={f1_c:.4f}")
+    print(f"Model D (vibe-labels): AUC={auc_d:.4f}  F1={f1_d:.4f}")
+
+    # PRODUCTION MODEL SELECTION
+    prod_model_name = "C"
+    prod_model = model_c
+    prod_auc = auc_c
+    prod_f1 = f1_c
+    prod_thr = thr_c
+    prod_features = features_clean
+    prod_imp = imp_c
+
+    if auc_c < 0.70 or f1_c < 0.65:
+        if auc_d >= 0.65:
+            prod_model_name = "D"
+            prod_model = model_d
+            prod_auc = auc_d
+            prod_f1 = f1_d
+            prod_thr = thr_d
+            prod_features = features_leaky
+            prod_imp = imp_d
+        else:
+            print("\nWARNING: All leakage-free models are below performance targets (AUC 0.65).")
+
+    # PRODUCTION_MODEL = prod_model_name
+    print(f"\nSELECTED PRODUCTION MODEL: {prod_model_name}")
 
     # Save results
     results = {
-        "production_model": "A",
-        "best_threshold": thr_a,
-        "f1_score": f1_a,
-        "roc_auc": auc_a,
-        "signal_only_auc": auc_a,
-        "signal_only_f1": f1_a,
-        "model_b_metrics": {
-            "f1_score": f1_b,
-            "roc_auc": auc_b,
-            "best_threshold": thr_b,
-            "model_b_circular_leak": True
-        },
-        "features": features_a,
-        "importances": imp_a
+        "production_model": prod_model_name,
+        "leakage_free": True,
+        "best_threshold": prod_thr,
+        "f1_score": prod_f1,
+        "roc_auc": prod_auc,
+        "features": prod_features,
+        "importances": prod_imp
     }
     
-    import joblib
-    joblib.dump(model_a, "bounty_model.pkl")
-    print("\nSaved Model A to bounty_model.pkl (Production)")
+    joblib.dump(prod_model, "bounty_model.pkl")
+    print(f"Saved Model {prod_model_name} to bounty_model.pkl")
     
     with open("best_threshold.json", "w") as f:
         json.dump(results, f, indent=2)

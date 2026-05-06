@@ -306,11 +306,19 @@ async def run_vibe_check(
                         async for r in cur:
                             scored_urls.add(r[0])
             
+            # Load optional retry list
+            allowlist = set()
+            if os.path.exists("vibe_retry.txt"):
+                with open("vibe_retry.txt", "r") as f:
+                    allowlist = set(line.strip() for line in f if line.strip())
+
             # Load all candidates and sort by numeric_amount or score to find positives faster
             candidates = []
             async for obj in iter_raw_candidates(raw_file):
                 url = obj.get("issue_url") or obj.get("url") or ""
-                if url in scored_urls:
+                if allowlist and url not in allowlist:
+                    continue
+                if not allowlist and url in scored_urls:
                     continue
                 candidates.append(obj)
             
