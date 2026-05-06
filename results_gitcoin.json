@@ -1,0 +1,147 @@
+{
+  "generated_at": "2026-05-06T00:31:35.673124+00:00Z",
+  "pipeline_time_seconds": 428.06,
+  "total_leads": 14,
+  "leads": [
+    {
+      "score": 66.31,
+      "amount": "$12,500.01",
+      "numeric_amount": 12500.01,
+      "currency": "USD",
+      "repo": "lnflash/flash",
+      "title": "[Bounty] JMD Currency Precision — Full-Stack Fix",
+      "labels": "[Urgent, customer, 🏔️ summit, currency precision]",
+      "link": "https://github.com/lnflash/flash/issues/282"
+    },
+    {
+      "score": 54.34,
+      "amount": "$50,000",
+      "numeric_amount": 50000.0,
+      "currency": "USD",
+      "repo": "passportxyz/passport",
+      "title": "OFFICIAL SECURITY RESEARCH DEBT & INTELLECTUAL PROPERTY CO-OPTING DEMAND",
+      "labels": "[]",
+      "link": "https://github.com/passportxyz/passport/issues/3907"
+    },
+    {
+      "score": 50.29,
+      "amount": "$900",
+      "numeric_amount": 900.0,
+      "currency": "USD",
+      "repo": "Spectral-Finance/lux",
+      "title": "Curve Finance Integration and Stablecoin Management $900",
+      "labels": "[bounty, web3, exchanges]",
+      "link": "https://github.com/Spectral-Finance/lux/issues/81"
+    },
+    {
+      "score": 8.99,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "AppLovin/AppLovin-MAX-Flutter",
+      "title": "Force app closed after watching full screen ads(interstitial, rewarded) on Simulation Device.",
+      "labels": "[bug]",
+      "link": "https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/355"
+    },
+    {
+      "score": 58.48,
+      "amount": "100 USDC",
+      "numeric_amount": 100.0,
+      "currency": "USD",
+      "repo": "cenetex/signal",
+      "title": "decentralization (Solana): state-root anchoring, wrap contract, bounty program",
+      "labels": "[]",
+      "link": "https://github.com/cenetex/signal/issues/480"
+    },
+    {
+      "score": 45.53,
+      "amount": "$100",
+      "numeric_amount": 100.0,
+      "currency": "USD",
+      "repo": "graphql-dotnet/graphql-dotnet",
+      "title": "Looking for a demo using Schema-First approach",
+      "labels": "[documentation, bounty]",
+      "link": "https://github.com/graphql-dotnet/graphql-dotnet/issues/1025"
+    },
+    {
+      "score": 45.19,
+      "amount": "$20",
+      "numeric_amount": 20.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "Non-privileged user in Docker build",
+      "labels": "[feature request, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/684"
+    },
+    {
+      "score": 32.9,
+      "amount": "1 ETH",
+      "numeric_amount": 1.0,
+      "currency": "ETH",
+      "repo": "chimera-defi/walletradar",
+      "title": "partnership: apply to Gitcoin grants round",
+      "labels": "[startup:partnership]",
+      "link": "https://github.com/chimera-defi/walletradar/issues/30"
+    },
+    {
+      "score": 58.77,
+      "amount": "3000 USDC",
+      "numeric_amount": 3000.0,
+      "currency": "USD",
+      "repo": "hummingbot/hummingbot",
+      "title": "Bounty - Add Lighter Spot and Perpetual Connectors",
+      "labels": "[bounty]",
+      "link": "https://github.com/hummingbot/hummingbot/issues/8159"
+    },
+    {
+      "score": 46.35,
+      "amount": "$50",
+      "numeric_amount": 50.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "[Feature] Scene upload from UI",
+      "labels": "[feature, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/13"
+    },
+    {
+      "score": 28.6,
+      "amount": "$1.74",
+      "numeric_amount": 1.74,
+      "currency": "USD",
+      "repo": "FredMunene/topizzy",
+      "title": "Feature: Recurring Airtime Subscriptions — Gift Loved Ones",
+      "labels": "[enhancement]",
+      "link": "https://github.com/FredMunene/topizzy/issues/20"
+    },
+    {
+      "score": 44.4,
+      "amount": "$20",
+      "numeric_amount": 20.0,
+      "currency": "USD",
+      "repo": "stashapp/stash",
+      "title": "Add a Manga/Doujin section",
+      "labels": "[feature request, bounty]",
+      "link": "https://github.com/stashapp/stash/issues/1659"
+    },
+    {
+      "score": 39.92,
+      "amount": "$30",
+      "numeric_amount": 30.0,
+      "currency": "USD",
+      "repo": "TeamNewPipe/NewPipe",
+      "title": "personalize sidebar",
+      "labels": "[feature request, bounty, GUI, niche]",
+      "link": "https://github.com/TeamNewPipe/NewPipe/issues/4081"
+    },
+    {
+      "score": 29.67,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "atharvnaik1/ipaship-app-reviewer",
+      "title": "Convert into a skill",
+      "labels": "[help wanted, good first issue, bounty]",
+      "link": "https://github.com/atharvnaik1/ipaship-app-reviewer/issues/55"
+    }
+  ]
+}

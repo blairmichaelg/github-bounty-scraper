@@ -1,0 +1,12 @@
+{
+  "min_stars": 0,
+  "max_pages_per_query": 10,
+  "include_closed_for_training": true,
+  "search_queries": [
+    "is:closed is:issue label:bounty",
+    "is:closed is:issue label:gitcoin",
+    "is:closed is:issue \"bounty\" \"USDC\" OR \"DAI\" OR \"ETH\"",
+    "is:closed is:issue \"paid on merge\" OR \"reward on close\"",
+    "is:closed is:issue \"escrow\" \"merged\" OR \"completed\" OR \"paid\""
+  ]
+}

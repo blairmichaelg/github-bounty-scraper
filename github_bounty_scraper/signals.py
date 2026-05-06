@@ -96,11 +96,6 @@ def apply_hard_disqualifiers(
     Returns:
         A tuple of (is_disqualified, reason_string).
     """
-    # Safety net: core.py fast-paths CLOSED before calling here,
-    # but guard in case future callers skip that check.
-    if issue_state and issue_state.upper() == "CLOSED":
-        return True, "issue is CLOSED"
-
     # Kill labels
     kill_switches = cast(list[str], signals.get("kill_labels", []))
     for label in labels_nodes:

@@ -383,7 +383,7 @@ async def process_issue(
         )
 
     # ── Lead Checks ──
-    if not is_lead_candidate:
+    if not is_lead_candidate and not (lead_mode_override == "closed_historical"):
         log.debug("Skipping non-lead: %s", url)
         return None
 

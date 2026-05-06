@@ -1,4 +1,5 @@
-Discovery layer — builds search queries and fetches issue candidates
+"""
+Discovery layer - builds search queries and fetches issue candidates
 from the GitHub REST Search API. Supports both open and closed issues
 to facilitate training data collection.
 """
@@ -17,6 +18,8 @@ log = get_logger()
 
 # ─── Query builder ───────────────────────────────────────────────────
 def build_search_queries(config: ScraperConfig) -> list[str]:
+    """Build the list of GitHub search queries from config + CLI filters.
+
     Each base query from ``config.search_queries`` is augmented with:
     - ``language:X`` for each entry in ``config.languages``.
     - ``stars:>N`` from ``config.min_stars``.

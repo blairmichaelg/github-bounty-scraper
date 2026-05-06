@@ -522,13 +522,15 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 vibe = d.get("vibe_score")
                 lead_mode = str(d.get("lead_mode") or "").lower()
 
-                is_positive = (amount >= label_threshold and (vibe is None or vibe >= 50)) or \
-                              ("closed" in lead_mode and vibe is not None and vibe >= 50)
+                is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) \
+                           or ("closed" in lead_mode and vibe is not None and vibe >= 50)
                 
                 if is_positive:
                     d["is_bounty"] = 1
                 elif vibe is not None and vibe < 30:
                     d["is_bounty"] = 0
+                elif vibe is not None and 30 <= vibe < 50 and amount < label_threshold:
+                    d["is_bounty"] = 0   # Low vibe + low/no amount = clear negative
                 elif amount == 0 and vibe is None:
                     d["is_bounty"] = 0
                 else:

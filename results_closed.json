@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-05-05T23:22:23.736038+00:00Z",
+  "pipeline_time_seconds": 264.28,
+  "total_leads": 4,
+  "leads": [
+    {
+      "score": 54.36,
+      "amount": "$50,000",
+      "numeric_amount": 50000.0,
+      "currency": "USD",
+      "repo": "passportxyz/passport",
+      "title": "OFFICIAL SECURITY RESEARCH DEBT & INTELLECTUAL PROPERTY CO-OPTING DEMAND",
+      "labels": "[]",
+      "link": "https://github.com/passportxyz/passport/issues/3907"
+    },
+    {
+      "score": 52.83,
+      "amount": "$12,500.01",
+      "numeric_amount": 12500.01,
+      "currency": "USD",
+      "repo": "lnflash/flash",
+      "title": "[Bounty] JMD Currency Precision — Full-Stack Fix",
+      "labels": "[Urgent, customer, 🏔️ summit, currency precision]",
+      "link": "https://github.com/lnflash/flash/issues/282"
+    },
+    {
+      "score": 9.0,
+      "amount": "Unknown Amount",
+      "numeric_amount": 0.0,
+      "currency": "USD",
+      "repo": "AppLovin/AppLovin-MAX-Flutter",
+      "title": "Force app closed after watching full screen ads(interstitial, rewarded) on Simulation Device.",
+      "labels": "[bug]",
+      "link": "https://github.com/AppLovin/AppLovin-MAX-Flutter/issues/355"
+    },
+    {
+      "score": 32.92,
+      "amount": "1 ETH",
+      "numeric_amount": 1.0,
+      "currency": "ETH",
+      "repo": "chimera-defi/walletradar",
+      "title": "partnership: apply to Gitcoin grants round",
+      "labels": "[startup:partnership]",
+      "link": "https://github.com/chimera-defi/walletradar/issues/30"
+    }
+  ]
+}
