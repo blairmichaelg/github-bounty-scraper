@@ -174,6 +174,9 @@ class ScraperConfig:
     proximity_window: int = 300
     """Window size for proximity scoring.  Default: 300."""
 
+    vibe_ttl_hours: int = 480
+    """TTL for vibe check results in hours. Default: 480."""
+
     # ── GraphQL pagination ──
     pr_cap: int = 200
     """Limit on PRs fetched per repo.  Default: 200."""
@@ -286,6 +289,8 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "soft_negative_signals": [],
         "no_kyc_phrases": [],
         "wallet_payout_phrases": [],
+        "hardware_dependency_phrases": [],
+        "completion_signals": [],
     }
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -300,7 +305,8 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
     regex_keys = [
         "positive_escrow", "negative_filters", "stale_signals", 
         "active_signals", "active_label_signals", "soft_negative_signals", 
-        "no_kyc_phrases", "wallet_payout_phrases"
+        "no_kyc_phrases", "wallet_payout_phrases",
+        "hardware_dependency_phrases", "completion_signals"
     ]
     for key in regex_keys:
         if defaults[key]:

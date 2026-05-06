@@ -451,11 +451,18 @@ async def process_issue(
 
     if not config.dry_run:
         # Fetch previous score for delta tracking in output
-        async with db_conn.execute("SELECT score, vibe_score FROM issue_stats WHERE issue_url = ?", (url,)) as cursor:
+        async with db_conn.execute(
+            "SELECT score, vibe_score, vibe_scored_at FROM issue_stats WHERE issue_url = ?", (url,)
+        ) as cursor:
             row = await cursor.fetchone()
             if row:
                 prev_score_for_output = row[0]
                 vibe_score_val = row[1]
+                vibe_scored_at = row[2] or 0.0
+                vibe_ttl = getattr(config, "vibe_ttl_hours", 48) * 3600
+                if vibe_score_val is not None and (time.time() - vibe_scored_at) > vibe_ttl:
+                    log.debug("Vibe score expired for %s — forcing re-vibe", url)
+                    vibe_score_val = None
             else:
                 prev_score_for_output = None
                 vibe_score_val = None
@@ -474,6 +481,7 @@ async def process_issue(
         has_onchain_escrow=soft.has_onchain_escrow,
         mentions_no_kyc=soft.mentions_no_kyc,
         mentions_wallet_payout=soft.mentions_wallet_payout,
+        requires_hardware=soft.requires_hardware,
     )
 
     # ── DB upsert (single repo_stats + issue_stats call) ──
@@ -604,6 +612,51 @@ async def run_pipeline(config: ScraperConfig) -> None:
         # Phase 1 & 2: Streaming Discovery and Enrichment
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
         seen_aggregators: set[str] = set()
+        queue: asyncio.Queue = asyncio.Queue()
+        
+        # We need to adapt the user's requested worker pattern.
+        # However, the user asked to replace "issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]" 
+        # but that line is gone since we already streamed. 
+        # So I will keep my producer but use the user's exact worker/queue logic
+        
+        results: list[Any] = []
+        completed = 0
+        discovered = 0
+        
+        async def producer():
+            nonlocal discovered
+            try:
+                async for issue in discover_issues_stream(config):
+                    await queue.put(issue)
+                    discovered += 1
+            except Exception as e:
+                log.error("Producer error: %s", e)
+            finally:
+                await queue.put(None)  # Sentinel
+
+        async def worker(session: aiohttp.ClientSession) -> None:
+            nonlocal completed
+            while True:
+                item = await queue.get()
+                if item is None:
+                    await queue.put(None)  # Re-broadcast sentinel to other workers
+                    queue.task_done()
+                    break
+                try:
+                    result = await _process_with_retry(
+                        session, bucket, item, db_conn, sem,
+                        config, signals, committer, seen_aggregators,
+                    )
+                except Exception as exc:
+                    log.error("Unhandled error processing issue: %s", exc)
+                    result = None
+                
+                if result:
+                    results.append(result)
+                completed += 1
+                if completed % config.progress_every == 0:
+                    log.info("Progress: %d issues processed ...", completed)
+                queue.task_done()
 
         timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -613,55 +666,16 @@ async def run_pipeline(config: ScraperConfig) -> None:
             if rl_data and "rateLimit" in rl_data:
                 rem = rl_data["rateLimit"]["remaining"]
                 if rem < 200:
-                    log.warning("GraphQL rate limit critically low (%d remaining). Stopping early.", rem)
+                    log.warning("GraphQL rate limit critically low (%d remaining). Aborting.", rem)
                     return
-
-            queue: asyncio.Queue[dict | None] = asyncio.Queue(maxsize=config.semaphore_limit * 2)
-            results: list[Any] = []
-            
-            completed = 0
-            discovered = 0
-            
-            async def producer():
-                nonlocal discovered
-                try:
-                    async for issue in discover_issues_stream(config):
-                        await queue.put(issue)
-                        discovered += 1
-                except Exception as e:
-                    log.error("Producer error: %s", e)
-                finally:
-                    # Signal consumers to exit
-                    for _ in range(config.semaphore_limit):
-                        await queue.put(None)
-
-            async def consumer():
-                nonlocal completed
-                while True:
-                    issue = await queue.get()
-                    if issue is None:
-                        queue.task_done()
-                        break
-                    try:
-                        res = await _process_with_retry(
-                            session, bucket, issue, db_conn, sem,
-                            config, signals, committer, seen_aggregators,
-                        )
-                        if res:
-                            results.append(res)
-                    except Exception as exc:
-                        log.error("Unhandled error processing issue: %s", exc)
-                    finally:
-                        completed += 1
-                        if completed % config.progress_every == 0:
-                            log.info("Progress: %d issues processed …", completed)
-                        queue.task_done()
 
             log.info("Starting concurrent streaming pipeline...")
             prod_task = asyncio.create_task(producer())
-            consumers = [asyncio.create_task(consumer()) for _ in range(config.semaphore_limit)]
-            
-            await asyncio.gather(prod_task, *consumers)
+            worker_tasks = [
+                asyncio.create_task(worker(session))
+                for _ in range(config.semaphore_limit)
+            ]
+            await asyncio.gather(prod_task, *worker_tasks)
 
         # Final commit.
         await committer.flush()

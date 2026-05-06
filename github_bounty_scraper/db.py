@@ -103,6 +103,7 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "vibe_score INTEGER",
         "vibe_reason TEXT",
         "vibe_checked_at REAL",
+        "vibe_scored_at REAL DEFAULT 0.0",
         "prev_score REAL",
         "label INTEGER",
         "has_onchain_escrow INTEGER DEFAULT 0",
@@ -219,6 +220,9 @@ async def upsert_issue_stats(
     positive_escrow_count: int = 0,
     escrow_weight_sum: float = 0.0,
     body_snippet: str = "",
+    vibe_score: int | None = None,
+    vibe_reason: str = "",
+    vibe_scored_at: float = 0.0,
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -240,8 +244,8 @@ async def upsert_issue_stats(
              numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score,
             has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout,
-            positive_escrow_count, escrow_weight_sum)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            positive_escrow_count, escrow_weight_sum, vibe_score, vibe_reason, vibe_scored_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
@@ -262,7 +266,10 @@ async def upsert_issue_stats(
             mentions_no_kyc    = excluded.mentions_no_kyc,
             mentions_wallet_payout = excluded.mentions_wallet_payout,
             positive_escrow_count = excluded.positive_escrow_count,
-            escrow_weight_sum = excluded.escrow_weight_sum
+            escrow_weight_sum = excluded.escrow_weight_sum,
+            vibe_score         = COALESCE(excluded.vibe_score, issue_stats.vibe_score),
+            vibe_reason        = COALESCE(excluded.vibe_reason, issue_stats.vibe_reason),
+            vibe_scored_at     = COALESCE(excluded.vibe_scored_at, issue_stats.vibe_scored_at)
         """,
         (
             issue_url, now, scraped_amount,
@@ -270,7 +277,7 @@ async def upsert_issue_stats(
             numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo), score,
             int(has_onchain_escrow), int(mentions_no_kyc), int(mentions_wallet_payout),
-            positive_escrow_count, escrow_weight_sum,
+            positive_escrow_count, escrow_weight_sum, vibe_score, vibe_reason, vibe_scored_at
         ),
     )
 
@@ -451,20 +458,21 @@ async def set_issue_vibe(
             SET
                 vibe_score     = ?,
                 vibe_reason    = ?,
-                vibe_checked_at = ?,
+                vibe_scored_at = ?,
+                checked_at     = ?,
                 has_onchain_escrow = MAX(has_onchain_escrow, ?),
                 mentions_no_kyc    = MAX(mentions_no_kyc, ?),
                 mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
             WHERE issue_url = ?
             """,
-            (vibe_score, vibe_reason, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout, issue_url),
+            (vibe_score, vibe_reason, checked_at, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout, issue_url),
         )
         if cursor.rowcount == 0:
             # If not exists, insert a minimal row. 
             # Note: other fields (title, etc) will be NULL until a proper scrape matches it.
             await conn.execute(
                 """
-                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
+                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_scored_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (issue_url, vibe_score, vibe_reason, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout),

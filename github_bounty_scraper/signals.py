@@ -58,6 +58,7 @@ class SignalResult:
     mentions_wallet_payout: bool = False
     is_blocked: bool = False
     block_reason: str = ""
+    requires_hardware: bool = False
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -244,6 +245,10 @@ def compute_soft_signals(
         for s in escrow_hits
     )
 
+    hw_re = signals.get("hardware_dependency_phrases_re")
+    if hw_re and hw_re.search(all_text):
+        result.requires_hardware = True
+
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(
         comments, signals, active_signal_max_age_days,
@@ -281,17 +286,27 @@ def _is_lane_blocked(
     """
     stale_re = signals.get("stale_signals_re")
     active_re = signals.get("active_signals_re")
+    completion_re = signals.get("completion_signals_re")
 
     max_stale_ts: datetime.datetime | None = None
     max_active_ts: datetime.datetime | None = None
 
     for c in comments:
+        comment_author = (c.get("author") or {}).get("login", "").lower()
+        blocked_authors_lower = [a.lower() for a in signals.get("blocked_authors", [])]
+        if comment_author in blocked_authors_lower:
+            continue
+        if len(c.get("body", "") or "") < 40:
+            continue
         c_body = c.get("body", "").lower()
         dt = _parse_gh_ts(c.get("createdAt"))
         if dt is None:
             continue
 
         if stale_re and stale_re.search(c_body):
+            if max_stale_ts is None or dt > max_stale_ts:
+                max_stale_ts = dt
+        if completion_re and completion_re.search(c_body):
             if max_stale_ts is None or dt > max_stale_ts:
                 max_stale_ts = dt
         if active_re and active_re.search(c_body):

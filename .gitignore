@@ -58,3 +58,11 @@ scratch/
 vibe_smoke_test.py
 section*.py
 vibe_test.log
+
+# Scraper run outputs — never commit these
+results_*.md
+results_*.json
+sweep_*.json
+*.db
+*.db-shm
+*.db-wal

@@ -51,6 +51,7 @@ def compute_score(
     has_onchain_escrow: bool = False,
     mentions_no_kyc: bool = False,
     mentions_wallet_payout: bool = False,
+    requires_hardware: bool = False,
 ) -> float:
     """Compute a composite score in [0, 100] for an issue.
 
@@ -135,4 +136,7 @@ def compute_score(
     if has_negative_soft:
         raw_score = max(raw_score - 10.0, 0.0)
 
-    return round(raw_score, 2)
+    if requires_hardware:
+        raw_score *= 0.5
+
+    return round(max(0.0, min(100.0, raw_score)), 2)
