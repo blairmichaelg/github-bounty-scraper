@@ -92,6 +92,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "vibe_reason TEXT",
         "vibe_checked_at REAL",
         "prev_score REAL",
+        "has_onchain_escrow INTEGER DEFAULT 0",
+        "mentions_no_kyc INTEGER DEFAULT 0",
+        "mentions_wallet_payout INTEGER DEFAULT 0",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -195,6 +198,9 @@ async def upsert_issue_stats(
     lead_mode: str = "strict",
     escrow_verified: bool = True,
     is_dead_repo: bool = False,
+    has_onchain_escrow: bool = False,
+    mentions_no_kyc: bool = False,
+    mentions_wallet_payout: bool = False,
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -204,8 +210,9 @@ async def upsert_issue_stats(
             (issue_url, checked_at, scraped_amount,
              first_seen_at, last_seen_at, last_updated_at,
              numeric_amount, raw_display_amount, currency_symbol, score,
-            title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score,
+            has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
@@ -221,13 +228,17 @@ async def upsert_issue_stats(
             repo_name          = excluded.repo_name,
             lead_mode          = excluded.lead_mode,
             escrow_verified    = excluded.escrow_verified,
-            is_dead_repo       = excluded.is_dead_repo
+            is_dead_repo       = excluded.is_dead_repo,
+            has_onchain_escrow = excluded.has_onchain_escrow,
+            mentions_no_kyc    = excluded.mentions_no_kyc,
+            mentions_wallet_payout = excluded.mentions_wallet_payout
         """,
         (
             issue_url, now, scraped_amount,
             now, now, last_updated_at,
             numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo), score,
+            int(has_onchain_escrow), int(mentions_no_kyc), int(mentions_wallet_payout),
         ),
     )
 
@@ -503,18 +514,31 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 "score", "prev_score", "escrow_verified", "is_dead_repo", 
                 "checked_at", "vibe_score", "vibe_reason", 
                 "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen",
+                "has_onchain_escrow", "mentions_no_kyc", "mentions_wallet_payout",
                 "is_bounty"
             ]
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             
+            # Phrase lists for derived features
+            no_kyc_list = ["no kyc", "without kyc", "no identity checks", "anonymous payout", "pseudonymous payout"]
+            wallet_list = ["wallet address", "0x", "btc address", "eth address", "usdc address", "payout in eth", "payout in usdc", "payout in tokens"]
+            escrow_list = ["escrow", "on-chain escrow", "vault", "vaults", "safe multisig", "gnosis safe", "multisig", "hats vault", "immunefi vault", "on-chain bug bounty", "escrowed funds", "locked in contract", "bug bounty vault"]
+
             if not rows:
                 log.info("dump-dataset: no rows found, wrote headers to %s", out_path)
                 return
 
             for row in rows:
                 d = dict(row)
-                d["body_snippet"] = bodies.get(d["issue_url"], "")
+                body = bodies.get(d["issue_url"], "")
+                d["body_snippet"] = body
+                
+                text = (str(d.get("title") or "") + " " + body).lower()
+                d["has_onchain_escrow"] = 1 if any(s in text for s in escrow_list) else 0
+                d["mentions_no_kyc"] = 1 if any(s in text for s in no_kyc_list) else 0
+                d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
+
                 # is_bounty = 1 when: explicit numeric amount >= label_threshold AND vibe_score >= 50
                 # is_bounty = 0 when: vibe_score < 30 OR no numeric amount
                 # is_bounty = NULL (empty) when: ambiguous — let the model decide

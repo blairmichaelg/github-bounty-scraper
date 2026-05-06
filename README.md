@@ -145,6 +145,8 @@ Contains all keyword lists used for signal detection:
 - `kill_labels` — GitHub label names that immediately drop an issue
 - `active_signals` / `stale_signals` — lane status detection
 - `aggregator_repos` — repos to always skip (e.g. bounty aggregators)
+- `no_kyc_phrases` — phrases indicating anonymous payouts (e.g. `no kyc`, `anonymous payout`)
+- `wallet_payout_phrases` — phrases indicating direct wallet payments (e.g. `0x`, `eth address`)
 
 ---
 
@@ -173,14 +175,29 @@ Follow these steps to generate a high-quality training dataset for model fine-tu
     --db-path bounty_stats.db
 ```
 
-### Step 3 — Export fine-tuning dataset
+### Step 3 — Export fine-tuning dataset (v3)
 ```powershell
+# Export with payout features and lower label threshold
 .\venv\Scripts\python.exe -m github_bounty_scraper dump-dataset `
     --db-path bounty_stats.db `
     --raw-file exploration_raw.jsonl `
-    --label-threshold 25.0 `
-    --out bounty_dataset.csv
+    --label-threshold 15.0 `
+    --out bounty_dataset_v3.csv
 ```
+
+### Step 4 — Balance and Sample
+```powershell
+# Balance positives/negatives and filter orphans
+.\venv\Scripts\python.exe tools\balance_dataset.py
+```
+
+### Step 5 — Train and Calibrate
+```powershell
+# Train Random Forest classifier and find optimal threshold
+.\venv\Scripts\python.exe tools\train_bounty_model.py
+```
+
+Output: `best_threshold.json` (contains F1, ROC-AUC, and importance scores).
 
 ### Step 4 — Sanity check CSV
 ```powershell
@@ -224,6 +241,9 @@ SQLite file: `bounty_stats.db` (git-ignored).
 | `lead_mode` | TEXT | `strict` or `opportunistic` |
 | `escrow_verified` | INTEGER | 1 if positive escrow phrases found |
 | `is_dead_repo` | INTEGER | 1 if 0 merges in 45 days |
+| `has_onchain_escrow`| INTEGER | 1 if vault/multisig phrases found |
+| `mentions_no_kyc`   | INTEGER | 1 if "no kyc" phrases found |
+| `mentions_wallet_payout` | INTEGER | 1 if "0x" or wallet phrases found |
 | `vibe_score` | INTEGER | 0–100 LLM quality score (nullable) |
 | `vibe_reason` | TEXT | LLM one-line rationale (nullable) |
 | `checked_at` | REAL | Unix timestamp of last scrape |
@@ -250,7 +270,9 @@ github-bounty-scraper/
 │   ├── signals.py         # Hard disqualifiers, soft signals, snipe detection
 │   └── vibe.py            # Optional Gemini LLM annotation layer
 ├── tools/
-│   └── analyze_raw.py     # Exploration helper: inspect exploration_raw.jsonl
+│   ├── analyze_raw.py        # Exploration helper: inspect exploration_raw.jsonl
+│   ├── balance_dataset.py    # Balancing script for training data
+│   └── train_bounty_model.py # ML training and calibration script
 ├── scraper_config.json    # Global thresholds and search queries
 ├── signals_config.json    # Signal keyword lists
 ├── pyproject.toml         # Package metadata and dependencies

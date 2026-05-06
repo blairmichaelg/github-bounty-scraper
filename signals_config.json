@@ -28,7 +28,11 @@
     "$ usdc", "$ eth", "$ sol", "$ op", "$ arb",
     "usdc reward", "eth reward", "sol reward",
     "100 usdc", "200 usdc", "500 usdc", "1000 usdc", "250 usdc",
-    "0.1 eth", "0.5 eth", "1 eth", "0.01 eth"
+    "0.1 eth", "0.5 eth", "1 eth", "0.01 eth",
+    "escrow", "on-chain escrow", "vault", "vaults",
+    "safe multisig", "gnosis safe", "multisig",
+    "hats vault", "immunefi vault", "on-chain bug bounty",
+    "escrowed funds", "locked in contract", "bug bounty vault"
   ],
   "negative_filters": [
     "bounty cancelled", "unfunded", "reward distributed", "bounty paid", "payment released",
@@ -96,6 +100,18 @@
   ],
   "soft_negative_signals": [
     "wip", "work in progress", "on hold", "blocked", "postponed",
-    "not accepting", "not taking submissions", "paused"
+    "not accepting", "not taking submissions", "paused",
+    "kyc required", "passport copy", "government id",
+    "proof of address", "bank statement", "tax form",
+    "sanctions screening"
+  ],
+  "no_kyc_phrases": [
+    "no kyc", "without kyc", "no identity checks",
+    "anonymous payout", "pseudonymous payout"
+  ],
+  "wallet_payout_phrases": [
+    "wallet address", "0x", "btc address", "eth address",
+    "usdc address", "send to my wallet", "payout in eth",
+    "payout in usdc", "payout in tokens"
   ]
 }

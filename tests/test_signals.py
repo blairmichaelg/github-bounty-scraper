@@ -2,7 +2,7 @@ import datetime
 from github_bounty_scraper.signals import apply_hard_disqualifiers, compute_soft_signals
 
 def test_hard_disqualify_closed():
-    """CLOSED issue always returns True."""
+    """CLOSED issue is no longer hard-disqualified in signals.py (handled in core.py)."""
     dq, reason = apply_hard_disqualifiers(
         issue_state="CLOSED",
         labels_nodes=[],
@@ -10,8 +10,7 @@ def test_hard_disqualify_closed():
         comments=[],
         signals={"kill_labels": [], "negative_filters": []}
     )
-    assert dq is True
-    assert "CLOSED" in reason.upper()
+    assert dq is False
 
 def test_hard_disqualify_kill_label():
     """Issue with kill label returns True."""

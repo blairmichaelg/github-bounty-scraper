@@ -1,0 +1,27 @@
+- [x] Section A: Optimize Gemini System Prompt
+    - [x] Update vibe.py SYSTEM_PROMPT
+    - [x] Fix syntax error in vibe.py
+    - [x] Run vibe smoke test
+- [x] Section B: Enrich signals for escrow/no-KYC/wallet
+    - [x] Update signals_config.json
+    - [x] Update SignalResult in signals.py
+    - [x] Plumb signals in core.py
+    - [x] Update DB schema in db.py
+    - [x] Update upsert_issue_stats in db.py
+- [x] Section C: Adjust scoring weights
+    - [x] Update config.py weights
+    - [x] Update escrow weighting logic in signals.py
+- [x] Section D: Rebuild training dataset
+    - [x] Update dump_dataset in db.py
+    - [x] Export v3 dataset
+    - [x] Balance and sample dataset
+- [x] Section E: Train and calibrate model
+    - [x] Install ML dependencies (scikit-learn, pandas, xgboost)
+    - [x] Create training script
+    - [x] Run training and save best_threshold.json
+- [x] Section F: Regression tests
+    - [x] Fix test_signals.py
+    - [x] Run all tests
+- [x] Section G: Documentation
+    - [x] Update README.md
+    - [x] Finalize walkthrough

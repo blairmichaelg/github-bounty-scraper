@@ -49,3 +49,12 @@ vibe_test.log
 .claude/
 audit_env.py
 *.log
+
+# Model artifacts
+best_threshold.json
+
+# Scratch / temp
+scratch/
+vibe_smoke_test.py
+section*.py
+vibe_test.log

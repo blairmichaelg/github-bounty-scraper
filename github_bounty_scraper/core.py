@@ -487,6 +487,9 @@ async def process_issue(
             lead_mode=lead_mode_override or config.mode,
             escrow_verified=escrow_verified,
             is_dead_repo=is_dead_repo_flag,
+            has_onchain_escrow=soft.has_onchain_escrow,
+            mentions_no_kyc=soft.mentions_no_kyc,
+            mentions_wallet_payout=soft.mentions_wallet_payout,
         )
         await committer.tick()
 

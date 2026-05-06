@@ -121,23 +121,23 @@ class ScraperConfig:
     """Number of DB ops before commit.  Default: 25."""
 
     # ── Scoring weights ──
-    weight_amount: float = 0.20
-    """Weight for bounty amount in score calculation.  Default: 0.20."""
+    weight_amount: float = 0.15
+    """Weight for bounty amount in score calculation.  Default: 0.15."""
 
-    weight_recency: float = 0.20
-    """Weight for issue recency.  Default: 0.20."""
+    weight_recency: float = 0.15
+    """Weight for issue recency.  Default: 0.15."""
 
-    weight_activity: float = 0.20
-    """Weight for repo activity.  Default: 0.20."""
+    weight_activity: float = 0.10
+    """Weight for repo activity.  Default: 0.10."""
 
-    weight_escrow_strength: float = 0.15
-    """Weight for escrow signal strength.  Default: 0.15."""
+    weight_escrow_strength: float = 0.25
+    """Weight for escrow signal strength.  Default: 0.25."""
 
     w_repo_reputation: float = 0.10
     """Weight for repo reputation term (escrows vs rugs). Default: 0.10."""
 
-    weight_vibe: float = 0.15
-    """Weight for LLM vibe score term. Default: 0.15."""
+    weight_vibe: float = 0.25
+    """Weight for LLM vibe score term. Default: 0.25."""
 
     # ── Output ──
     output_format: str = "text"  # text | markdown | json

@@ -53,6 +53,9 @@ class SignalResult:
     is_closed: bool = False
     has_negative_soft: bool = False
     has_positive_escrow: bool = False
+    has_onchain_escrow: bool = False
+    mentions_no_kyc: bool = False
+    mentions_wallet_payout: bool = False
 
 
 # ─── Helper: parse GitHub timestamp ──────────────────────────────────
@@ -160,6 +163,10 @@ def compute_soft_signals(
     result.positive_escrow_count = len(escrow_hits)
     
     # Calculate weighted sum for the unique hits
+    all_text = body_lower
+    for c in comments:
+        all_text += "\n" + c.get("body", "").lower()
+        
     for s in escrow_hits:
         base = 1.0
         if "escrow" in s:
@@ -168,7 +175,21 @@ def compute_soft_signals(
             base += 1.0
         if "paid on merge" in s or "reward" in s:
             base += 0.5
+            
+        # Extra bonuses for clear on-chain / no-KYC preference
+        if any(k in s for k in ["vault", "safe multisig", "gnosis safe", "multisig"]):
+            base += 0.5
+        if "no kyc" in all_text and ("payout" in all_text or "reward" in all_text or "paid" in all_text):
+            # Add a small bonus once if no-KYC is mentioned in context
+            base += 0.1  # Distributed across hits, or just add 0.5 to total
+            
         result.escrow_weight_sum += base
+
+    # Explicit global bonuses to escrow_weight_sum
+    if "no kyc" in all_text:
+        result.escrow_weight_sum += 0.5
+    if any(k in all_text for k in ["vault", "safe multisig", "gnosis safe"]):
+        result.escrow_weight_sum += 0.5
 
     result.has_positive_escrow = result.positive_escrow_count > 0
 
@@ -180,6 +201,26 @@ def compute_soft_signals(
             all_text += "\n" + c.get("body", "").lower()
         if any(s in all_text for s in soft_neg):
             result.has_negative_soft = True
+
+    # ── Derived booleans for payout structure ──
+    no_kyc_phrases = cast(list[str], signals.get("no_kyc_phrases", []))
+    wallet_phrases = cast(list[str], signals.get("wallet_payout_phrases", []))
+    
+    all_text = body_lower
+    for c in comments:
+        all_text += "\n" + c.get("body", "").lower()
+        
+    if any(s in all_text for s in no_kyc_phrases):
+        result.mentions_no_kyc = True
+    if any(s in all_text for s in wallet_phrases):
+        result.mentions_wallet_payout = True
+        
+    onchain_keywords = ["vault", "safe multisig", "gnosis safe", "hats vault", "immunefi vault"]
+    if any(k in all_text for k in onchain_keywords):
+        result.has_onchain_escrow = True
+    elif any(s in escrow_hits for s in ["escrow", "multisig", "on-chain escrow", "escrowed funds"]):
+        # Also check explicit escrow hits
+        result.has_onchain_escrow = True
 
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(
