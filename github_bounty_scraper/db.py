@@ -12,8 +12,14 @@ import time
 import aiosqlite
 
 from .log import get_logger
+from .signals import SignalResult
 
 log = get_logger()
+
+# Phrase lists for payout signals
+NO_KYC_PHRASES = ["no kyc", "without kyc", "no identity checks", "anonymous payout", "pseudonymous payout"]
+WALLET_PAYOUT_PHRASES = ["wallet address", "0x", "btc address", "eth address", "usdc address", "payout in eth", "payout in usdc", "payout in tokens"]
+ESCROW_PHRASES = ["escrow", "on-chain escrow", "vault", "vaults", "safe multisig", "gnosis safe", "multisig", "hats vault", "immunefi vault", "on-chain bug bounty", "escrowed funds", "locked in contract", "bug bounty vault"]
 
 
 # ─── Schema creation & migration ────────────────────────────────────
@@ -205,9 +211,20 @@ async def upsert_issue_stats(
     mentions_wallet_payout: bool = False,
     positive_escrow_count: int = 0,
     escrow_weight_sum: float = 0.0,
+    body_snippet: str = "",
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
+    
+    # Task 2b: Re-compute signals from title + body if not already positive
+    all_text = ((title or "") + " " + (body_snippet or "")).lower()
+    if not has_onchain_escrow:
+        has_onchain_escrow = any(s in all_text for s in ESCROW_PHRASES)
+    if not mentions_no_kyc:
+        mentions_no_kyc = any(s in all_text for s in NO_KYC_PHRASES)
+    if not mentions_wallet_payout:
+        mentions_wallet_payout = any(s in all_text for s in WALLET_PAYOUT_PHRASES)
+
     await conn.execute(
         """
         INSERT INTO issue_stats
@@ -363,8 +380,6 @@ async def mark_issue_checked(
         "INSERT OR REPLACE INTO checked_cache (issue_url, checked_at) VALUES (?, ?)",
         (issue_url, checked_at),
     )
-    # We no longer need to commit here if using BatchCommitter, but for safety:
-    # await conn.commit()
 
 
 async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
@@ -415,27 +430,36 @@ async def set_issue_vibe(
         # Ensure schema is initialized/migrated
         await init_db(conn)
 
-        # Try to update existing row first
+        # Task 2c: Extract signals from vibe_reason bonus
+        reason_lower = vibe_reason.lower()
+        wallet_bonus = 1 if "direct wallet payout" in reason_lower else 0
+        escrow_bonus = 1 if "on-chain escrow" in reason_lower else 0
+        nokyc_bonus = 1 if "no kyc" in reason_lower else 0
+
+        # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(
             """
             UPDATE issue_stats
             SET
                 vibe_score     = ?,
                 vibe_reason    = ?,
-                vibe_checked_at = ?
+                vibe_checked_at = ?,
+                has_onchain_escrow = MAX(has_onchain_escrow, ?),
+                mentions_no_kyc    = MAX(mentions_no_kyc, ?),
+                mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
             WHERE issue_url = ?
             """,
-            (vibe_score, vibe_reason, checked_at, issue_url),
+            (vibe_score, vibe_reason, checked_at, escrow_bonus, nokyc_bonus, wallet_bonus, issue_url),
         )
         if cursor.rowcount == 0:
             # If not exists, insert a minimal row. 
             # Note: other fields (title, etc) will be NULL until a proper scrape matches it.
             await conn.execute(
                 """
-                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_checked_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (issue_url, vibe_score, vibe_reason, checked_at),
+                (issue_url, vibe_score, vibe_reason, checked_at, escrow_bonus, nokyc_bonus, wallet_bonus),
             )
 
         await conn.commit()
@@ -556,30 +580,17 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 if not d.get("mentions_wallet_payout"):
                     d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
 
-                # is_bounty = 1 when: explicit numeric amount >= label_threshold AND vibe_score >= 50
-                # is_bounty = 0 when: vibe_score < 30 OR no numeric amount
-                # is_bounty = NULL (empty) when: ambiguous — let the model decide
+                # Task 3a: New safe label rule (decoupled from vibe_score)
                 amount = d.get("numeric_amount") or 0
-                vibe = d.get("vibe_score")
-                lead_mode = str(d.get("lead_mode") or "").lower()
-
-                sentinel = (amount == -1.0)   # confirmed bounty, amount unknown
-                is_positive = (
-                    (amount >= label_threshold and vibe is not None and vibe >= 50)
-                    or (sentinel and vibe is not None and vibe >= 50)
-                    or ("closed" in lead_mode and vibe is not None and vibe >= 50)
-                )
+                pos_escrow = d.get("positive_escrow_count") or 0
+                
+                is_positive = (amount >= label_threshold or pos_escrow >= 1)
                 
                 if is_positive:
                     d["is_bounty"] = 1
-                elif vibe is not None and vibe < 30:
-                    d["is_bounty"] = 0
-                elif vibe is not None and 30 <= vibe < 50 and amount < label_threshold:
-                    d["is_bounty"] = 0   # Low vibe + low/no amount = clear negative
-                elif amount == 0 and vibe is None:
-                    d["is_bounty"] = 0
                 else:
-                    d["is_bounty"] = ""   # ambiguous — exclude from supervised training
+                    d["is_bounty"] = 0
+                
                 writer.writerow(d)
         
         log.info("dump-dataset: exported %d rows to %s (enriched with %d bodies)", len(rows), out_path, len(bodies))

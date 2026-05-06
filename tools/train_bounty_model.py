@@ -74,7 +74,11 @@ def train_and_eval():
             
         return avg_auc, max_f1, best_threshold, importances, final_model
 
-    auc_a, f1_a, thr_a, imp_a, _ = evaluate_model(features_a, "MODEL A (Signal-only)")
+    auc_a, f1_a, thr_a, imp_a, model_a = evaluate_model(features_a, "MODEL A (Signal-only)")
+    
+    # WARNING: Model B uses vibe_score as a feature. If is_bounty
+    # labels were derived from composite score which includes vibe_score,
+    # this model is overfit by circular leakage. Use Model A in production.
     auc_b, f1_b, thr_b, imp_b, model_b = evaluate_model(features_b, "MODEL B (Full Model)")
 
     if auc_a < 0.60:
@@ -82,18 +86,25 @@ def train_and_eval():
 
     # Save results
     results = {
-        "best_threshold": thr_b,
-        "f1_score": f1_b,
-        "roc_auc": auc_b,
+        "production_model": "A",
+        "best_threshold": thr_a,
+        "f1_score": f1_a,
+        "roc_auc": auc_a,
         "signal_only_auc": auc_a,
         "signal_only_f1": f1_a,
-        "features": features_b,
-        "importances": imp_b
+        "model_b_metrics": {
+            "f1_score": f1_b,
+            "roc_auc": auc_b,
+            "best_threshold": thr_b,
+            "model_b_circular_leak": True
+        },
+        "features": features_a,
+        "importances": imp_a
     }
     
     import joblib
-    joblib.dump(model_b, "bounty_model.pkl")
-    print("\nSaved Model B to bounty_model.pkl")
+    joblib.dump(model_a, "bounty_model.pkl")
+    print("\nSaved Model A to bounty_model.pkl (Production)")
     
     with open("best_threshold.json", "w") as f:
         json.dump(results, f, indent=2)
