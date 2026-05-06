@@ -460,6 +460,9 @@ async def process_issue(
         vibe_score_int=vibe_score_val if not config.dry_run else None,
         has_negative_soft=soft.has_negative_soft,
         config=config,
+        has_onchain_escrow=soft.has_onchain_escrow,
+        mentions_no_kyc=soft.mentions_no_kyc,
+        mentions_wallet_payout=soft.mentions_wallet_payout,
     )
 
     # ── DB upsert (single repo_stats + issue_stats call) ──

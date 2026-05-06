@@ -57,6 +57,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Only consider issues updated on or after this date (default: 90 days ago, %(default)s).",
     )
     parser.add_argument(
+        "--auto-refresh",
+        action="store_true",
+        default=False,
+        help="Skip scrape if newest lead is < --refresh-days old."
+    )
+    parser.add_argument(
+        "--refresh-days",
+        type=int,
+        default=3,
+        help="Age threshold in days for --auto-refresh. Default: 3."
+    )
+    parser.add_argument(
         "--max-issues",
         type=int,
         metavar="N",

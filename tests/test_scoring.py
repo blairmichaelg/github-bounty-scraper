@@ -22,6 +22,9 @@ def test_score_ceiling_never_exceeded(config, seed):
         vibe_score_int=random.choice([None, random.randint(0, 100)]),
         has_negative_soft=False,
         config=config,
+        has_onchain_escrow=random.choice([True, False]),
+        mentions_no_kyc=random.choice([True, False]),
+        mentions_wallet_payout=random.choice([True, False]),
     )
     assert score <= 100.0, f"Score {score} exceeded 100.0 with seed {seed}"
 

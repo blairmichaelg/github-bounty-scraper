@@ -132,6 +132,24 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
 def main() -> None:
     command, ns, config = parse_args()
     if command == "scrape":
+        if getattr(ns, 'auto_refresh', False):
+            import sqlite3, time
+            db_path = getattr(ns, 'db_path', 'bounty_stats.db')
+            refresh_days = getattr(ns, 'refresh_days', 3)
+            try:
+                conn = sqlite3.connect(db_path)
+                newest = conn.execute(
+                    'SELECT MAX(last_seen_at) FROM issue_stats'
+                ).fetchone()[0]
+                conn.close()
+                if newest and (time.time() - newest) < refresh_days * 86400:
+                    age_h = (time.time() - newest) / 3600
+                    print(f"Leads are fresh ({age_h:.1f}h old). Skipping scrape.")
+                    print("Run without --auto-refresh to force a full pass.")
+                    sys.exit(0)
+            except Exception as e:
+                print(f"Auto-refresh check failed ({e}). Proceeding with scrape.")
+
         asyncio.run(run_pipeline(config))
     elif command == "inspect-leads":
         asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit))

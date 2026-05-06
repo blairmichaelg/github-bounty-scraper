@@ -48,6 +48,9 @@ def compute_score(
     vibe_score_int: int | None,
     has_negative_soft: bool,
     config: ScraperConfig,
+    has_onchain_escrow: bool = False,
+    mentions_no_kyc: bool = False,
+    mentions_wallet_payout: bool = False,
 ) -> float:
     """Compute a composite score in [0, 100] for an issue.
 
@@ -61,6 +64,9 @@ def compute_score(
         vibe_score_int: Optional [0, 100] score from Gemini vibe-check.
         has_negative_soft: True if minor negative signals were detected.
         config: ScraperConfig containing weights and thresholds.
+        has_onchain_escrow: True if explicit on-chain escrow was detected.
+        mentions_no_kyc: True if explicit "no KYC" was mentioned.
+        mentions_wallet_payout: True if direct wallet payout was mentioned.
 
     Returns:
         A composite score rounded to 2 decimal places.
@@ -103,6 +109,14 @@ def compute_score(
     weighted_norm = min(positive_escrow_weight_sum / 5.0, 1.0)
     
     escrow_norm = max(count_norm, weighted_norm)
+
+    # Payout quality bonuses — capped so escrow_norm stays <= 1.0
+    if has_onchain_escrow:
+        escrow_norm = min(escrow_norm + 0.20, 1.0)
+    if mentions_wallet_payout:
+        escrow_norm = min(escrow_norm + 0.15, 1.0)
+    if mentions_no_kyc:
+        escrow_norm = min(escrow_norm + 0.10, 1.0)
 
     # ── Vibe component — normalised to [0, 1] ──
     vibe_norm = (vibe_score_int or 0) / 100.0
