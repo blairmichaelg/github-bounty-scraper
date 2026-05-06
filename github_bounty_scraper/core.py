@@ -490,6 +490,8 @@ async def process_issue(
             has_onchain_escrow=soft.has_onchain_escrow,
             mentions_no_kyc=soft.mentions_no_kyc,
             mentions_wallet_payout=soft.mentions_wallet_payout,
+            positive_escrow_count=soft.positive_escrow_count,
+            escrow_weight_sum=soft.escrow_weight_sum,
         )
         await committer.tick()
 

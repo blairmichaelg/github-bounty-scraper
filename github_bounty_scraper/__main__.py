@@ -27,6 +27,17 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         print(f"No leads found for mode={mode} yet.")
         sys.exit(0)
     
+    def _rank_key(row):
+        return (
+            -row.get("score", 0),
+            -int(row.get("has_onchain_escrow", 0)),
+            -int(row.get("mentions_wallet_payout", 0)),
+            -int(row.get("mentions_no_kyc", 0)),
+            -row.get("numeric_amount", 0),
+        )
+
+    leads.sort(key=_rank_key)
+
     print(f"{'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'ESCROW':<6} | {'DEAD':<4} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
     print("-" * 142)
     for L in leads:
@@ -56,6 +67,17 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         url = str(L.get('issue_url', ''))
         
         print(f"{score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {escrow:<6} | {dead:<4} | {vibe:<5} | {repo:<30} | {url}")
+
+        # Task 4: Add WHY tags
+        tags = []
+        if L.get("has_onchain_escrow"):   tags.append("ON-CHAIN-ESCROW")
+        if L.get("mentions_wallet_payout"): tags.append("WALLET-PAYOUT")
+        if L.get("mentions_no_kyc"):      tags.append("NO-KYC")
+        if L.get("vibe_score") and L.get("vibe_score") >= 80:  tags.append(f"VIBE={L['vibe_score']}")
+        
+        if tags:
+            tag_str = " | ".join(tags)
+            print(f"  [{tag_str}]")
 
 
 def main() -> None:

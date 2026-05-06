@@ -1,23 +1,29 @@
 {
-  "best_threshold": 0.7012225705329155,
+  "best_threshold": 0.8332807903597377,
   "f1_score": 0.9999999995,
   "roc_auc": 1.0,
+  "signal_only_auc": 0.9404128959276019,
+  "signal_only_f1": 0.7692307687368071,
   "features": [
     "log_amount",
-    "vibe_score",
-    "merges_last_45d",
+    "positive_escrow_count",
+    "escrow_weight_sum",
     "has_onchain_escrow",
     "mentions_no_kyc",
     "mentions_wallet_payout",
-    "is_closed"
+    "merges_last_45d",
+    "is_closed",
+    "vibe_score"
   ],
   "importances": {
-    "log_amount": 0.19520705595584645,
-    "vibe_score": 0.6680981426698942,
-    "merges_last_45d": 0.0913167785035313,
-    "has_onchain_escrow": 0.003334345101880407,
+    "log_amount": 0.17290743104696898,
+    "positive_escrow_count": 0.0,
+    "escrow_weight_sum": 0.0,
+    "has_onchain_escrow": 0.0036913708362306913,
     "mentions_no_kyc": 0.0,
-    "mentions_wallet_payout": 0.0026930211399714475,
-    "is_closed": 0.039350656628876185
+    "mentions_wallet_payout": 0.0014609784990032148,
+    "merges_last_45d": 0.06183653385729082,
+    "is_closed": 0.048304815405029775,
+    "vibe_score": 0.7117988703554765
   }
 }

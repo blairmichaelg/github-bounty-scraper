@@ -95,6 +95,8 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "has_onchain_escrow INTEGER DEFAULT 0",
         "mentions_no_kyc INTEGER DEFAULT 0",
         "mentions_wallet_payout INTEGER DEFAULT 0",
+        "positive_escrow_count INTEGER DEFAULT 0",
+        "escrow_weight_sum REAL DEFAULT 0.0",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -201,6 +203,8 @@ async def upsert_issue_stats(
     has_onchain_escrow: bool = False,
     mentions_no_kyc: bool = False,
     mentions_wallet_payout: bool = False,
+    positive_escrow_count: int = 0,
+    escrow_weight_sum: float = 0.0,
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -211,8 +215,9 @@ async def upsert_issue_stats(
              first_seen_at, last_seen_at, last_updated_at,
              numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score,
-            has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout,
+            positive_escrow_count, escrow_weight_sum)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
@@ -231,7 +236,9 @@ async def upsert_issue_stats(
             is_dead_repo       = excluded.is_dead_repo,
             has_onchain_escrow = excluded.has_onchain_escrow,
             mentions_no_kyc    = excluded.mentions_no_kyc,
-            mentions_wallet_payout = excluded.mentions_wallet_payout
+            mentions_wallet_payout = excluded.mentions_wallet_payout,
+            positive_escrow_count = excluded.positive_escrow_count,
+            escrow_weight_sum = excluded.escrow_weight_sum
         """,
         (
             issue_url, now, scraped_amount,
@@ -239,6 +246,7 @@ async def upsert_issue_stats(
             numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo), score,
             int(has_onchain_escrow), int(mentions_no_kyc), int(mentions_wallet_payout),
+            positive_escrow_count, escrow_weight_sum,
         ),
     )
 
@@ -366,7 +374,12 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
         await init_db(conn)
-        query = "SELECT score, prev_score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, repo_name, issue_url, vibe_score FROM issue_stats"
+        query = """
+            SELECT score, prev_score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, 
+                   repo_name, issue_url, vibe_score, has_onchain_escrow, 
+                   mentions_wallet_payout, mentions_no_kyc 
+            FROM issue_stats
+        """
         params: list[Any] = []
         if mode != "all":
             query += " WHERE lead_mode = ?"
@@ -482,21 +495,10 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
         await init_db(conn)
 
         query = """
-            SELECT 
-                i.issue_url,
-                i.title,
-                i.lead_mode,
-                i.numeric_amount,
-                i.score,
-                i.prev_score,
-                i.escrow_verified,
-                i.is_dead_repo,
-                i.checked_at,
-                i.vibe_score,
-                i.vibe_reason,
-                r.merges_last_45d,
-                r.escrows_seen,
-                r.rugs_seen,
+            SELECT i.*, 
+                r.merges_last_45d, 
+                r.escrows_seen, 
+                r.rugs_seen, 
                 r.total_escrows_seen
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
@@ -515,6 +517,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 "checked_at", "vibe_score", "vibe_reason", 
                 "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen",
                 "has_onchain_escrow", "mentions_no_kyc", "mentions_wallet_payout",
+                "positive_escrow_count", "escrow_weight_sum",
                 "is_bounty"
             ]
             writer = csv.DictWriter(f, fieldnames=headers)
@@ -530,14 +533,28 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 return
 
             for row in rows:
-                d = dict(row)
-                body = bodies.get(d["issue_url"], "")
-                d["body_snippet"] = body
+                raw_d = dict(row)
+                body = bodies.get(raw_d["issue_url"], "")
                 
-                text = (str(d.get("title") or "") + " " + body).lower()
-                d["has_onchain_escrow"] = 1 if any(s in text for s in escrow_list) else 0
-                d["mentions_no_kyc"] = 1 if any(s in text for s in no_kyc_list) else 0
-                d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
+                text = (str(raw_d.get("title") or "") + " " + body).lower()
+                
+                # Build the export dict using only the specified headers
+                d = {}
+                for h in headers:
+                    if h == "body_snippet":
+                        d[h] = body
+                    elif h in raw_d:
+                        d[h] = raw_d[h]
+                    else:
+                        d[h] = ""
+
+                # Special overrides for derived features if not in DB yet
+                if not d.get("has_onchain_escrow"):
+                    d["has_onchain_escrow"] = 1 if any(s in text for s in escrow_list) else 0
+                if not d.get("mentions_no_kyc"):
+                    d["mentions_no_kyc"] = 1 if any(s in text for s in no_kyc_list) else 0
+                if not d.get("mentions_wallet_payout"):
+                    d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
 
                 # is_bounty = 1 when: explicit numeric amount >= label_threshold AND vibe_score >= 50
                 # is_bounty = 0 when: vibe_score < 30 OR no numeric amount

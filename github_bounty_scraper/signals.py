@@ -147,6 +147,9 @@ def compute_soft_signals(
     """
     result = SignalResult()
     body_lower = body.lower()
+    all_text = body_lower
+    for c in comments:
+        all_text += "\n" + c.get("body", "").lower()
 
     # ── Positive escrow count (set-based: count unique signal types) ──
     pos_signals = cast(list[str], signals.get("positive_escrow", []))
@@ -163,10 +166,6 @@ def compute_soft_signals(
     result.positive_escrow_count = len(escrow_hits)
     
     # Calculate weighted sum for the unique hits
-    all_text = body_lower
-    for c in comments:
-        all_text += "\n" + c.get("body", "").lower()
-        
     for s in escrow_hits:
         base = 1.0
         if "escrow" in s:
@@ -196,9 +195,6 @@ def compute_soft_signals(
     # ── Soft negative signals ──
     soft_neg = cast(list[str], signals.get("soft_negative_signals", []))
     if soft_neg:
-        all_text = body_lower
-        for c in comments:
-            all_text += "\n" + c.get("body", "").lower()
         if any(s in all_text for s in soft_neg):
             result.has_negative_soft = True
 
@@ -206,10 +202,6 @@ def compute_soft_signals(
     no_kyc_phrases = cast(list[str], signals.get("no_kyc_phrases", []))
     wallet_phrases = cast(list[str], signals.get("wallet_payout_phrases", []))
     
-    all_text = body_lower
-    for c in comments:
-        all_text += "\n" + c.get("body", "").lower()
-        
     if any(s in all_text for s in no_kyc_phrases):
         result.mentions_no_kyc = True
     if any(s in all_text for s in wallet_phrases):
