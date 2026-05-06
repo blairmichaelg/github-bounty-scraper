@@ -59,7 +59,14 @@
     "pre-contest audit triage",
     "runtime-sentinel flagged", "agenttrust-scanner flagged",
     "sentinelx402", "vaultfire-x402",
-    "clawd-agent"
+    "clawd-agent",
+    "successfully completed and paid out",
+    "bounty has been completed",
+    "this bounty was completed",
+    "bounty was already paid",
+    "already been claimed",
+    "work has been delivered",
+    "payout has been processed"
   ],
   "stale_signals": [
     "bounty expired", "claim invalidated", "work expired", "reward period ended",
@@ -70,7 +77,11 @@
     "up for grabs again", "open to new contributors",
     "payment already sent", "reward claimed", "usdc sent", "eth transferred",
     "wallet paid", "compensation released", "reward distributed",
-    "bounty closed", "paid out", "payout complete", "funds released to"
+    "bounty closed", "paid out", "payout complete", "funds released to",
+    "paid on merge",
+    "paid out",
+    "bounty closed and paid",
+    "reward has been released"
   ],
   "active_signals": [
     "/attempt", "/claim", "working on this", "i'll take this",
@@ -91,7 +102,10 @@
     "openclaw/clawhub", "hien-p/skillname",
     "broomva/life", "broomva/haima",
     "402shop", "402md/facilitator",
-    "x402-foundation", "x402-index", "x402agent"
+    "x402-foundation", "x402-index", "x402agent",
+    "spectral-finance/lux",
+    "livepeer/bounties",
+    "dasharo/dasharo-issues"
   ],
   "active_label_signals": [
     "claimed", "in-progress", "in progress",
