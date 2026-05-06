@@ -113,12 +113,13 @@ query($owner: String!, $name: String!, $issue: Int!, $tl_page_size: Int!) {
       author { login }
       assignees(first: 1) { totalCount }
       labels(first: 10) { nodes { name } }
-      # NOTE: Only the last 50 comments are fetched. Backward pagination is
-      # intentionally omitted to limit API call volume. Older comments on
-      # high-traffic issues may occasionally miss escrow signals.
-      comments(last: 50) {
+      # NOTE: Fetching both first 50 and last 50 to capture initial bounty
+      # announcements and recent claims without requiring extra API calls.
+      firstComments: comments(first: 50) {
         nodes { body createdAt }
-        pageInfo { hasPreviousPage startCursor }
+      }
+      lastComments: comments(last: 50) {
+        nodes { body createdAt }
       }
       timelineItems(first: $tl_page_size, itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT, ASSIGNED_EVENT, UNASSIGNED_EVENT]) {
         nodes {
@@ -253,8 +254,23 @@ async def run_graphql_audit(
     # Replace the truncated PR list with the full paginated set.
     repo_data["pullRequests"]["nodes"] = all_prs
 
-    # ── Timeline pagination (Section 2.2) ──
+    # ── Comments deduplication ──
     issue_data = repo_data.get("issue")
+    if issue_data:
+        first_c = issue_data.get("firstComments", {}).get("nodes", [])
+        last_c = issue_data.get("lastComments", {}).get("nodes", [])
+        
+        seen_dates = set()
+        merged_comments = []
+        for c in (first_c or []) + (last_c or []):
+            if not c: continue
+            date = c.get("createdAt")
+            if date not in seen_dates:
+                seen_dates.add(date)
+                merged_comments.append(c)
+        issue_data["comments"] = {"nodes": merged_comments}
+
+    # ── Timeline pagination (Section 2.2) ──
     if issue_data:
         tl_info = issue_data.get("timelineItems", {}).get("pageInfo", {})
         all_tl_nodes = list(issue_data.get("timelineItems", {}).get("nodes", []))

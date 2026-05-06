@@ -17,9 +17,15 @@ from .signals import SignalResult
 log = get_logger()
 
 # Phrase lists for payout signals
+import re
+
 NO_KYC_PHRASES = ["no kyc", "without kyc", "no identity checks", "anonymous payout", "pseudonymous payout"]
 WALLET_PAYOUT_PHRASES = ["wallet address", "0x", "btc address", "eth address", "usdc address", "payout in eth", "payout in usdc", "payout in tokens"]
 ESCROW_PHRASES = ["escrow", "on-chain escrow", "vault", "vaults", "safe multisig", "gnosis safe", "multisig", "hats vault", "immunefi vault", "on-chain bug bounty", "escrowed funds", "locked in contract", "bug bounty vault"]
+
+NO_KYC_RE = re.compile("|".join(re.escape(p) for p in NO_KYC_PHRASES))
+WALLET_PAYOUT_RE = re.compile("|".join(re.escape(p) for p in WALLET_PAYOUT_PHRASES))
+ESCROW_RE = re.compile("|".join(re.escape(p) for p in ESCROW_PHRASES))
 
 
 # ─── Schema creation & migration ────────────────────────────────────
@@ -220,11 +226,11 @@ async def upsert_issue_stats(
     # Task 2b: Re-compute signals from title + body if not already positive
     all_text = ((title or "") + " " + (body_snippet or "")).lower()
     if not has_onchain_escrow:
-        has_onchain_escrow = any(s in all_text for s in ESCROW_PHRASES)
+        has_onchain_escrow = bool(ESCROW_RE.search(all_text))
     if not mentions_no_kyc:
-        mentions_no_kyc = any(s in all_text for s in NO_KYC_PHRASES)
+        mentions_no_kyc = bool(NO_KYC_RE.search(all_text))
     if not mentions_wallet_payout:
-        mentions_wallet_payout = any(s in all_text for s in WALLET_PAYOUT_PHRASES)
+        mentions_wallet_payout = bool(WALLET_PAYOUT_RE.search(all_text))
 
     await conn.execute(
         """
@@ -431,19 +437,12 @@ async def set_issue_vibe(
 
         # Task 2c: Extract signals from vibe_reason bonus
         reason_lower = (vibe_reason or "").lower()
-        has_onchain_escrow = int(any(k in reason_lower for k in [
-            "on-chain escrow", "vault", "gnosis safe", "multisig",
-            "hats vault", "immunefi vault", "escrowed", "locked in contract"
-        ]))
-        mentions_no_kyc = int(any(k in reason_lower for k in [
-            "no kyc", "without kyc", "no identity", "anonymous payout",
-            "pseudonymous payout"
-        ]))
-        mentions_wallet_payout = int(any(k in reason_lower for k in [
-            "direct wallet payout", "direct wallet", "wallet payout",
-            "wallet address", "crypto address", "0x", "payout in eth",
-            "payout in usdc", "payout in tokens", "token transfer"
-        ]))
+        
+        # We can use the globally compiled regexes or define local ones if lists differ.
+        # Here we just use local fast regexes since lists differ slightly from global ones.
+        has_onchain_escrow = int(bool(re.search(r'on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract', reason_lower)))
+        mentions_no_kyc = int(bool(re.search(r'no kyc|without kyc|no identity|anonymous payout|pseudonymous payout', reason_lower)))
+        mentions_wallet_payout = int(bool(re.search(r'direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer', reason_lower)))
 
         # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(
@@ -554,10 +553,8 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             
-            # Phrase lists for derived features
-            no_kyc_list = ["no kyc", "without kyc", "no identity checks", "anonymous payout", "pseudonymous payout"]
-            wallet_list = ["wallet address", "0x", "btc address", "eth address", "usdc address", "payout in eth", "payout in usdc", "payout in tokens"]
-            escrow_list = ["escrow", "on-chain escrow", "vault", "vaults", "safe multisig", "gnosis safe", "multisig", "hats vault", "immunefi vault", "on-chain bug bounty", "escrowed funds", "locked in contract", "bug bounty vault"]
+            # Phrase lists for derived features (already global regexes ESCROW_RE, NO_KYC_RE, WALLET_PAYOUT_RE)
+            # The lists below were redundant.
 
             if not rows:
                 log.info("dump-dataset: no rows found, wrote headers to %s", out_path)
@@ -581,11 +578,11 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
 
                 # Special overrides for derived features if not in DB yet
                 if not d.get("has_onchain_escrow"):
-                    d["has_onchain_escrow"] = 1 if any(s in text for s in escrow_list) else 0
+                    d["has_onchain_escrow"] = 1 if bool(ESCROW_RE.search(text)) else 0
                 if not d.get("mentions_no_kyc"):
-                    d["mentions_no_kyc"] = 1 if any(s in text for s in no_kyc_list) else 0
+                    d["mentions_no_kyc"] = 1 if bool(NO_KYC_RE.search(text)) else 0
                 if not d.get("mentions_wallet_payout"):
-                    d["mentions_wallet_payout"] = 1 if any(s in text for s in wallet_list) else 0
+                    d["mentions_wallet_payout"] = 1 if bool(WALLET_PAYOUT_RE.search(text)) else 0
 
                 # Labeling rule from Section 5
                 amount = d.get("numeric_amount") or 0

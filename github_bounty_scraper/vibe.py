@@ -273,10 +273,6 @@ async def run_vibe_check(
             
             async with sem:
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
-                if concurrency <= 2:
-                    await asyncio.sleep(0.5)
-                elif concurrency <= 5:
-                    await asyncio.sleep(0.15)
                 return s, r, issue_url
 
         # source_iter selection
@@ -295,20 +291,44 @@ async def run_vibe_check(
                 with open("vibe_retry.txt", "r") as f:
                     allowlist = set(line.strip() for line in f if line.strip())
 
-            # Load all candidates and sort by numeric_amount or score to find positives faster
-            candidates = []
-            async for obj in iter_raw_candidates(raw_file):
-                url = obj.get("issue_url") or obj.get("url") or ""
-                if allowlist and url not in allowlist:
-                    continue
-                if not allowlist and url in scored_urls:
-                    continue
-                candidates.append(obj)
-            
-            # Sort by numeric_amount (descending)
-            candidates.sort(key=lambda x: float(x.get("numeric_amount") or 0), reverse=True)
-            
-            for obj in candidates:
+            # To avoid OOM on huge files, we scan the file once, storing only
+            # (numeric_amount, file_offset) for unscored items, then sort.
+            def _scan_file() -> list[tuple[float, int]]:
+                _offsets = []
+                with open(raw_file, "r", encoding="utf-8") as f:
+                    while True:
+                        pos = f.tell()
+                        line = f.readline()
+                        if not line:
+                            break
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            # Parse just enough to filter and sort
+                            obj = json.loads(line)
+                            url = obj.get("issue_url") or obj.get("url") or ""
+                            if allowlist and url not in allowlist:
+                                continue
+                            if not allowlist and url in scored_urls:
+                                continue
+                            
+                            amt = float(obj.get("numeric_amount") or 0)
+                            _offsets.append((amt, pos))
+                        except Exception:
+                            continue
+                _offsets.sort(key=lambda x: x[0], reverse=True)
+                return _offsets
+
+            sorted_offsets = await asyncio.to_thread(_scan_file)
+
+            def _read_at_offset(pos: int) -> dict:
+                with open(raw_file, "r", encoding="utf-8") as f:
+                    f.seek(pos)
+                    return json.loads(f.readline())
+
+            for _, pos in sorted_offsets:
+                obj = await asyncio.to_thread(_read_at_offset, pos)
                 yield obj
 
         source_iter: AsyncIterator[dict[str, Any]]

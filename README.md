@@ -8,6 +8,21 @@ An async Python pipeline that discovers, enriches, and scores **funded crypto bo
 
 ---
 
+## What's New
+
+- **Producer-Consumer Pipeline** — Discovery streams directly into concurrent enrichment workers via `asyncio.Queue`. No more OOM crashes or hard 1000-issue cap.
+- **Streaming Vibe Checks** — `vibe.py` indexes the JSONL log by file offset and reads candidates lazily. Safe on arbitrarily large exploration logs.
+- **Regex Signal Scanning** — All signal keyword lists are compiled into optimized regexes at startup. Replaces slow `any(s in text for s in LIST)` loops throughout `signals.py`, `db.py`, and `config.py`.
+- **Bidirectional Comment Fetching** — GraphQL query uses aliased fields to fetch both `first: 50` and `last: 50` comments in a single API call.
+- **Query Compression** — Discovery phase chunks languages and combines them with `OR` syntax, slashing total GitHub Search API calls.
+- **`stateReason` Hard Kill** — Issues with `stateReason: COMPLETED` or `NOT_PLANNED` are dropped immediately after GraphQL enrichment before any scoring runs.
+- **Coinbase Price Fallback** — If CoinGecko returns `429`, `price_cache.py` falls back to the public Coinbase Exchange Rates API before using static values.
+- **Signal Config Cleanup** — `paid on merge` conflict resolved. New `completion_signals` list separates past-tense payout confirmations from staleness indicators. `aggregator_repos` cleaned up; real project repos moved to `verified_dead_repos`.
+- **Hardware Dependency Penalty** — Issues requiring physical hardware score at 0.5× multiplier via `hardware_dependency_phrases` in `signals_config.json`.
+- **Vibe Score TTL** — Vibe scores older than `vibe_ttl_hours` (default 48h) are invalidated and re-evaluated on the next run.
+
+---
+
 ## Features
 
 - **Two operational modes** — Strict (high-precision autopilot) and Opportunistic (high-recall scouting)

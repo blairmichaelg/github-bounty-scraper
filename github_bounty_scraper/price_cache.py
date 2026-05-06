@@ -66,11 +66,41 @@ async def refresh_prices(symbols: list[str]) -> None:
                         symbol = id_to_symbol.get(coin_id)
                         if symbol:
                             _PRICE_CACHE[symbol] = (float(prices["usd"]), now)
-                    log.info("price cache: refreshed for %d symbols (live)", len(data))
+                    log.info("price cache: refreshed for %d symbols (live) from CoinGecko", len(data))
+                    return
                 else:
-                    log.warning("price cache: CoinGecko HTTP %d — using fallbacks", resp.status)
+                    log.warning("price cache: CoinGecko HTTP %d — attempting fallback", resp.status)
     except Exception as exc:
-        log.warning("price cache: fetch failed (%s) — using fallbacks", exc)
+        log.warning("price cache: CoinGecko fetch failed (%s) — attempting fallback", exc)
+
+    # ── Fallback to Coinbase Exchange Rates API ──
+    try:
+        cb_url = "https://api.coinbase.com/v2/exchange-rates?currency=USD"
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(cb_url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    rates = data.get("data", {}).get("rates", {})
+                    now = time.time()
+                    updates = 0
+                    for symbol in symbols:
+                        sym_upper = symbol.upper()
+                        # Some mapping for WETH or others if needed
+                        if sym_upper == "WETH":
+                            sym_upper = "ETH"
+                        if sym_upper in rates:
+                            try:
+                                rate = float(rates[sym_upper])
+                                if rate > 0:
+                                    _PRICE_CACHE[symbol.lower()] = (1.0 / rate, now)
+                                    updates += 1
+                            except (ValueError, TypeError):
+                                pass
+                    log.info("price cache: refreshed for %d symbols (live) from Coinbase fallback", updates)
+                else:
+                    log.warning("price cache: Coinbase fallback HTTP %d — using static fallbacks", resp.status)
+    except Exception as exc:
+        log.warning("price cache: Coinbase fallback failed (%s) — using static fallbacks", exc)
 
 def get_usd_price(symbol: str) -> float:
     """Return the cached or fallback USD price for a symbol."""

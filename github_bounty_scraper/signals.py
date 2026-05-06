@@ -109,13 +109,14 @@ def apply_hard_disqualifiers(
             return True, f"kill label '{l_name}'"
 
     # Negative filters
-    neg_signals = cast(list[str], signals.get("negative_filters", []))
-    body_lower = body.lower()
-    if any(s in body_lower for s in neg_signals):
-        return True, "negative filter in body"
-    for c in comments:
-        if any(s in c.get("body", "").lower() for s in neg_signals):
-            return True, "negative filter in comment"
+    neg_signals_re = signals.get("negative_filters_re")
+    if neg_signals_re:
+        body_lower = body.lower()
+        if neg_signals_re.search(body_lower):
+            return True, "negative filter in body"
+        for c in comments:
+            if neg_signals_re.search(c.get("body", "").lower()):
+                return True, "negative filter in comment"
 
     return False, ""
 
@@ -176,16 +177,13 @@ def compute_soft_signals(
         all_text += "\n" + c.get("body", "").lower()
 
     # ── Positive escrow count (set-based: count unique signal types) ──
-    pos_signals = cast(list[str], signals.get("positive_escrow", []))
+    pos_signals_re = signals.get("positive_escrow_re")
     escrow_hits: set[str] = set()
-    for s in pos_signals:
-        if s in body_lower:
-            escrow_hits.add(s)
-    for c in comments:
-        c_lower = c.get("body", "").lower()
-        for s in pos_signals:
-            if s in c_lower:
-                escrow_hits.add(s)
+    if pos_signals_re:
+        escrow_hits.update(pos_signals_re.findall(body_lower))
+        for c in comments:
+            c_lower = c.get("body", "").lower()
+            escrow_hits.update(pos_signals_re.findall(c_lower))
 
     result.positive_escrow_count = len(escrow_hits)
     
@@ -225,18 +223,17 @@ def compute_soft_signals(
     result.has_positive_escrow = result.positive_escrow_count > 0
 
     # ── Soft negative signals ──
-    soft_neg = cast(list[str], signals.get("soft_negative_signals", []))
-    if soft_neg:
-        if any(s in all_text for s in soft_neg):
-            result.has_negative_soft = True
+    soft_neg_re = signals.get("soft_negative_signals_re")
+    if soft_neg_re and soft_neg_re.search(all_text):
+        result.has_negative_soft = True
 
     # ── Derived booleans for payout structure ──
-    no_kyc_phrases = cast(list[str], signals.get("no_kyc_phrases", []))
-    wallet_phrases = cast(list[str], signals.get("wallet_payout_phrases", []))
+    no_kyc_re = signals.get("no_kyc_phrases_re")
+    wallet_re = signals.get("wallet_payout_phrases_re")
     
-    if any(s in all_text for s in no_kyc_phrases):
+    if no_kyc_re and no_kyc_re.search(all_text):
         result.mentions_no_kyc = True
-    if any(s in all_text for s in wallet_phrases):
+    if wallet_re and wallet_re.search(all_text):
         result.mentions_wallet_payout = True
         
     result.has_onchain_escrow = any(
@@ -282,8 +279,8 @@ def _is_lane_blocked(
     Returns:
         True if the issue "lane" is actively occupied by a contributor.
     """
-    stale_signals = cast(list[str], signals.get("stale_signals", []))
-    active_signals = cast(list[str], signals.get("active_signals", []))
+    stale_re = signals.get("stale_signals_re")
+    active_re = signals.get("active_signals_re")
 
     max_stale_ts: datetime.datetime | None = None
     max_active_ts: datetime.datetime | None = None
@@ -294,10 +291,10 @@ def _is_lane_blocked(
         if dt is None:
             continue
 
-        if any(s in c_body for s in stale_signals):
+        if stale_re and stale_re.search(c_body):
             if max_stale_ts is None or dt > max_stale_ts:
                 max_stale_ts = dt
-        if any(s in c_body for s in active_signals):
+        if active_re and active_re.search(c_body):
             if max_active_ts is None or dt > max_active_ts:
                 max_active_ts = dt
 
@@ -305,15 +302,16 @@ def _is_lane_blocked(
 
     # Label-based active signal: treat matching labels as a recent claim.
     if labels_nodes:
-        active_label_signals = cast(list[str], signals.get("active_label_signals", []))
-        for label in labels_nodes:
-            l_name = label.get("name", "").lower()
-            if any(s in l_name for s in active_label_signals):
-                # GitHub doesn't expose label timestamps easily,
-                # so treat as max_active_ts = now − 1 day conservatively.
-                candidate = now - datetime.timedelta(days=1)
-                if max_active_ts is None or candidate > max_active_ts:
-                    max_active_ts = candidate
+        active_label_re = signals.get("active_label_signals_re")
+        if active_label_re:
+            for label in labels_nodes:
+                l_name = label.get("name", "").lower()
+                if active_label_re.search(l_name):
+                    # GitHub doesn't expose label timestamps easily,
+                    # so treat as max_active_ts = now − 1 day conservatively.
+                    candidate = now - datetime.timedelta(days=1)
+                    if max_active_ts is None or candidate > max_active_ts:
+                        max_active_ts = candidate
 
     if max_active_ts is not None and (
         max_stale_ts is None or max_active_ts > max_stale_ts
@@ -342,7 +340,7 @@ def _is_assignment_stale(
     Returns:
         True if there is evidence that the current assignee has abandoned the task.
     """
-    stale_signals = cast(list[str], signals.get("stale_signals", []))
+    stale_re = signals.get("stale_signals_re")
 
     last_assigned_ts: datetime.datetime | None = None
     last_unassigned_ts: datetime.datetime | None = None
@@ -365,14 +363,15 @@ def _is_assignment_stale(
     if last_unassigned_ts and last_unassigned_ts > last_assigned_ts:
         return True
 
-    for c in comments:
-        c_body = c.get("body", "").lower()
-        dt = _parse_gh_ts(c.get("createdAt"))
-        if dt is None:
-            continue
-        if any(s in c_body for s in stale_signals):
-            if dt > last_assigned_ts:
-                return True
+    if stale_re:
+        for c in comments:
+            c_body = c.get("body", "").lower()
+            dt = _parse_gh_ts(c.get("createdAt"))
+            if dt is None:
+                continue
+            if stale_re.search(c_body):
+                if dt > last_assigned_ts:
+                    return True
     return False
 
 

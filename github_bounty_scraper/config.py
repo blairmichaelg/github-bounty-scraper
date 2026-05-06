@@ -265,16 +265,17 @@ def resolve_github_token() -> str:
 
 
 # ─── Signal config loader ───────────────────────────────────────────
-def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list[dict[str, Any]]]:
+def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list[dict[str, Any]] | Any]:
     """Load signal keyword lists from an external JSON file.
 
     All signal strings are lowercased at load time for case-insensitive
-    matching downstream.
+    matching downstream. Pre-compiles regular expressions for performance.
 
     Falls back to empty lists if the file is missing or malformed.
     """
+    import re
     log = get_logger()
-    defaults: dict[str, list[str] | list[dict[str, Any]]] = {
+    defaults: dict[str, Any] = {
         "positive_escrow": [],
         "negative_filters": [],
         "stale_signals": [],
@@ -289,13 +290,29 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data: dict[str, Any] = json.load(fh)
-        for key in defaults:
+        for key in list(defaults.keys()):
             if key in data and isinstance(data[key], list):
                 defaults[key] = [s.lower() for s in data[key]]
-        return defaults
     except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
         log.warning("Could not load %s: %s — using empty defaults.", path, exc)
-        return defaults
+        
+    # Compile regexes for text matching optimization
+    regex_keys = [
+        "positive_escrow", "negative_filters", "stale_signals", 
+        "active_signals", "active_label_signals", "soft_negative_signals", 
+        "no_kyc_phrases", "wallet_payout_phrases"
+    ]
+    for key in regex_keys:
+        if defaults[key]:
+            # Use \b where possible, but not for phrases containing punctuation at boundaries.
+            # For simplicity and backward compatibility with `in`, we just do standard | join
+            # since the strings could be arbitrary phrases without clean word boundaries.
+            pattern = "|".join(map(re.escape, defaults[key]))
+            defaults[f"{key}_re"] = re.compile(pattern)
+        else:
+            defaults[f"{key}_re"] = None
+
+    return defaults
 
 
 # ─── Config file loader ─────────────────────────────────────────────

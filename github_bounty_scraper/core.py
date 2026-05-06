@@ -30,7 +30,7 @@ from .db import (
     upsert_repo_stats,
     get_repo_reputation,
 )
-from .discovery import discover_issues
+from .discovery import discover_issues_stream
 from .graphql import TokenBucket, run_graphql_audit, fetch_graphql
 from .log import get_logger
 from .output import write_output
@@ -601,31 +601,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
         sem = asyncio.Semaphore(config.semaphore_limit)
         committer = BatchCommitter(db_conn, config.batch_commit_size)
 
-        # Phase 1: Discovery
-        issues = await discover_issues(config)
-        if not issues:
-            log.info("No issues discovered. Exiting.")
-            return
-
-        # Respect max_issues cap.
-        if config.max_issues and len(issues) > config.max_issues:
-            issues = issues[: config.max_issues]
-            
-        if len(issues) > MAX_ISSUES_PER_RUN:
-            log.warning(
-                "Issue list (%d) exceeded MAX_ISSUES_PER_RUN=%d; "
-                "processing first %d only. Lower --max-issues to suppress.",
-                len(issues), MAX_ISSUES_PER_RUN, MAX_ISSUES_PER_RUN,
-            )
-
-        issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]
-
-        log.info(
-            "Processing %d issues with concurrent GraphQL enrichment …",
-            len(issues_to_enrich),
-        )
-
-        # Phase 2: Enrichment + scoring (with error isolation)
+        # Phase 1 & 2: Streaming Discovery and Enrichment
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
         seen_aggregators: set[str] = set()
 
@@ -637,30 +613,55 @@ async def run_pipeline(config: ScraperConfig) -> None:
             if rl_data and "rateLimit" in rl_data:
                 rem = rl_data["rateLimit"]["remaining"]
                 if rem < 200:
-                    log.warning("GraphQL rate limit critically low (%d remaining). Stopping Phase 2 early.", rem)
-                    issues_to_enrich = []
+                    log.warning("GraphQL rate limit critically low (%d remaining). Stopping early.", rem)
+                    return
 
-            tasks = [
-                _process_with_retry(
-                    session, bucket, issue, db_conn, sem,
-                    config, signals, committer, seen_aggregators,
-                )
-                for issue in issues_to_enrich
-            ]
-
-            # Process with progress reporting.
+            queue: asyncio.Queue[dict | None] = asyncio.Queue(maxsize=config.semaphore_limit * 2)
             results: list[Any] = []
+            
             completed = 0
-            for coro in asyncio.as_completed(tasks):
+            discovered = 0
+            
+            async def producer():
+                nonlocal discovered
                 try:
-                    result = await coro
-                except Exception as exc:
-                    log.error("Unhandled error processing issue: %s", exc)
-                    result = None
-                results.append(result)
-                completed += 1
-                if completed % config.progress_every == 0:
-                    log.info("Progress: %d / %d issues processed …", completed, len(issues_to_enrich))
+                    async for issue in discover_issues_stream(config):
+                        await queue.put(issue)
+                        discovered += 1
+                except Exception as e:
+                    log.error("Producer error: %s", e)
+                finally:
+                    # Signal consumers to exit
+                    for _ in range(config.semaphore_limit):
+                        await queue.put(None)
+
+            async def consumer():
+                nonlocal completed
+                while True:
+                    issue = await queue.get()
+                    if issue is None:
+                        queue.task_done()
+                        break
+                    try:
+                        res = await _process_with_retry(
+                            session, bucket, issue, db_conn, sem,
+                            config, signals, committer, seen_aggregators,
+                        )
+                        if res:
+                            results.append(res)
+                    except Exception as exc:
+                        log.error("Unhandled error processing issue: %s", exc)
+                    finally:
+                        completed += 1
+                        if completed % config.progress_every == 0:
+                            log.info("Progress: %d issues processed …", completed)
+                        queue.task_done()
+
+            log.info("Starting concurrent streaming pipeline...")
+            prod_task = asyncio.create_task(producer())
+            consumers = [asyncio.create_task(consumer()) for _ in range(config.semaphore_limit)]
+            
+            await asyncio.gather(prod_task, *consumers)
 
         # Final commit.
         await committer.flush()
@@ -670,7 +671,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
 
     log.info(
         "Pipeline complete: %d leads from %d issues in %.1fs.",
-        len(all_leads), len(issues), elapsed,
+        len(all_leads), discovered, elapsed,
     )
 
     # Output.

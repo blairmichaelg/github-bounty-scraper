@@ -58,25 +58,33 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     suffix = " ".join(suffixes)
 
     expanded: list[str] = []
+    
+    # GitHub search query length limit is 256 characters.
+    # To reduce API calls, we combine languages using OR, but we chunk them
+    # to avoid overly long queries if there are many languages.
+    lang_chunks: list[str] = []
+    if config.languages:
+        chunk_size = 3
+        for i in range(0, len(config.languages), chunk_size):
+            chunk = config.languages[i:i+chunk_size]
+            lang_chunks.append(" OR ".join(f"language:{lang}" for lang in chunk))
+    else:
+        lang_chunks = [""]
+
     for q in base_queries:
-        if config.languages:
-            for lang in config.languages:
-                parts = [q]
-                parts.append(f"language:{lang}")
-                if suffix:
-                    parts.append(suffix)
-                expanded.append(" ".join(parts))
-        else:
+        for lang_clause in lang_chunks:
+            parts = [q]
+            if lang_clause:
+                parts.append(f"({lang_clause})")
             if suffix:
-                expanded.append(f"{q} {suffix}")
-            else:
-                expanded.append(q)
+                parts.append(suffix)
+            expanded.append(" ".join(parts))
 
     max_eq = config.max_expanded_queries
     if len(expanded) > max_eq:
         log.warning(
             "Query expansion produced %d queries (cap: %d). "
-            "Consider fewer --language flags or base queries.",
+            "Consider fewer base queries.",
             len(expanded), max_eq,
         )
         expanded = expanded[:max_eq]
@@ -138,9 +146,12 @@ async def fetch_rest_search(
 
 
 # ─── Discovery orchestrator ─────────────────────────────────────────
-async def discover_issues(config: ScraperConfig) -> list[dict]:
+from typing import AsyncIterator
+
+async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
     """Run all search queries with pagination, dedup by URL.
 
+    Yields issues as they are discovered.
     Respects ``config.max_pages_per_query`` and ``config.max_issues``.
     Stops paginating a query early when a page returns fewer than
     ``per_page`` results.
@@ -149,19 +160,19 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
     log.info("Discovery: running %d search queries (~%d API calls max, %d min) …",
              len(queries), len(queries) * config.max_pages_per_query, len(queries))
 
-    unique_issues: dict[str, dict] = {}
+    unique_urls: set[str] = set()
     per_page = 100
 
     async with aiohttp.ClientSession(
         timeout=aiohttp.ClientTimeout(total=30)
     ) as session:
         for qi, query in enumerate(queries, 1):
-            if config.max_issues and len(unique_issues) >= config.max_issues:
+            if config.max_issues and len(unique_urls) >= config.max_issues:
                 break
             await asyncio.sleep(config.search_delay_seconds)
 
             for page in range(1, config.max_pages_per_query + 1):
-                if config.max_issues and len(unique_issues) >= config.max_issues:
+                if config.max_issues and len(unique_urls) >= config.max_issues:
                     break
 
                 items = await fetch_rest_search(
@@ -172,9 +183,10 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
                 new_count = 0
                 for item in items:
                     url = item.get("html_url")
-                    if url and url not in unique_issues:
-                        unique_issues[url] = item
+                    if url and url not in unique_urls:
+                        unique_urls.add(url)
                         new_count += 1
+                        yield item
 
                 log.debug(
                     "  Query %d/%d page %d → %d items (%d new)",
@@ -187,6 +199,4 @@ async def discover_issues(config: ScraperConfig) -> list[dict]:
                 if len(items) < per_page:
                     break
 
-    issues = list(unique_issues.values())
-    log.info("Discovery complete: %d unique issues found.", len(issues))
-    return issues
+    log.info("Discovery complete: %d unique issues found.", len(unique_urls))
