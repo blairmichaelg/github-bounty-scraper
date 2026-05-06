@@ -10,20 +10,11 @@ from typing import Any
 
 import aiosqlite
 
+import re
+
 from .log import get_logger
 
 log = get_logger()
-
-# Phrase lists for payout signals
-import re
-
-NO_KYC_PHRASES = ["no kyc", "without kyc", "no identity checks", "anonymous payout", "pseudonymous payout"]
-WALLET_PAYOUT_PHRASES = ["wallet address", "0x", "btc address", "eth address", "usdc address", "payout in eth", "payout in usdc", "payout in tokens"]
-ESCROW_PHRASES = ["escrow", "on-chain escrow", "vault", "vaults", "safe multisig", "gnosis safe", "multisig", "hats vault", "immunefi vault", "on-chain bug bounty", "escrowed funds", "locked in contract", "bug bounty vault"]
-
-NO_KYC_RE = re.compile("|".join(re.escape(p) for p in NO_KYC_PHRASES))
-WALLET_PAYOUT_RE = re.compile("|".join(re.escape(p) for p in WALLET_PAYOUT_PHRASES))
-ESCROW_RE = re.compile("|".join(re.escape(p) for p in ESCROW_PHRASES))
 
 
 # ─── Schema creation & migration ────────────────────────────────────
@@ -35,6 +26,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     """
     await conn.execute("PRAGMA journal_mode=WAL;")
     await conn.execute("PRAGMA synchronous=NORMAL;")
+    await conn.execute("PRAGMA cache_size = -32000;")   # 32MB page cache
+    await conn.execute("PRAGMA mmap_size = 268435456;")  # 256MB memory-mapped I/O
+    await conn.execute("PRAGMA temp_store = MEMORY;")    # Temp tables in RAM
 
     # ── repo_stats ──
     await conn.execute("""
@@ -140,12 +134,14 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     # ── Migration: Ghost row cleanup ──
     # Ghost-row cleanup — runs once only (guarded by user_version migration flag)
     async with conn.execute("PRAGMA user_version") as _uv_cur:
-        _uv = (await _uv_cur.fetchone())[0]
+        _uv_row = await _uv_cur.fetchone()
+        _uv = _uv_row[0] if _uv_row else 0
     if _uv < 1:
         async with conn.execute(
             "SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
         ) as c2:
-            ghost_count = (await c2.fetchone())[0]
+            ghost_row = await c2.fetchone()
+            ghost_count = ghost_row[0] if ghost_row else 0
             if ghost_count > 0:
                 log.info("Migration v1: Purging %d zero-score ghost rows …", ghost_count)
                 await conn.execute(
@@ -225,14 +221,7 @@ async def upsert_issue_stats(
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
 
-    # Task 2b: Re-compute signals from title + body if not already positive
-    all_text = ((title or "") + " " + (body_snippet or "")).lower()
-    if not has_onchain_escrow:
-        has_onchain_escrow = bool(ESCROW_RE.search(all_text))
-    if not mentions_no_kyc:
-        mentions_no_kyc = bool(NO_KYC_RE.search(all_text))
-    if not mentions_wallet_payout:
-        mentions_wallet_payout = bool(WALLET_PAYOUT_RE.search(all_text))
+
 
     await conn.execute(
         """
@@ -525,7 +514,8 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 obj = json.loads(line)
                 key = obj.get("issue_url") or obj.get("url") or ""
                 bodies[key] = obj.get("body_snippet") or obj.get("body") or ""
-            except: pass
+            except Exception:
+                pass
 
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
@@ -533,10 +523,10 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
         await init_db(conn)
 
         query = """
-            SELECT i.*, 
-                r.merges_last_45d, 
-                r.escrows_seen, 
-                r.rugs_seen, 
+            SELECT i.*,
+                r.merges_last_45d,
+                r.escrows_seen,
+                r.rugs_seen,
                 r.total_escrows_seen
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
@@ -544,7 +534,7 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:
-            rows = await cursor.fetchall()
+            rows = list(await cursor.fetchall())
 
         with open(out_path, "w", encoding="utf-8", newline="") as f:
             headers = [
@@ -570,8 +560,6 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                 raw_d = dict(row)
                 body = bodies.get(raw_d["issue_url"], "")
 
-                text = (str(raw_d.get("title") or "") + " " + body).lower()
-
                 # Build the export dict using only the specified headers
                 d = {}
                 for h in headers:
@@ -582,17 +570,12 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                     else:
                         d[h] = ""
 
-                # Special overrides for derived features if not in DB yet
-                if d.get("has_onchain_escrow") in (None, ""):
-                    d["has_onchain_escrow"] = 1 if bool(ESCROW_RE.search(text)) else 0
-                if d.get("mentions_no_kyc") in (None, ""):
-                    d["mentions_no_kyc"] = 1 if bool(NO_KYC_RE.search(text)) else 0
-                if d.get("mentions_wallet_payout") in (None, ""):
-                    d["mentions_wallet_payout"] = 1 if bool(WALLET_PAYOUT_RE.search(text)) else 0
+
 
                 # Labeling rule from Section 5
-                amount = d.get("numeric_amount") or 0
-                vibe = d.get("vibe_score")
+                amount = float(d.get("numeric_amount") or 0.0)
+                vibe_raw = d.get("vibe_score")
+                vibe = int(float(str(vibe_raw))) if vibe_raw not in (None, "") else None
                 mode = str(d.get("lead_mode") or "").lower()
 
                 is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) or \

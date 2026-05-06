@@ -30,6 +30,8 @@ CRYPTO_KEYWORDS = [
 # Stablecoins treated as 1:1 USD
 STABLECOIN_SYMBOLS = {"USDC", "USDT", "DAI", "BUSD"}
 
+ESCROW_WEIGHT_CAP: float = 5.0
+
 
 @dataclass
 class ScraperConfig:
@@ -66,8 +68,8 @@ class ScraperConfig:
     since: str = ""  # YYYY-MM-DD — override in scraper_config.json; recommend "2026-01-01"
     """Only consider issues updated on or after this date.  Default: ''."""
 
-    max_issues: int = 0  # 0 = unlimited
-    """Hard upper bound on total issues processed per run.  Default: 0."""
+    max_issues_per_run: int = 1000
+    """Hard upper bound on total issues processed per run.  Default: 1000."""
 
     max_pages_per_query: int = 5
     """Max pages to fetch per search query.  Default: 5."""
@@ -232,6 +234,31 @@ class ScraperConfig:
     limit: int = 0
     concurrency: int = 5
     raw_file: str = 'exploration_raw.jsonl'
+    def __post_init__(self) -> None:
+        weight_total = (
+            self.weight_amount
+            + self.weight_recency
+            + self.weight_activity
+            + self.weight_escrow_strength
+            + self.w_repo_reputation
+            + self.weight_vibe
+        )
+        if weight_total <= 0:
+            raise ValueError("Scoring weights must sum to a positive number.")
+        if abs(weight_total - 1.0) > 0.001:
+            import warnings
+            warnings.warn(
+                f"Scoring weights sum to {weight_total:.4f}, not 1.0. "
+                "Normalizing automatically.",
+                stacklevel=2,
+            )
+            # Normalize in-place
+            self.weight_amount /= weight_total
+            self.weight_recency /= weight_total
+            self.weight_activity /= weight_total
+            self.weight_escrow_strength /= weight_total
+            self.w_repo_reputation /= weight_total
+            self.weight_vibe /= weight_total
 
     def __repr__(self) -> str:
         import dataclasses

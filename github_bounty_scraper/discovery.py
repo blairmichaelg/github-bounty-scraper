@@ -7,6 +7,7 @@ to facilitate training data collection.
 from __future__ import annotations
 
 import asyncio
+from typing import AsyncIterator
 
 import aiohttp
 
@@ -146,14 +147,13 @@ async def fetch_rest_search(
 
 
 # ─── Discovery orchestrator ─────────────────────────────────────────
-from typing import AsyncIterator
 
 
 async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
     """Run all search queries with pagination, dedup by URL.
 
     Yields issues as they are discovered.
-    Respects ``config.max_pages_per_query`` and ``config.max_issues``.
+    Respects ``config.max_pages_per_query`` and ``config.max_issues_per_run``.
     Stops paginating a query early when a page returns fewer than
     ``per_page`` results.
     """
@@ -168,12 +168,12 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
         timeout=aiohttp.ClientTimeout(total=30)
     ) as session:
         for qi, query in enumerate(queries, 1):
-            if config.max_issues and len(unique_urls) >= config.max_issues:
+            if config.max_issues_per_run and len(unique_urls) >= config.max_issues_per_run:
                 break
             await asyncio.sleep(config.search_delay_seconds)
 
             for page in range(1, config.max_pages_per_query + 1):
-                if config.max_issues and len(unique_urls) >= config.max_issues:
+                if config.max_issues_per_run and len(unique_urls) >= config.max_issues_per_run:
                     break
 
                 items = await fetch_rest_search(

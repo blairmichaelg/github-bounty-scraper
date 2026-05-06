@@ -17,6 +17,13 @@ log = get_logger()
 
 GRAPHQL_URL = "https://api.github.com/graphql"
 
+class _SecretStr(str):
+    """A str subclass that masks its value in repr/str to prevent log leakage."""
+    def __repr__(self) -> str:
+        return "'***'"
+    def __str__(self) -> str:
+        return "***"
+
 
 # ─── Token-bucket rate limiter ──────────────────────────────────────
 class TokenBucket:
@@ -56,10 +63,11 @@ async def fetch_graphql(
     retries: int = 5,
 ) -> dict | None:
     """Execute a GraphQL query against the GitHub API with rate-limit retries."""
+    token = _SecretStr(token)
     await bucket.consume(1)
 
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": "Bearer " + str.__str__(token),
         "Content-Type": "application/json",
         "User-Agent": "github-bounty-scraper",
     }

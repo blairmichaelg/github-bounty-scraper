@@ -197,6 +197,24 @@ def extract_bounty_amount(
     return result
 
 
+_SNIPE_PHRASES = (
+    "bounty paid",
+    "reward sent",
+    "bounty claimed",
+    "payout complete",
+    "payout sent",
+    "payment sent",
+    "reward delivered",
+    "reward claimed",
+    "reward paid",
+    "bounty fulfilled",
+    "prize awarded",
+    "grant disbursed",
+    "funds released",
+    "marked as resolved",
+    "closing as paid",
+)
+
 def detect_snipe(timeline_nodes: list[dict]) -> bool:
     """Return ``True`` if the timeline shows the bounty has been claimed.
 
@@ -217,6 +235,6 @@ def detect_snipe(timeline_nodes: list[dict]) -> bool:
                 return True
         elif typename == "IssueComment":
             body = node.get("body", "").lower()
-            if any(s in body for s in ("bounty paid", "reward sent", "bounty claimed")):
+            if any(s in body for s in _SNIPE_PHRASES):
                 return True
     return False

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -21,29 +21,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Lint with ruff
-        run: ruff check .
+      - name: Lint with Ruff
+        run: ruff check github_bounty_scraper/ tests/
 
-      - name: Type check with mypy
-        run: mypy github_bounty_scraper/ --ignore-missing-imports
+      - name: Type-check with mypy
+        run: mypy github_bounty_scraper/
 
-      # Note: A live GITHUB_TOKEN is not available in CI, so tests are
-      # limited to import checks and --help validation.  Full pipeline
-      # testing requires a real token and is done locally.
-      - name: Import smoke test
-        run: |
-          python -c "from github_bounty_scraper import core, cli, db, signals, scoring, bounty, graphql, discovery, output; print('All modules imported successfully')"
-
-      - name: CLI help test
-        run: python scraper.py --help
+      - name: Run tests with coverage
+        run: pytest --cov=github_bounty_scraper --cov-report=term-missing --cov-fail-under=40
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

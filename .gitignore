@@ -66,3 +66,8 @@ sweep_*.json
 *.db
 *.db-shm
 *.db-wal
+*.pkl
+results*.json
+leads_to_label.txt
+vibe_retry.txt
+task.md

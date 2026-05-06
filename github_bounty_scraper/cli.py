@@ -71,8 +71,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-issues",
         type=int,
+        dest="max_issues_per_run",
         metavar="N",
-        help="Hard upper bound on total issues processed this run (default: unlimited).",
+        help="Hard upper bound on total issues processed this run (default: 1000).",
     )
     parser.add_argument(
         "--max-pages",

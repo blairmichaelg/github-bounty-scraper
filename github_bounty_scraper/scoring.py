@@ -31,7 +31,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from .config import ScraperConfig
+from .config import ESCROW_WEIGHT_CAP, ScraperConfig
 from .log import get_logger
 
 log = get_logger()
@@ -106,8 +106,8 @@ def compute_score(
     # always ~0, since the config list has 25+ entries.)
     count_norm = min(positive_escrow_count / 5.0, 1.0)
 
-    # New weighted norm; cap at a reasonable max (e.g. 5.0)
-    weighted_norm = min(positive_escrow_weight_sum / 5.0, 1.0)
+    # New weighted norm; cap at a reasonable max (e.g. ESCROW_WEIGHT_CAP)
+    weighted_norm = min(positive_escrow_weight_sum / ESCROW_WEIGHT_CAP, 1.0)
 
     escrow_norm = max(count_norm, weighted_norm)
 
@@ -119,17 +119,35 @@ def compute_score(
     if mentions_no_kyc:
         escrow_norm = min(escrow_norm + 0.10, 1.0)
 
-    # ── Vibe component — normalised to [0, 1] ──
-    vibe_norm = (vibe_score_int or 0) / 100.0
+    # ── Vibe component — excluded from weighted average if not yet scored ──
+    if vibe_score_int is not None:
+        vibe_norm = vibe_score_int / 100.0
+        effective_vibe_weight = config.weight_vibe
+    else:
+        vibe_norm = 0.0
+        effective_vibe_weight = 0.0
 
-    # ── Weighted composite — all components stay in [0, 1] before * 100 ──
+    # Redistribute the vibe weight proportionally among the other components
+    # when vibe is unavailable
+    other_weight_total = (
+        config.weight_amount
+        + config.weight_recency
+        + config.weight_activity
+        + config.weight_escrow_strength
+        + config.w_repo_reputation
+    )
+    if effective_vibe_weight == 0.0 and other_weight_total > 0:
+        scale = 1.0 / other_weight_total  # normalize remaining weights to 1.0
+    else:
+        scale = 1.0
+
     raw_score = (
-        amount_norm    * config.weight_amount
-        + recency_norm * config.weight_recency
-        + activity_norm * config.weight_activity
-        + escrow_norm  * config.weight_escrow_strength
-        + repo_reputation * config.w_repo_reputation
-        + vibe_norm    * config.weight_vibe
+        amount_norm    * config.weight_amount            * scale
+        + recency_norm * config.weight_recency           * scale
+        + activity_norm * config.weight_activity         * scale
+        + escrow_norm  * config.weight_escrow_strength   * scale
+        + repo_reputation * config.w_repo_reputation     * scale
+        + vibe_norm    * effective_vibe_weight
     ) * 100.0
 
     # Soft negative penalty.

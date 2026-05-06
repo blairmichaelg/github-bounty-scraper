@@ -16,9 +16,22 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+import hashlib
+import pathlib
+
 from .cli import parse_args  # noqa: E402
 from .core import run_pipeline  # noqa: E402
 
+
+def _verify_model_checksum(model_path: str, checksum_path: str) -> None:
+    """Raise RuntimeError if the model file does not match its expected SHA256."""
+    expected = pathlib.Path(checksum_path).read_text().strip().split()[0]
+    actual = hashlib.sha256(pathlib.Path(model_path).read_bytes()).hexdigest()
+    if actual != expected:
+        raise RuntimeError(
+            f"Model checksum mismatch! Expected {expected}, got {actual}. "
+            "The model file may be corrupted or tampered with."
+        )
 
 async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
     import json
@@ -53,8 +66,10 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
     model = None
     if os.path.exists("bounty_model.pkl"):
         try:
+            _verify_model_checksum("bounty_model.pkl", "bounty_model.pkl.sha256")
             model = joblib.load("bounty_model.pkl")
-        except: pass
+        except Exception:
+            pass
 
     for L in leads:
         if model:
@@ -126,7 +141,8 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         if L.get("has_onchain_escrow"):       why_parts.append("on-chain escrow")
         if L.get("mentions_wallet_payout"):   why_parts.append("wallet payout")
         if L.get("mentions_no_kyc"):          why_parts.append("no KYC")
-        if L.get("vibe_score") and L.get("vibe_score") >= 70:  why_parts.append(f"vibe={L['vibe_score']}")
+        vibe_val = L.get("vibe_score")
+        if vibe_val is not None and vibe_val >= 70:  why_parts.append(f"vibe={vibe_val}")
         if val and val > 0:                   why_parts.append(f"${val:.0f}")
 
         why = " · ".join(why_parts) if why_parts else "weak signals"

@@ -58,10 +58,10 @@ def test_weight_sum_exactly_one(config):
     )
     assert abs(total - 1.0) < 1e-9
 
-def test_vibe_zero_does_not_penalize(config):
-    """vibe_score_int=0 should score the same as vibe_score_int=None.
-    
-    Vibe absent vs. vibe=0 are semantically different but should both contribute 0 to the vibe component.
+def test_vibe_zero_and_none(config):
+    """
+    Test that vibe_score_int=None redistributes weight (higher score) 
+    while vibe_score_int=0 actively penalizes (lower score).
     """
     base_args = {
         "numeric_amount": 1000.0,
@@ -75,7 +75,7 @@ def test_vibe_zero_does_not_penalize(config):
     }
     score_none = compute_score(vibe_score_int=None, **base_args)
     score_zero = compute_score(vibe_score_int=0, **base_args)
-    assert score_none == score_zero
+    assert score_none > score_zero
 
 def test_negative_soft_reduces_score(config):
     """has_negative_soft=True should produce a lower score than False, all else equal."""

@@ -41,8 +41,7 @@ from .signals import (
 
 log = get_logger()
 
-# Hard safety cap — prevents runaway API usage on large result sets.
-MAX_ISSUES_PER_RUN = 1000
+
 
 class LeadResult(TypedDict):
     """Enriched lead data for reporting."""
@@ -330,9 +329,9 @@ async def process_issue(
     currency = bounty.currency_symbol
 
     title_lower = title.lower()
-    labels_lower = [l.get("name", "").lower() for l in labels]
+    labels_lower = [lbl.get("name", "").lower() for lbl in labels]
     has_bounty_title = any(w in title_lower for w in ["bounty", "reward", "paid", "pays", "bounties"])
-    has_bounty_label = any("bounty" in l or "reward" in l for l in labels_lower)
+    has_bounty_label = any("bounty" in lbl or "reward" in lbl for lbl in labels_lower)
     has_cue = has_bounty_title or has_bounty_label
 
     escrow_verified = soft.has_positive_escrow
@@ -383,13 +382,11 @@ async def process_issue(
             "contributors_count": contrib_count,
             "is_fork": repository.get("isFork", False),
             "is_archived": repository.get("isArchived", False),
-            "labels": [l.get("name") for l in labels],
+            "labels": [lbl.get("name") for lbl in labels],
             "body_snippet": body[:300].replace("\n", " ") if body else "",
             "reasons": raw_reasons if not is_lead_candidate else ["LEAD_CANDIDATE"]
         }
-        await asyncio.get_running_loop().run_in_executor(
-            None, _append_raw, "exploration_raw.jsonl", json.dumps(cand) + "\n"
-        )
+        await asyncio.to_thread(_append_raw, "exploration_raw.jsonl", json.dumps(cand) + "\n")
 
     # ── Lead Checks ──
     if not is_lead_candidate and not (lead_mode_override == "closed_historical"):
@@ -612,10 +609,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
         seen_aggregators: set[str] = set()
         queue: asyncio.Queue = asyncio.Queue(maxsize=config.semaphore_limit * 3)
 
-        # We need to adapt the user's requested worker pattern.
-        # However, the user asked to replace "issues_to_enrich = issues[:MAX_ISSUES_PER_RUN]"
-        # but that line is gone since we already streamed.
-        # So I will keep my producer but use the user's exact worker/queue logic
+
 
         results: list[Any] = []
         completed = 0
@@ -625,6 +619,9 @@ async def run_pipeline(config: ScraperConfig) -> None:
             nonlocal discovered
             try:
                 async for issue in discover_issues_stream(config):
+                    if config.max_issues_per_run > 0 and discovered >= config.max_issues_per_run:
+                        log.info("Reached max_issues_per_run limit (%d)", config.max_issues_per_run)
+                        break
                     await queue.put(issue)
                     discovered += 1
             except Exception as e:

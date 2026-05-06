@@ -13,6 +13,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Any, cast
 
+from .config import ESCROW_WEIGHT_CAP
 from .log import get_logger
 
 log = get_logger()
@@ -88,7 +89,7 @@ def apply_hard_disqualifiers(
     labels_nodes: list[dict[str, Any]],
     body: str,
     comments: list[dict[str, Any]],
-    signals: dict[str, list[str] | list[dict[str, Any]]],
+    signals: dict[str, Any],
 ) -> tuple[bool, str]:
     """Return ``(disqualified, reason)`` for hard-filter checks.
 
@@ -130,7 +131,7 @@ def compute_soft_signals(
     labels_nodes: list[dict[str, Any]],
     timeline_nodes: list[dict[str, Any]],
     issue: dict[str, Any],
-    signals: dict[str, list[str] | list[dict[str, Any]]],
+    signals: dict[str, Any],
     allow_assigned_if_stale: bool = True,
     active_signal_max_age_days: int = 90,
 ) -> SignalResult:
@@ -158,24 +159,20 @@ def compute_soft_signals(
     issue_author = (issue.get("author", {}) or issue.get("user", {}) or {}).get("login", "").lower()
 
     body_lower = body.lower()
-    all_text_lower = body_lower
+    all_text = body_lower
     for c in comments:
-        all_text_lower += "\n" + c.get("body", "").lower()
-    all_text_lower = ((issue.get("title") or "") + " " + all_text_lower).lower()
+        all_text += "\n" + c.get("body", "").lower()
+    all_text = ((issue.get("title") or "") + " " + all_text).lower()
 
     if issue_author in [a.lower() for a in blocked_authors]:
         result.is_blocked = True
         result.block_reason = f"blocked author: {issue_author}"
         return result
 
-    if any(d.lower() in all_text_lower for d in blocked_domains):
+    if any(d.lower() in all_text for d in blocked_domains):
         result.is_blocked = True
         result.block_reason = "blocked domain in body"
         return result
-
-    all_text = body_lower
-    for c in comments:
-        all_text += "\n" + c.get("body", "").lower()
 
     # ── Positive escrow count (set-based: count unique signal types) ──
     pos_signals_re = signals.get("positive_escrow_re")
@@ -261,7 +258,7 @@ def compute_soft_signals(
     )
 
     # Soft ceiling: prevents runaway scores on richly-tagged issues.
-    result.escrow_weight_sum = min(result.escrow_weight_sum, 6.0)
+    result.escrow_weight_sum = min(result.escrow_weight_sum, ESCROW_WEIGHT_CAP)
 
     return result
 
@@ -269,7 +266,7 @@ def compute_soft_signals(
 # ─── Lane blocked (renamed from evaluate_lane_status for clarity) ───
 def _is_lane_blocked(
     comments: list[dict[str, Any]],
-    signals: dict[str, list[str] | list[dict[str, Any]]],
+    signals: dict[str, Any],
     active_signal_max_age_days: int = 90,
     labels_nodes: list[dict[str, Any]] | None = None,
 ) -> bool:
@@ -343,7 +340,7 @@ def _is_lane_blocked(
 def _is_assignment_stale(
     comments: list[dict[str, Any]],
     timeline_nodes: list[dict[str, Any]],
-    signals: dict[str, list[str] | list[dict[str, Any]]],
+    signals: dict[str, Any],
 ) -> bool:
     """Return True if the most recent assignment looks stale.
 
@@ -395,7 +392,7 @@ def _check_ghost_squatter(
     issue: dict[str, Any],
     comments: list[dict[str, Any]],
     timeline_nodes: list[dict[str, Any]],
-    signals: dict[str, list[str] | list[dict[str, Any]]],
+    signals: dict[str, Any],
     allow_assigned_if_stale: bool,
 ) -> bool:
     """Return True if the issue has a **fresh** (non-stale) assignee.

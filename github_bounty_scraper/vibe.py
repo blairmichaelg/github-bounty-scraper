@@ -265,7 +265,7 @@ async def run_vibe_check(
     ) as session:
         count = 0
 
-        async def _guarded_vibe(obj: dict) -> tuple[int, str, str]:
+        async def _guarded_vibe(obj: dict[str, Any]) -> tuple[int, str, str]:
             issue_url = obj.get("issue_url") or obj.get("url") or ""
             title = obj.get("title", "").strip()
             body_snippet = str(obj.get("body_snippet") or obj.get("body") or "")[:1500]
@@ -321,13 +321,26 @@ async def run_vibe_check(
 
             sorted_offsets = await asyncio.to_thread(_scan_file)
 
-            def _read_at_offset(pos: int) -> dict:
+            def _read_sorted_records(offsets: list[tuple[float, int]]) -> list[dict[str, Any]]:
+                """Read all records in a single sequential file pass."""
+                if not offsets:
+                    return []
+                # Sort by file position for sequential I/O, then re-sort by amount after
+                pos_sorted = sorted(offsets, key=lambda x: x[1])
+                results: list[tuple[float, dict[str, Any]]] = []
                 with open(raw_file, "r", encoding="utf-8") as f:
-                    f.seek(pos)
-                    return json.loads(f.readline())
+                    for amt, pos in pos_sorted:
+                        f.seek(pos)
+                        try:
+                            obj = json.loads(f.readline())
+                            results.append((amt, obj))
+                        except Exception:
+                            continue
+                # Restore descending-amount order
+                results.sort(key=lambda x: x[0], reverse=True)
+                return [obj for _, obj in results]
 
-            for _, pos in sorted_offsets:
-                obj = await asyncio.to_thread(_read_at_offset, pos)
+            for obj in await asyncio.to_thread(_read_sorted_records, sorted_offsets):
                 yield obj
 
         source_iter: AsyncIterator[dict[str, Any]]
