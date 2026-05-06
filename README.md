@@ -301,3 +301,10 @@ sample titles and URLs.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+
+## Model Integrity Notes
+- bounty_model.pkl is trained on leakage-free features (no log_amount or numeric_amount when labels are derived from score).
+- Production model = Model C (no-leakage) or D (vibe-first labels).
+- Model prioritizes: vibe_score, escrow signals, on-chain escrow, direct wallet payout, no-KYC. KYC/centralized bounties are ranked lower but NOT filtered out.
+- AUC < 0.70 = insufficient labeled data; do not trust model output.
