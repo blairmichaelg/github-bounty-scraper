@@ -8,7 +8,7 @@ from github_bounty_scraper.config import ScraperConfig
 @pytest.mark.asyncio
 async def test_is_bounty_label_threshold(tmp_path):
     """Mock the DB rows and call dump_dataset with label_threshold=50.0; assert a $40 row gets is_bounty=0 and a $60 row gets is_bounty=1."""
-    db_path = str(tmp_path / "/test_bounty.db")
+    db_path = str(tmp_path / "test_bounty.db")
     out_path = str(tmp_path / "dataset.csv")
     
     async with aiosqlite.connect(db_path) as conn:

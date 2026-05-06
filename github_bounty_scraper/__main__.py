@@ -21,26 +21,60 @@ from .core import run_pipeline  # noqa: E402
 
 
 async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
+    import os, joblib, numpy as np
     from .db import get_recent_leads
     leads = await get_recent_leads(db_path, mode, limit)
     if not leads:
         print(f"No leads found for mode={mode} yet.")
         sys.exit(0)
     
-    def _rank_key(row):
+    # Attempt to load ML model for probability lift
+    model = None
+    if os.path.exists("bounty_model.pkl"):
+        try:
+            model = joblib.load("bounty_model.pkl")
+        except: pass
+
+    for L in leads:
+        if model:
+            # Prepare features for ML model
+            # ['log_amount', 'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
+            #  'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
+            #  'merges_last_45d', 'is_closed']
+            try:
+                log_amt = np.log10(max(0, float(L.get("numeric_amount") or 0)) + 1)
+                feats = np.array([[
+                    log_amt,
+                    float(L.get("vibe_score") or 0),
+                    float(L.get("positive_escrow_count") or 0),
+                    float(L.get("escrow_weight_sum") or 0.0),
+                    int(L.get("has_onchain_escrow") or 0),
+                    int(L.get("mentions_no_kyc") or 0),
+                    int(L.get("mentions_wallet_payout") or 0),
+                    float(L.get("merges_last_45d") or 0),
+                    1 if 'closed' in str(L.get('lead_mode', '')).lower() else 0
+                ]])
+                L["ml_prob"] = float(model.predict_proba(feats)[0, 1])
+            except:
+                L["ml_prob"] = 0.0
+        else:
+            L["ml_prob"] = 0.0
+
+    def _rank_key(b):
         return (
-            -row.get("score", 0),
-            -int(row.get("has_onchain_escrow", 0)),
-            -int(row.get("mentions_wallet_payout", 0)),
-            -int(row.get("mentions_no_kyc", 0)),
-            -row.get("numeric_amount", 0),
+            -b.get("ml_prob", 0),                # 1. ML score descending
+            -int(b.get("has_onchain_escrow", 0)), # 2. on-chain escrow first
+            -int(b.get("mentions_wallet_payout", 0)), # 3. direct wallet payout
+            -int(b.get("mentions_no_kyc", 0)),    # 4. no-KYC payout
+            -float(b.get("numeric_amount") or 0), # 5. larger amounts
         )
 
     leads.sort(key=_rank_key)
 
-    print(f"{'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'ESCROW':<6} | {'DEAD':<4} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
-    print("-" * 142)
+    print(f"{'ML%':<5} | {'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
+    print("-" * 145)
     for L in leads:
+        ml_prob_str = f"{L.get('ml_prob', 0)*100:3.0f}%"
         score_val = L['score']
         score_str = f"{score_val:.2f}"
         
@@ -60,24 +94,22 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
             amt = f"${val:,.2f}"
         
         mode_str = str(L.get('lead_mode', 'strict'))
-        escrow = "yes" if L.get('escrow_verified') else "no"
-        dead = "yes" if L.get('is_dead_repo') else "no"
         vibe = str(L.get("vibe_score")) if L.get("vibe_score") is not None else "—"
         repo = str(L.get('repo_name', ''))[:30]
         url = str(L.get('issue_url', ''))
         
-        print(f"{score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {escrow:<6} | {dead:<4} | {vibe:<5} | {repo:<30} | {url}")
+        print(f"{ml_prob_str:<5} | {score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {vibe:<5} | {repo:<30} | {url}")
 
-        # Task 4: Add WHY tags
-        tags = []
-        if L.get("has_onchain_escrow"):   tags.append("ON-CHAIN-ESCROW")
-        if L.get("mentions_wallet_payout"): tags.append("WALLET-PAYOUT")
-        if L.get("mentions_no_kyc"):      tags.append("NO-KYC")
-        if L.get("vibe_score") and L.get("vibe_score") >= 80:  tags.append(f"VIBE={L['vibe_score']}")
+        # Task 3c: Add WHY tags
+        why_parts = []
+        if L.get("has_onchain_escrow"):       why_parts.append("on-chain escrow")
+        if L.get("mentions_wallet_payout"):   why_parts.append("wallet payout")
+        if L.get("mentions_no_kyc"):          why_parts.append("no KYC")
+        if L.get("vibe_score") and L.get("vibe_score") >= 70:  why_parts.append(f"vibe={L['vibe_score']}")
+        if val and val > 0:                   why_parts.append(f"${val:.0f}")
         
-        if tags:
-            tag_str = " | ".join(tags)
-            print(f"  [{tag_str}]")
+        why = " · ".join(why_parts) if why_parts else "weak signals"
+        print(f"  ↳ {why}")
 
 
 def main() -> None:

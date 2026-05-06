@@ -1,18 +1,19 @@
 {
   "production_model": "A",
-  "best_threshold": 0.3,
+  "best_threshold": 0.7755017548683035,
   "f1_score": 0.9964664305954126,
-  "roc_auc": 0.9998735777496839,
-  "signal_only_auc": 0.9998735777496839,
+  "roc_auc": 0.999873577749684,
+  "signal_only_auc": 0.999873577749684,
   "signal_only_f1": 0.9964664305954126,
   "model_b_metrics": {
     "f1_score": 0.9964664305954126,
-    "roc_auc": 0.999936788874842,
-    "best_threshold": 0.7683811448213621,
+    "roc_auc": 0.999873577749684,
+    "best_threshold": 0.7755017548683035,
     "model_b_circular_leak": true
   },
   "features": [
     "log_amount",
+    "vibe_score",
     "positive_escrow_count",
     "escrow_weight_sum",
     "has_onchain_escrow",
@@ -22,14 +23,14 @@
     "is_closed"
   ],
   "importances": {
-    "log_amount": 0.367927711535198,
-    "positive_escrow_count": 0.22426170348856245,
-    "escrow_weight_sum": 0.21684195255080158,
-    "has_onchain_escrow": 0.13281998557215888,
-    "mentions_no_kyc": 1.6668984697104306e-05,
-    "mentions_wallet_payout": 0.001360014132363911,
-    "merges_last_45d": 0.04843884652450952,
-    "is_closed": 0.008333117211708603
-  },
-  "threshold_rationale": "Calibrated for recall>=0.70, favors on-chain/no-KYC bounties"
+    "log_amount": 0.36341528045183724,
+    "vibe_score": 0.03415672170463278,
+    "positive_escrow_count": 0.2310721818694503,
+    "escrow_weight_sum": 0.1877412484006066,
+    "has_onchain_escrow": 0.14527579557899536,
+    "mentions_no_kyc": 5.2245733845054e-06,
+    "mentions_wallet_payout": 0.0010193951496020475,
+    "merges_last_45d": 0.031633705460883565,
+    "is_closed": 0.005680446810607548
+  }
 }

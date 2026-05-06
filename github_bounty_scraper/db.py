@@ -390,16 +390,20 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         conn.row_factory = aiosqlite.Row
         await init_db(conn)
         query = """
-            SELECT score, prev_score, numeric_amount, lead_mode, escrow_verified, is_dead_repo, 
-                   repo_name, issue_url, vibe_score, has_onchain_escrow, 
-                   mentions_wallet_payout, mentions_no_kyc 
-            FROM issue_stats
+            SELECT 
+                i.score, i.prev_score, i.numeric_amount, i.lead_mode, i.escrow_verified, i.is_dead_repo, 
+                i.repo_name, i.issue_url, i.vibe_score, i.has_onchain_escrow, 
+                i.mentions_wallet_payout, i.mentions_no_kyc,
+                i.positive_escrow_count, i.escrow_weight_sum,
+                r.merges_last_45d
+            FROM issue_stats i
+            LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
         """
         params: list[Any] = []
         if mode != "all":
-            query += " WHERE lead_mode = ?"
+            query += " WHERE i.lead_mode = ?"
             params.append(mode)
-        query += " ORDER BY checked_at DESC LIMIT ?"
+        query += " ORDER BY i.checked_at DESC LIMIT ?"
         params.append(limit)
 
         async with conn.execute(query, params) as cursor:

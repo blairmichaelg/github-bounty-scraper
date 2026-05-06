@@ -1,7 +1,7 @@
 import csv, random
 random.seed(42)
 
-rows = list(csv.DictReader(open('bounty_dataset_v4.csv', encoding='utf-8')))
+rows = list(csv.DictReader(open('bounty_dataset_v5.csv', encoding='utf-8')))
 pos  = [r for r in rows if r['is_bounty'] == '1']
 neg  = [r for r in rows if r['is_bounty'] == '0']
 amb  = [r for r in rows if r['is_bounty'] == '']

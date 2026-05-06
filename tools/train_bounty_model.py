@@ -27,11 +27,11 @@ def train_and_eval():
     df['escrow_weight_sum'] = pd.to_numeric(df['escrow_weight_sum'], errors='coerce').fillna(0)
     
     features_a = [
-        'log_amount', 'positive_escrow_count', 'escrow_weight_sum',
+        'log_amount', 'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
         'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
         'merges_last_45d', 'is_closed'
     ]
-    features_b = features_a + ['vibe_score']
+    features_b = features_a
     
     y = df['is_bounty']
 

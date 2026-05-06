@@ -302,14 +302,22 @@ async def run_vibe_check(
             scored_urls = set()
             if os.path.exists(db_path):
                 async with aiosqlite.connect(db_path) as _conn:
-                    async with _conn.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL") as cur:
+                    async with _conn.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0") as cur:
                         async for r in cur:
                             scored_urls.add(r[0])
             
+            # Load all candidates and sort by numeric_amount or score to find positives faster
+            candidates = []
             async for obj in iter_raw_candidates(raw_file):
                 url = obj.get("issue_url") or obj.get("url") or ""
                 if url in scored_urls:
                     continue
+                candidates.append(obj)
+            
+            # Sort by numeric_amount (descending)
+            candidates.sort(key=lambda x: float(x.get("numeric_amount") or 0), reverse=True)
+            
+            for obj in candidates:
                 yield obj
 
         source_iter: AsyncIterator[dict[str, Any]]
