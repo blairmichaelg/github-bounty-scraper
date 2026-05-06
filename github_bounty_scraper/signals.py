@@ -184,10 +184,18 @@ def compute_soft_signals(
             
         result.escrow_weight_sum += base
 
-    # Explicit global bonuses to escrow_weight_sum
-    if "no kyc" in all_text:
+    # Explicit global bonuses to escrow_weight_sum (guarded against double-count)
+    _vault_in_hits = any(
+        any(k in s for k in ["vault", "safe multisig", "gnosis safe", "multisig"])
+        for s in escrow_hits
+    )
+    if not _vault_in_hits and any(
+        k in all_text for k in ["vault", "safe multisig", "gnosis safe"]
+    ):
         result.escrow_weight_sum += 0.5
-    if any(k in all_text for k in ["vault", "safe multisig", "gnosis safe"]):
+
+    _no_kyc_in_hits = any("no kyc" in s for s in escrow_hits)
+    if not _no_kyc_in_hits and "no kyc" in all_text:
         result.escrow_weight_sum += 0.5
 
     result.has_positive_escrow = result.positive_escrow_count > 0
@@ -207,12 +215,13 @@ def compute_soft_signals(
     if any(s in all_text for s in wallet_phrases):
         result.mentions_wallet_payout = True
         
-    onchain_keywords = ["vault", "safe multisig", "gnosis safe", "hats vault", "immunefi vault"]
-    if any(k in all_text for k in onchain_keywords):
-        result.has_onchain_escrow = True
-    elif any(s in escrow_hits for s in ["escrow", "multisig", "on-chain escrow", "escrowed funds"]):
-        # Also check explicit escrow hits
-        result.has_onchain_escrow = True
+    result.has_onchain_escrow = any(
+        any(k in s for k in [
+            "vault", "escrow", "multisig", "gnosis", "hats",
+            "immunefi", "safe"
+        ])
+        for s in escrow_hits
+    )
 
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(
@@ -224,6 +233,9 @@ def compute_soft_signals(
     result.ghost_squatter = _check_ghost_squatter(
         issue, comments, timeline_nodes, signals, allow_assigned_if_stale
     )
+
+    # Soft ceiling: prevents runaway scores on richly-tagged issues.
+    result.escrow_weight_sum = min(result.escrow_weight_sum, 6.0)
 
     return result
 

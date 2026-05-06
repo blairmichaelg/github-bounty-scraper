@@ -40,6 +40,16 @@ def write_output(
         reverse=True,
     )
 
+    unknown.sort(
+        key=lambda x: (
+            x.get("Score", 0),
+            int(x.get("HasOnchainEscrow", False)),
+            int(x.get("MentionsWalletPayout", False)),
+            int(x.get("MentionsNoKyc", False)),
+        ),
+        reverse=True,
+    )
+
     suppress_console = config.output_format == "json"
     write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
 

@@ -266,32 +266,6 @@ async def run_vibe_check(
     ) as session:
         count = 0
 
-        # If mode == 'unscored', prefer iterating DB rows with NULL vibe_score
-        async def iter_unscored_db(db_path: str) -> AsyncIterator[dict[str, Any]]:
-            import aiosqlite as _aiosqlite
-            # Load bodies from exploration_raw.jsonl
-            bodies = {}
-            if os.path.exists(raw_file):
-                def _read():
-                    with open(raw_file, "r", encoding="utf-8") as f:
-                        return f.read().splitlines()
-                lines = await asyncio.to_thread(_read)
-                for line in lines:
-                    if not line.strip(): continue
-                    try:
-                        obj = json.loads(line)
-                        key = obj.get("issue_url") or obj.get("url") or ""
-                        bodies[key] = obj.get("body_snippet") or obj.get("body") or ""
-                    except: pass
-
-            async with _aiosqlite.connect(db_path) as _conn:
-                await init_db(_conn)
-                async with _conn.execute(
-                    "SELECT issue_url, title FROM issue_stats WHERE vibe_score IS NULL ORDER BY score DESC"
-                ) as cur:
-                    async for r in cur:
-                        yield {"issue_url": r[0], "title": r[1] or "", "body_snippet": bodies.get(r[0], "")}
-
         async def _guarded_vibe(obj: dict) -> tuple[int, str, str]:
             issue_url = obj.get("issue_url") or obj.get("url") or ""
             title = obj.get("title", "").strip()
@@ -299,6 +273,10 @@ async def run_vibe_check(
             
             async with sem:
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
+                if concurrency <= 2:
+                    await asyncio.sleep(0.5)
+                elif concurrency <= 5:
+                    await asyncio.sleep(0.15)
                 return s, r, issue_url
 
         # source_iter selection
@@ -349,10 +327,6 @@ async def run_vibe_check(
 
             try:
                 score, reason, url = await _guarded_vibe(obj)
-                if concurrency <= 2:
-                    await asyncio.sleep(0.5)
-                elif concurrency <= 5:
-                    await asyncio.sleep(0.15)
             except Exception as exc:
                 log.warning("Gemini call failed for %s: %s", issue_url, exc)
                 continue
