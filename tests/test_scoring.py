@@ -7,13 +7,11 @@ from github_bounty_scraper.config import ScraperConfig
 from github_bounty_scraper.scoring import compute_score
 
 
-@pytest.fixture
-def config():
-    return ScraperConfig()
+
 
 
 @pytest.mark.parametrize("seed", range(20))
-def test_score_ceiling_never_exceeded(config, seed):
+def test_score_ceiling_never_exceeded(cfg, seed):
     """Parametrize over 20 random combos of maxed inputs — assert score <= 100.0 every time."""
     random.seed(seed)
     score = compute_score(
@@ -25,7 +23,7 @@ def test_score_ceiling_never_exceeded(config, seed):
         repo_reputation=random.uniform(0, 1),
         vibe_score_int=random.choice([None, random.randint(0, 100)]),
         has_negative_soft=False,
-        config=config,
+        config=cfg,
         has_onchain_escrow=random.choice([True, False]),
         mentions_no_kyc=random.choice([True, False]),
         mentions_wallet_payout=random.choice([True, False]),
@@ -33,7 +31,7 @@ def test_score_ceiling_never_exceeded(config, seed):
     assert score <= 100.0, f"Score {score} exceeded 100.0 with seed {seed}"
 
 
-def test_score_floor_never_negative(config):
+def test_score_floor_never_negative(cfg):
     """Assert score >= 0.0 for all-zero inputs."""
     score = compute_score(
         numeric_amount=0.0,
@@ -44,25 +42,25 @@ def test_score_floor_never_negative(config):
         repo_reputation=0.0,
         vibe_score_int=0,
         has_negative_soft=True,
-        config=config,
+        config=cfg,
     )
     assert score >= 0.0
 
 
-def test_weight_sum_exactly_one(config):
+def test_weight_sum_exactly_one(cfg):
     """Assert sum of all weight fields in ScraperConfig() == 1.0 (catches future drift immediately)."""
     total = (
-        config.weight_amount
-        + config.weight_recency
-        + config.weight_activity
-        + config.weight_escrow_strength
-        + config.w_repo_reputation
-        + config.weight_vibe
+        cfg.weight_amount
+        + cfg.weight_recency
+        + cfg.weight_activity
+        + cfg.weight_escrow_strength
+        + cfg.w_repo_reputation
+        + cfg.weight_vibe
     )
     assert abs(total - 1.0) < 1e-9
 
 
-def test_vibe_zero_and_none(config):
+def test_vibe_zero_and_none(cfg):
     """
     Test that vibe_score_int=None redistributes weight (higher score)
     while vibe_score_int=0 actively penalizes (lower score).
@@ -75,14 +73,14 @@ def test_vibe_zero_and_none(config):
         "positive_escrow_weight_sum": 2.0,
         "repo_reputation": 0.5,
         "has_negative_soft": False,
-        "config": config,
+        "config": cfg,
     }
     score_none = compute_score(vibe_score_int=None, **base_args)
     score_zero = compute_score(vibe_score_int=0, **base_args)
     assert score_none > score_zero
 
 
-def test_negative_soft_reduces_score(config):
+def test_negative_soft_reduces_score(cfg):
     """has_negative_soft=True should produce a lower score than False, all else equal."""
     base_args = {
         "numeric_amount": 1000.0,
@@ -92,7 +90,7 @@ def test_negative_soft_reduces_score(config):
         "positive_escrow_weight_sum": 2.0,
         "repo_reputation": 0.5,
         "vibe_score_int": 50,
-        "config": config,
+        "config": cfg,
     }
     score_clean = compute_score(has_negative_soft=False, **base_args)
     score_soft_neg = compute_score(has_negative_soft=True, **base_args)

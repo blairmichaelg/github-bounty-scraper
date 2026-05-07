@@ -185,18 +185,22 @@ async def process_issue(
         ):
             return None
 
-    async with sem:
-        data = await run_graphql_audit(
-            session,
-            bucket,
-            config.github_token,
-            owner,
-            repo,
-            issue_number,
-            pr_cap=config.pr_cap,
-            tl_max_pages=config.tl_max_pages,
-            tl_page_size=config.timeline_page_size,
-        )
+    try:
+        async with sem:
+            data = await run_graphql_audit(
+                session,
+                bucket,
+                config.github_token,
+                owner,
+                repo,
+                issue_number,
+                pr_cap=config.pr_cap,
+                tl_max_pages=config.tl_max_pages,
+                tl_page_size=config.timeline_page_size,
+            )
+    except Exception as e:
+        log.error("GraphQL audit failed for %s: %s", url, e)
+        return None
 
     if not data or not data.get("repository") or not data["repository"].get("issue"):
         return None

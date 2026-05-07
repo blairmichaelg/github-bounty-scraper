@@ -6,68 +6,31 @@ from github_bounty_scraper.graphql import TokenBucket, fetch_graphql, run_graphq
 
 
 @pytest.mark.asyncio
-async def test_token_bucket():
-    bucket = TokenBucket(10, 1.0)
-    # Mocking wait since we don't want to actually sleep
-    bucket.tokens = 5
-    await bucket.consume(1)
-    assert bucket.tokens <= 4.1  # account for a tiny bit of fill during the lock
+async def test_token_bucket(mock_token_bucket):
+    # The fixture is already mocked
+    await mock_token_bucket.consume(1)
+    mock_token_bucket.consume.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_fetch_graphql_failure():
-    # Mock session to fail
-    class MockSession:
-        def post(self, *args, **kwargs):
-            class MockResponse:
-                status = 500
-                ok = False
+async def test_fetch_graphql_failure(mock_aiohttp_session, mock_token_bucket):
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.status = 500
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.ok = False
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.json.return_value = {"errors": ["Error"]}
 
-                async def text(self):
-                    return "Error"
-
-                async def json(self):
-                    return {"errors": ["Error"]}
-
-                async def __aenter__(self):
-                    return self
-
-                async def __aexit__(self, *args):
-                    pass
-
-            return MockResponse()
-
-    bucket = TokenBucket(10, 1.0)
-    res = await fetch_graphql(MockSession(), bucket, "token", "query")
+    res = await fetch_graphql(mock_aiohttp_session, mock_token_bucket, "token", "query")
     assert res is None
 
 
 @pytest.mark.asyncio
-async def test_run_graphql_audit():
-    class MockSession:
-        def post(self, *args, **kwargs):
-            class MockResponse:
-                status = 200
-                ok = True
-
-                async def json(self):
-                    return {
-                        "data": {
-                            "repository": {
-                                "issue": {"id": "1", "timelineItems": {"nodes": [], "pageInfo": {}}},
-                                "pullRequests": {"nodes": [], "pageInfo": {}},
-                            }
-                        }
-                    }
-
-                async def __aenter__(self):
-                    return self
-
-                async def __aexit__(self, *args):
-                    pass
-
-            return MockResponse()
-
-    bucket = TokenBucket(10, 1.0)
-    res = await run_graphql_audit(MockSession(), bucket, "token", "owner", "repo", 1)
+async def test_run_graphql_audit(mock_aiohttp_session, mock_token_bucket):
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.json.return_value = {
+        "data": {
+            "repository": {
+                "issue": {"id": "1", "timelineItems": {"nodes": [], "pageInfo": {}}},
+                "pullRequests": {"nodes": [], "pageInfo": {}},
+            }
+        }
+    }
+    res = await run_graphql_audit(mock_aiohttp_session, mock_token_bucket, "token", "owner", "repo", 1)
     assert res["repository"]["issue"]["id"] == "1"

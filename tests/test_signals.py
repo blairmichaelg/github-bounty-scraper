@@ -122,6 +122,19 @@ def test_apply_hard_disqualifiers():
     )
     assert disq is False
 
+def test_apply_hard_disqualifiers_malformed_labels():
+    signals = {"kill_labels": ["spam"]}
+    # Label without a name
+    disq, reason = apply_hard_disqualifiers(
+        issue_state="OPEN", labels_nodes=[{"not_name": "spam"}], body="hello", comments=[], signals=signals
+    )
+    assert disq is False
+    # Label as None
+    disq, reason = apply_hard_disqualifiers(
+        issue_state="OPEN", labels_nodes=[None], body="hello", comments=[], signals=signals
+    )
+    assert disq is False
+
 
 # === Section 5: escrow signal detection ===
 def test_signals_escrow_weights():

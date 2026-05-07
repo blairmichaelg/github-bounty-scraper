@@ -5,6 +5,7 @@ import tempfile
 import aiosqlite
 import pytest
 
+from unittest.mock import AsyncMock, MagicMock, patch
 from github_bounty_scraper.db import init_db
 from github_bounty_scraper.output import write_markdown_output
 from github_bounty_scraper.vibe import (
@@ -42,25 +43,46 @@ async def test_call_gemini_missing_key():
 
 
 @pytest.mark.asyncio
-async def test_call_gemini_success():
-    class MockSession:
-        def post(self, *args, **kwargs):
-            class MockResponse:
-                status = 200
-
-                async def json(self):
-                    return {"candidates": [{"content": {"parts": [{"text": "SCORE: 90\nREASON: Good"}]}}]}
-
-                async def __aenter__(self):
-                    return self
-
-                async def __aexit__(self, *args):
-                    pass
-
-            return MockResponse()
-
-    score, reason = await call_gemini(MockSession(), "key", "title", "body")
+async def test_call_gemini_success(mock_aiohttp_session):
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": "SCORE: 90\nREASON: Good"}]}}]
+    }
+    score, reason = await call_gemini(mock_aiohttp_session, "key", "title", "body")
     assert score == 90
+
+
+@pytest.mark.asyncio
+async def test_call_gemini_api_error(mock_aiohttp_session):
+    """Gemini returns 500 — should raise after retries."""
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.status = 500
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.ok = False
+    
+    with pytest.raises(Exception):
+        # We use a short timeout or mock the sleep to avoid waiting during test
+        with patch("asyncio.sleep", AsyncMock()):
+            await call_gemini(mock_aiohttp_session, "key", "title", "body")
+
+
+@pytest.mark.asyncio
+async def test_call_gemini_retry_on_429(mock_aiohttp_session):
+    """Gemini returns 429 then 200 — should succeed."""
+    mock_429 = MagicMock()
+    mock_429.status = 429
+    mock_429.__aenter__ = AsyncMock(return_value=mock_429)
+    mock_429.__aexit__ = AsyncMock(return_value=False)
+
+    mock_200 = MagicMock()
+    mock_200.status = 200
+    mock_200.json = AsyncMock(return_value={"candidates": [{"content": {"parts": [{"text": "SCORE: 50"}]}}]})
+    mock_200.__aenter__ = AsyncMock(return_value=mock_200)
+    mock_200.__aexit__ = AsyncMock(return_value=False)
+
+    mock_aiohttp_session.post.side_effect = [mock_429, mock_200]
+
+    with patch("asyncio.sleep", AsyncMock()):
+        score, _ = await call_gemini(mock_aiohttp_session, "key", "title", "body")
+    assert score == 50
+    assert mock_aiohttp_session.post.call_count == 2
 
 
 # === Section 3: run_vibe_check — end-to-end flow ===
@@ -110,19 +132,29 @@ async def test_run_vibe_check_with_data():
 
 # === Section 4: iter_raw_candidates — file iteration ===
 @pytest.mark.asyncio
-async def test_iter_raw_candidates():
+async def test_iter_raw_candidates_malformed():
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
-        f.write(json.dumps({"url": "http://1"}) + "\n")
-        f.write(json.dumps({"url": "http://2"}) + "\n")
+        f.write('{"url": "http://1"}\n')
+        f.write('INVALID JSON\n')
+        f.write('{"url": "http://2"}\n')
         f.close()
-        try:
-            items = []
-            async for item in iter_raw_candidates(f.name):
-                items.append(item)
-            assert len(items) == 2
-            assert items[0]["url"] == "http://1"
-        finally:
-            os.remove(f.name)
+    try:
+        items = []
+        async for item in iter_raw_candidates(f.name):
+            items.append(item)
+        # Should skip the malformed line
+        assert len(items) == 2
+        assert items[1]["url"] == "http://2"
+    finally:
+        os.remove(f.name)
+
+
+@pytest.mark.asyncio
+async def test_iter_raw_candidates_missing_file():
+    items = []
+    async for item in iter_raw_candidates("nonexistent.jsonl"):
+        items.append(item)
+    assert items == []
 
 
 # === Section 5: vibe output formatting ===

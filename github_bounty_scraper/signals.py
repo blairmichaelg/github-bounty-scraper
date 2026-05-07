@@ -104,7 +104,11 @@ def apply_hard_disqualifiers(
     # Kill labels
     kill_switches = cast(list[str], signals.get("kill_labels", []))
     for label in labels_nodes:
+        if not isinstance(label, dict):
+            continue
         l_name = label.get("name", "").lower()
+        if not l_name:
+            continue
         if any(k in l_name for k in kill_switches):
             return True, f"kill label '{l_name}'"
 
@@ -307,7 +311,11 @@ def _is_lane_blocked(
         active_label_re = signals.get("active_label_signals_re")
         if active_label_re:
             for label in labels_nodes:
+                if not isinstance(label, dict):
+                    continue
                 l_name = label.get("name", "").lower()
+                if not l_name:
+                    continue
                 if active_label_re.search(l_name):
                     # GitHub doesn't expose label timestamps easily,
                     # so treat as max_active_ts = now − 1 day conservatively.
