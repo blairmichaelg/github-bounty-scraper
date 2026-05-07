@@ -9,7 +9,6 @@ import aiosqlite
 import joblib
 import pytest
 
-from github_bounty_scraper.config import ScraperConfig
 from github_bounty_scraper.db import (
     BatchCommitter,
     dump_dataset,
@@ -118,6 +117,7 @@ async def test_get_recent_leads():
         finally:
             if os.path.exists(db_path):
                 os.remove(db_path)
+
 
 @pytest.mark.asyncio
 async def test_is_bounty_label_threshold(tmp_path):

@@ -3,11 +3,7 @@ import random
 
 import pytest
 
-from github_bounty_scraper.config import ScraperConfig
 from github_bounty_scraper.scoring import compute_score
-
-
-
 
 
 @pytest.mark.parametrize("seed", range(20))
@@ -95,3 +91,91 @@ def test_negative_soft_reduces_score(cfg):
     score_clean = compute_score(has_negative_soft=False, **base_args)
     score_soft_neg = compute_score(has_negative_soft=True, **base_args)
     assert score_soft_neg < score_clean
+
+
+class TestScoringEdgeCases:
+    def test_invalid_timestamp_handled(self, cfg):
+        """Invalid updated_at timestamp should be ignored (no recency bonus)."""
+        score = compute_score(
+            numeric_amount=100.0,
+            issue_updated_at="invalid-date",
+            merges_last_45d=10,
+            positive_escrow_count=1,
+            positive_escrow_weight_sum=1.0,
+            repo_reputation=0.5,
+            vibe_score_int=None,
+            has_negative_soft=False,
+            config=cfg,
+        )
+        assert score > 0
+
+    def test_requires_hardware_penalty(self, cfg):
+        """requires_hardware=True should halve the final score."""
+        base_args = {
+            "numeric_amount": 1000.0,
+            "issue_updated_at": "2026-05-01T12:00:00Z",
+            "merges_last_45d": 10,
+            "positive_escrow_count": 2,
+            "positive_escrow_weight_sum": 2.0,
+            "repo_reputation": 0.5,
+            "vibe_score_int": 50,
+            "has_negative_soft": False,
+            "config": cfg,
+        }
+        score_normal = compute_score(requires_hardware=False, **base_args)
+        score_hardware = compute_score(requires_hardware=True, **base_args)
+        assert score_hardware == round(score_normal * 0.5, 2)
+
+    def test_escrow_cap_applied(self, cfg):
+        """escrow_weight_sum above ESCROW_WEIGHT_CAP should produce same score as at cap."""
+        from github_bounty_scraper.config import ESCROW_WEIGHT_CAP
+
+        base_args = {
+            "numeric_amount": 1000.0,
+            "issue_updated_at": "2026-05-01T12:00:00Z",
+            "merges_last_45d": 10,
+            "positive_escrow_count": 1,
+            "repo_reputation": 0.5,
+            "vibe_score_int": None,
+            "has_negative_soft": False,
+            "config": cfg,
+        }
+        score_at_cap = compute_score(positive_escrow_weight_sum=ESCROW_WEIGHT_CAP, **base_args)
+        score_above_cap = compute_score(positive_escrow_weight_sum=ESCROW_WEIGHT_CAP + 10.0, **base_args)
+        assert score_at_cap == score_above_cap
+
+    def test_amount_norm_edge_cases(self, cfg):
+        """Test normalization with amount=0, 1, and very large values."""
+        base_args = {
+            "issue_updated_at": "2026-05-01T12:00:00Z",
+            "merges_last_45d": 10,
+            "positive_escrow_count": 1,
+            "positive_escrow_weight_sum": 1.0,
+            "repo_reputation": 0.5,
+            "vibe_score_int": None,
+            "has_negative_soft": False,
+            "config": cfg,
+        }
+        score_0 = compute_score(numeric_amount=0.0, **base_args)
+        score_1 = compute_score(numeric_amount=1.0, **base_args)
+        score_max = compute_score(numeric_amount=cfg.amount_norm_cap * 10, **base_args)
+
+        assert score_0 < score_1
+        # Maxed amount should match cap score
+        score_at_cap = compute_score(numeric_amount=cfg.amount_norm_cap, **base_args)
+        assert score_max == score_at_cap
+
+    def test_all_zero_inputs(self, cfg):
+        """An issue with no signals, no amount, and no vibe should produce exactly 0.0."""
+        score = compute_score(
+            numeric_amount=0.0,
+            issue_updated_at=None,
+            merges_last_45d=0,
+            positive_escrow_count=0,
+            positive_escrow_weight_sum=0.0,
+            repo_reputation=0.0,
+            vibe_score_int=None,
+            has_negative_soft=False,
+            config=cfg,
+        )
+        assert score == 0.0

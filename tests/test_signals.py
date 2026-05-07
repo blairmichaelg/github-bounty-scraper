@@ -122,6 +122,7 @@ def test_apply_hard_disqualifiers():
     )
     assert disq is False
 
+
 def test_apply_hard_disqualifiers_malformed_labels():
     signals = {"kill_labels": ["spam"]}
     # Label without a name

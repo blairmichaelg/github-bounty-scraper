@@ -1,6 +1,7 @@
-import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from github_bounty_scraper.config import ScraperConfig
 
 
@@ -36,7 +37,9 @@ def mock_token_bucket():
 async def mock_db_conn(tmp_path):
     """In-memory aiosqlite connection for isolated DB tests."""
     import aiosqlite
+
     from github_bounty_scraper.db import init_db
+
     db_path = str(tmp_path / "test.db")
     async with aiosqlite.connect(db_path) as conn:
         await init_db(conn)
@@ -47,6 +50,7 @@ async def mock_db_conn(tmp_path):
 def minimal_issue():
     """Minimal valid GitHub issue dict for pipeline tests."""
     import datetime
+
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     return {
         "url": "https://github.com/test/repo/issues/1",
@@ -57,10 +61,13 @@ def minimal_issue():
         "state": "OPEN",
         "createdAt": "2026-01-01T00:00:00Z",
         "updatedAt": "2026-01-01T00:00:00Z",
-        "comments": {"totalCount": 2, "nodes": [
-            {"body": "I can fix this.", "createdAt": "2026-01-02T00:00:00Z"},
-            {"body": "Escrow set up on Immunefi.", "createdAt": "2026-01-03T00:00:00Z"},
-        ]},
+        "comments": {
+            "totalCount": 2,
+            "nodes": [
+                {"body": "I can fix this.", "createdAt": "2026-01-02T00:00:00Z"},
+                {"body": "Escrow set up on Immunefi.", "createdAt": "2026-01-03T00:00:00Z"},
+            ],
+        },
         "labels": {"nodes": [{"name": "bounty"}, {"name": "good first issue"}]},
         "repository": {
             "nameWithOwner": "test/repo",
@@ -74,8 +81,6 @@ def minimal_issue():
             "owner": {"__typename": "Organization"},
             "mentionableUsers": {"totalCount": 10},
             "createdAt": "2020-01-01T00:00:00Z",
-            "pullRequests": {"nodes": [
-                {"mergedAt": now_str}
-            ]}
-        }
+            "pullRequests": {"nodes": [{"mergedAt": now_str}]},
+        },
     }

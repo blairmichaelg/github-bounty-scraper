@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from github_bounty_scraper.graphql import TokenBucket, fetch_graphql, run_graphql_audit
+from github_bounty_scraper.graphql import fetch_graphql, run_graphql_audit
 
 
 @pytest.mark.asyncio

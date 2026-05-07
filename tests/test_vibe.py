@@ -1,11 +1,11 @@
 import json
 import os
 import tempfile
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
 import pytest
 
-from unittest.mock import AsyncMock, MagicMock, patch
 from github_bounty_scraper.db import init_db
 from github_bounty_scraper.output import write_markdown_output
 from github_bounty_scraper.vibe import (
@@ -56,7 +56,7 @@ async def test_call_gemini_api_error(mock_aiohttp_session):
     """Gemini returns 500 — should raise after retries."""
     mock_aiohttp_session.post.return_value.__aenter__.return_value.status = 500
     mock_aiohttp_session.post.return_value.__aenter__.return_value.ok = False
-    
+
     with pytest.raises(Exception):
         # We use a short timeout or mock the sleep to avoid waiting during test
         with patch("asyncio.sleep", AsyncMock()):
@@ -135,7 +135,7 @@ async def test_run_vibe_check_with_data():
 async def test_iter_raw_candidates_malformed():
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
         f.write('{"url": "http://1"}\n')
-        f.write('INVALID JSON\n')
+        f.write("INVALID JSON\n")
         f.write('{"url": "http://2"}\n')
         f.close()
     try:

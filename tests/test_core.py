@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from github_bounty_scraper.config import ScraperConfig
+import pytest
+
 from github_bounty_scraper.core import (
     _assemble_lead_result,
     _build_text_context,
@@ -136,15 +135,16 @@ async def test_run_pipeline_empty(cfg):
 
 # === Section 5: process_issue() integration (fully mocked external I/O) ===
 
+
 class TestProcessIssueIntegration:
     """Test the full process_issue() pipeline with all external I/O mocked out."""
 
     @pytest.mark.asyncio
     async def test_healthy_issue_returns_lead_result(self, cfg, minimal_issue, mock_db_conn):
         """A valid issue with a bounty amount should produce a LeadResult."""
-        from github_bounty_scraper.core import process_issue
-        from github_bounty_scraper.graphql import TokenBucket
         import aiohttp
+
+        from github_bounty_scraper.core import process_issue
 
         seen_aggregators: set[str] = set()
         bucket = TokenBucket(capacity=100, fill_rate=10.0)
@@ -155,25 +155,25 @@ class TestProcessIssueIntegration:
 
         # signals needs to be a dict as per core.py signature
         import re
+
         signals = {
             "aggregator_repos": [],
             "positive_escrow_re": re.compile(r"escrow|immunefi"),
             "kill_labels": [],
             "active_label_signals_re": re.compile(r"active"),
             "assigned_signal_re": re.compile(r"assigned"),
-            "stale_signal_re": re.compile(r"stale")
+            "stale_signal_re": re.compile(r"stale"),
         }
 
-        with patch("github_bounty_scraper.core.run_graphql_audit") as mock_gql, \
-             patch("github_bounty_scraper.core._append_raw") as mock_append:
-
+        with (
+            patch("github_bounty_scraper.core.run_graphql_audit") as mock_gql,
+            patch("github_bounty_scraper.core._append_raw") as mock_append,
+        ):
             # GraphQL enrichment returns minimal valid data
-            mock_gql.return_value = {
-                "repository": minimal_issue["repository"]
-            }
+            mock_gql.return_value = {"repository": minimal_issue["repository"]}
             # Add issue to repository
             mock_gql.return_value["repository"]["issue"] = minimal_issue
-            
+
             mock_append.return_value = None
 
             async with aiohttp.ClientSession() as session:
@@ -195,9 +195,9 @@ class TestProcessIssueIntegration:
     @pytest.mark.asyncio
     async def test_archived_repo_returns_none(self, cfg, minimal_issue, mock_db_conn):
         """An issue from an archived repo should be filtered out (return None)."""
-        from github_bounty_scraper.core import process_issue
-        from github_bounty_scraper.graphql import TokenBucket
         import aiohttp
+
+        from github_bounty_scraper.core import process_issue
 
         archived_issue = dict(minimal_issue)
         archived_issue["repository"] = dict(minimal_issue["repository"])
@@ -212,9 +212,7 @@ class TestProcessIssueIntegration:
         signals = {"aggregator_repos": []}
 
         with patch("github_bounty_scraper.core.run_graphql_audit") as mock_gql:
-            mock_gql.return_value = {
-                "repository": archived_issue["repository"]
-            }
+            mock_gql.return_value = {"repository": archived_issue["repository"]}
             mock_gql.return_value["repository"]["issue"] = archived_issue
 
             async with aiohttp.ClientSession() as session:
@@ -235,9 +233,9 @@ class TestProcessIssueIntegration:
     @pytest.mark.asyncio
     async def test_zero_amount_issue_returns_none_or_low_score(self, cfg, mock_db_conn):
         """An issue with no detectable bounty amount should be filtered or score near 0."""
-        from github_bounty_scraper.core import process_issue
-        from github_bounty_scraper.graphql import TokenBucket
         import aiohttp
+
+        from github_bounty_scraper.core import process_issue
 
         no_money_issue = {
             "html_url": "https://github.com/test/repo/issues/99",
@@ -260,7 +258,7 @@ class TestProcessIssueIntegration:
                 "primaryLanguage": {"name": "Python"},
                 "owner": {"__typename": "Organization"},
                 "mentionableUsers": {"totalCount": 10},
-            }
+            },
         }
 
         bucket = TokenBucket(capacity=100, fill_rate=10.0)
@@ -272,9 +270,7 @@ class TestProcessIssueIntegration:
         signals = {"aggregator_repos": []}
 
         with patch("github_bounty_scraper.core.run_graphql_audit") as mock_gql:
-            mock_gql.return_value = {
-                "repository": no_money_issue["repository"]
-            }
+            mock_gql.return_value = {"repository": no_money_issue["repository"]}
             mock_gql.return_value["repository"]["issue"] = no_money_issue
 
             async with aiohttp.ClientSession() as session:
@@ -296,9 +292,9 @@ class TestProcessIssueIntegration:
     @pytest.mark.asyncio
     async def test_graphql_error_does_not_crash(self, cfg, minimal_issue, mock_db_conn):
         """If GraphQL raises an exception, process_issue should return None gracefully."""
-        from github_bounty_scraper.core import process_issue
-        from github_bounty_scraper.graphql import TokenBucket
         import aiohttp
+
+        from github_bounty_scraper.core import process_issue
 
         bucket = TokenBucket(capacity=100, fill_rate=10.0)
         sem = asyncio.Semaphore(1)
@@ -323,3 +319,65 @@ class TestProcessIssueIntegration:
                 )
 
         assert result is None
+
+
+class TestRunPipeline:
+    @pytest.mark.asyncio
+    async def test_run_pipeline_returns_list(self, cfg):
+        """run_pipeline with empty discovery results should return an empty list."""
+        from github_bounty_scraper.core import run_pipeline
+
+        # Use an async iterator that yields nothing
+        async def empty_aiter(*args, **kwargs):
+            if False:
+                yield None
+
+        with (
+            patch("github_bounty_scraper.core.discover_issues_stream", side_effect=empty_aiter),
+            patch("github_bounty_scraper.core.init_db"),
+            patch("github_bounty_scraper.core.fetch_graphql") as mock_fetch,
+            patch("aiosqlite.connect") as mock_connect,
+        ):
+            mock_fetch.return_value = {"rateLimit": {"remaining": 5000, "resetAt": "..."}}
+
+            mock_conn = MagicMock()
+            mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_conn.__aexit__ = AsyncMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            results = await run_pipeline(cfg)
+
+        assert isinstance(results, list)
+        assert len(results) == 0
+
+    @pytest.mark.asyncio
+    async def test_run_pipeline_respects_max_issues(self, cfg):
+        """run_pipeline should stop after config.max_issues_per_run issues."""
+        from github_bounty_scraper.core import run_pipeline
+
+        cfg.max_issues_per_run = 1
+
+        async def mock_discover(*args, **kwargs):
+            yield {"html_url": "url1", "repository": {"nameWithOwner": "a/b", "stargazerCount": 100}}
+            yield {"html_url": "url2", "repository": {"nameWithOwner": "a/c", "stargazerCount": 100}}
+
+        with (
+            patch("github_bounty_scraper.core.discover_issues_stream", side_effect=mock_discover),
+            patch("github_bounty_scraper.core.init_db"),
+            patch("github_bounty_scraper.core.fetch_graphql") as mock_fetch,
+            patch("aiosqlite.connect") as mock_connect,
+            patch("github_bounty_scraper.core.process_issue") as mock_process,
+        ):
+            mock_fetch.return_value = {"rateLimit": {"remaining": 5000, "resetAt": "..."}}
+
+            mock_conn = MagicMock()
+            mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_conn.__aexit__ = AsyncMock(return_value=False)
+            mock_connect.return_value = mock_conn
+
+            mock_process.return_value = {"Title": "test"}
+
+            results = await run_pipeline(cfg)
+
+        assert len(results) == 1
+        assert mock_process.call_count == 1

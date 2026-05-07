@@ -76,4 +76,4 @@ vibe_retry.txt
 *.sha256
 
 # Documentation artifacts
-task.md
+docs/task.md

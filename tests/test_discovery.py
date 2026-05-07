@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from github_bounty_scraper.config import ScraperConfig
 from github_bounty_scraper.discovery import build_search_queries, fetch_rest_search
 
 

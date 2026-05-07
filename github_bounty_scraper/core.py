@@ -540,7 +540,7 @@ async def _process_with_retry(
 
 
 # ─── Main pipeline ──────────────────────────────────────────────────
-async def run_pipeline(config: ScraperConfig) -> None:
+async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
     """Run the full discovery → enrichment → scoring → output pipeline.
 
     Phases:
@@ -634,7 +634,7 @@ async def run_pipeline(config: ScraperConfig) -> None:
                 rem = rl_data["rateLimit"]["remaining"]
                 if rem < 200:
                     log.warning("GraphQL rate limit critically low (%d remaining). Aborting.", rem)
-                    return
+                    return []
 
             log.info("Starting concurrent streaming pipeline...")
             prod_task = asyncio.create_task(producer())
@@ -657,3 +657,5 @@ async def run_pipeline(config: ScraperConfig) -> None:
     # Output.
     if not config.dry_run and config.output_file:
         write_output(all_leads, elapsed, config)
+
+    return all_leads
