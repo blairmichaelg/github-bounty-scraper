@@ -224,7 +224,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     vibe_parser.add_argument(
-        "--raw-file",
+        "--raw-candidates-file",
         type=str,
         default="exploration_raw.jsonl",
         help="Path to exploration_raw.jsonl (default: ./exploration_raw.jsonl).",
@@ -251,10 +251,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out-csv", type=str, required=True, help="Path to the output CSV file (e.g. bounty_dataset.csv)"
     )
     dump_parser.add_argument(
-        "--raw-file",
+        "--raw-candidates-file",
         type=str,
         default="exploration_raw.jsonl",
-        dest="raw_file",
+        dest="raw_candidates_file",
         help="Path to exploration_raw.jsonl used to enrich CSV with body text (default: ./exploration_raw.jsonl).",
     )
     dump_parser.add_argument(
@@ -294,13 +294,13 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
 
     # Filter out command-specific flags that aren't in ScraperConfig
     if command == "vibe-check":
-        for k in ["limit", "concurrency", "db_path", "raw_file", "mode"]:
+        for k in ["limit", "concurrency", "db_path", "raw_candidates_file", "mode"]:
             overrides.pop(k, None)
     elif command == "inspect-leads":
         for k in ["mode", "limit", "db_path"]:
             overrides.pop(k, None)
     elif command == "dump-dataset":
-        for k in ["db_path", "out_csv", "raw_file", "label_threshold"]:
+        for k in ["db_path", "out_csv", "raw_candidates_file", "label_threshold"]:
             overrides.pop(k, None)
 
     # build_config handles this by ignoring unknown keys.

@@ -127,7 +127,7 @@ async def test_get_recent_leads():
 async def test_get_recent_leads_excludes_vibe_only_rows(tmp_path):
     db_path = str(tmp_path / "test_recent_vibe_only.db")
 
-    await set_issue_vibe(db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time())
+    await set_issue_vibe(db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time(), compiled_signals=None)
     async with aiosqlite.connect(db_path) as conn:
         await init_db(conn)
         await conn.execute(
@@ -257,11 +257,14 @@ async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
 @pytest.mark.asyncio
 async def test_set_issue_vibe_signal_extraction(tmp_path):
     """set_issue_vibe should extract signals from the reason text."""
+    from github_bounty_scraper.config import load_signals
+
     db_path = str(tmp_path / "test_vibe_signals.db")
     now = time.time()
+    compiled_signals = load_signals()
 
-    await set_issue_vibe(db_path, "url1", 80, "Wallet payout. No KYC.", now)
-    await set_issue_vibe(db_path, "url2", 90, "On-chain escrow vault.", now)
+    await set_issue_vibe(db_path, "url1", 80, "payout in eth. No KYC.", now, compiled_signals=compiled_signals)
+    await set_issue_vibe(db_path, "url2", 90, "On-chain escrow vault.", now, compiled_signals=compiled_signals)
 
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row

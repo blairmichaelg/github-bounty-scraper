@@ -87,7 +87,7 @@ class TestMainDispatch:
     def test_main_vibe_check_dispatch(self, cfg):
         """main() should call run_vibe_check when subcommand is vibe-check."""
         mock_ns = MagicMock()
-        mock_ns.raw_file = "raw.jsonl"
+        mock_ns.raw_candidates_file = "raw.jsonl"
         mock_ns.db_path = "bounty.db"
         mock_ns.limit = 10
         mock_ns.mode = "opportunistic"
@@ -107,7 +107,7 @@ class TestMainDispatch:
         mock_ns = MagicMock()
         mock_ns.db_path = "bounty.db"
         mock_ns.out = "dataset.csv"
-        mock_ns.raw_file = "raw.jsonl"
+        mock_ns.raw_candidates_file = "raw.jsonl"
         mock_ns.label_threshold = 25.0
 
         with (

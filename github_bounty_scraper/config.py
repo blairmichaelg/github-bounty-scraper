@@ -253,11 +253,9 @@ class ScraperConfig:
     gemini_model: str = "gemini-2.5-flash-lite"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
     """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
 
-    vibe_check_concurrency: int = 1
+    vibe_check_concurrency: int = 3
     vibe_check_limit: int = 10
     limit: int = 0
-    concurrency: int = 5
-    raw_file: str = "exploration_raw.jsonl"
     raw_candidates_file: str = field(
         default_factory=lambda: os.environ.get("RAW_CANDIDATES_FILE", "exploration_raw.jsonl")
     )
@@ -389,7 +387,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
             if multi_words:
                 parts.append("|".join(multi_words))
             pattern = "|".join(parts)
-            defaults[f"{key}_re"] = re.compile(pattern)
+            defaults[f"{key}_re"] = re.compile(pattern, flags=re.IGNORECASE)
         else:
             defaults[f"{key}_re"] = None
 
@@ -431,6 +429,10 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
         # Backward compat aliases
         if "db_path" in data:
             data["db_file"] = data.pop("db_path")
+        if "concurrency" in data:
+            data["semaphore_limit"] = data.pop("concurrency")
+        if "raw_file" in data:
+            data["raw_candidates_file"] = data.pop("raw_file")
 
         unknown = set(data) - known
         if unknown:
@@ -449,6 +451,10 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     # Backward compat aliases for CLI
     if "db_path" in overrides:
         overrides["db_file"] = overrides.pop("db_path")
+    if "concurrency" in overrides:
+        overrides["semaphore_limit"] = overrides.pop("concurrency")
+    if "raw_file" in overrides:
+        overrides["raw_candidates_file"] = overrides.pop("raw_file")
 
     for k, v in overrides.items():
         if k in known:
@@ -469,10 +475,6 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     # Merge: defaults (in dataclass) < config file < CLI
     combined = {**data, **cli_data}
     cfg = ScraperConfig(**combined)
-
-    # ── Mode overrides ──
-    if cfg.mode == "opportunistic":
-        pass  # Previously auto-enabled raw logging, now respect explicit default/override.
 
     # 4. Resolve token if not already set.
     if not cfg.github_token:

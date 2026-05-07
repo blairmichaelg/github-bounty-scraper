@@ -56,6 +56,35 @@ def test_weight_sum_exactly_one(cfg):
     assert abs(total - 1.0) < 1e-9
 
 
+def test_score_no_vibe_excludes_weight(cfg):
+    """
+    Test that vibe_score_int=None correctly renormalizes weights, 
+    unlike vibe_score_int=0 which actively penalizes by keeping the denominator the same.
+    """
+    base_args = {
+        "numeric_amount": 1000.0,
+        "issue_updated_at": "2026-05-01T12:00:00Z",
+        "merges_last_45d": 10,
+        "positive_escrow_count": 2,
+        "positive_escrow_weight_sum": 2.0,
+        "repo_reputation": 0.5,
+        "has_negative_soft": False,
+        "config": cfg,
+    }
+    score_none = compute_score(vibe_score_int=None, **base_args)
+    score_zero = compute_score(vibe_score_int=0, **base_args)
+    score_middle = compute_score(vibe_score_int=50, **base_args)
+    
+    # When vibe is None, remaining weights sum to 0.8 (since vibe=0.2), 
+    # so the score gets a 1/0.8 = 1.25x boost compared to vibe=0.
+    # Therefore score_none should be higher than score_zero, and it 
+    # should be correctly renormalized.
+    assert score_none > score_zero
+    # With a middle vibe score (e.g. 50%), the score_none could be higher or lower
+    # depending on whether the existing signals are stronger or weaker than 50%.
+    # But it proves renormalization happens rather than treating None as 0 or 100.
+    assert score_none != score_middle
+
 def test_vibe_zero_and_none(cfg):
     """
     Test that vibe_score_int=None redistributes weight (higher score)

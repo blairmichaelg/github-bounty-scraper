@@ -119,16 +119,16 @@ def compute_score(
     # ── Vibe component ──
     if vibe_score_int is not None:
         vibe_norm = vibe_score_int / 100.0
-        w_vibe = getattr(config, "weight_vibe", 0.20)
+        w_vibe = config.weight_vibe
     else:
         vibe_norm = 0.0
         w_vibe = 0.0  # exclude vibe from denominator when unavailable
 
-    w_amt = getattr(config, "weight_amount", 0.30)
-    w_rec = getattr(config, "weight_recency", 0.10)
-    w_act = getattr(config, "weight_activity", 0.15)
-    w_esc = getattr(config, "weight_escrow_strength", 0.15)
-    w_repo = getattr(config, "w_repo_reputation", 0.10)
+    w_amt = config.weight_amount
+    w_rec = config.weight_recency
+    w_act = config.weight_activity
+    w_esc = config.weight_escrow_strength
+    w_repo = config.w_repo_reputation
 
     # Normalize so weights always sum to 1.0 regardless of vibe availability
     total_w = w_amt + w_rec + w_act + w_esc + w_repo + w_vibe

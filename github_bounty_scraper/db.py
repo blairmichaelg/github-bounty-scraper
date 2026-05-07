@@ -5,7 +5,6 @@ Database initialisation, schema migration, and caching helpers.
 from __future__ import annotations
 
 import csv
-import re
 import time
 from typing import Any
 
@@ -467,25 +466,9 @@ async def set_issue_vibe(
             mentions_no_kyc = int(bool(compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)))
             mentions_wallet_payout = int(bool(compiled_signals.get("wallet_payout_phrases_re") and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)))
         else:
-            has_onchain_escrow = int(
-                bool(
-                    re.search(
-                        r"on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract",
-                        reason_lower,
-                    )
-                )
-            )
-            mentions_no_kyc = int(
-                bool(re.search(r"no kyc|without kyc|no identity|anonymous payout|pseudonymous payout", reason_lower))
-            )
-            mentions_wallet_payout = int(
-                bool(
-                    re.search(
-                        r"direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer",
-                        reason_lower,
-                    )
-                )
-            )
+            has_onchain_escrow = 0
+            mentions_no_kyc = 0
+            mentions_wallet_payout = 0
 
         # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(
@@ -561,7 +544,7 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
 
 
 async def dump_dataset(
-    db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0
+    db_path: str, out_path: str, raw_candidates_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0
 ) -> None:
     """Export scored issues to a CSV file for supervised fine-tuning.
 
@@ -576,10 +559,10 @@ async def dump_dataset(
 
     # Load bodies from exploration_raw.jsonl to enrich the dataset
     bodies = {}
-    if os.path.exists(raw_file):
+    if os.path.exists(raw_candidates_file):
 
         def _read():
-            with open(raw_file, "r", encoding="utf-8") as f:
+            with open(raw_candidates_file, "r", encoding="utf-8") as f:
                 return f.read().splitlines()
 
         lines = await asyncio.to_thread(_read)

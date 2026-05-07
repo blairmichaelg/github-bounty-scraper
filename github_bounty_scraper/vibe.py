@@ -60,7 +60,7 @@ def _gemini_endpoint(model: str) -> str:
     return f"{_GEMINI_BASE}/{model}:generateContent"
 
 
-async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
+async def iter_raw_candidates(raw_candidates_file: str) -> AsyncIterator[dict[str, Any]]:
     """
     Async generator over exploration_raw.jsonl.
 
@@ -69,15 +69,15 @@ async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
       - title (str)
       - body_snippet (str) or body (str)
     """
-    if not os.path.exists(raw_file):
-        log.warning("Raw file %s does not exist; nothing to vibe-check.", raw_file)
+    if not os.path.exists(raw_candidates_file):
+        log.warning("Raw file %s does not exist; nothing to vibe-check.", raw_candidates_file)
         return
 
     def _read_lines(path: str) -> list[str]:
         with open(path, "r", encoding="utf-8") as fh:
             return fh.read().splitlines()
 
-    lines = await asyncio.to_thread(_read_lines, raw_file)
+    lines = await asyncio.to_thread(_read_lines, raw_candidates_file)
     for line in lines:
         line = line.strip()
         if not line:
@@ -85,7 +85,7 @@ async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
         try:
             obj = json.loads(line)
         except json.JSONDecodeError:
-            log.warning("Skipping malformed JSON line in %s", raw_file)
+            log.warning("Skipping malformed JSON line in %s", raw_candidates_file)
             continue
         yield obj
 
@@ -237,7 +237,7 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
 
 
 async def run_vibe_check(
-    raw_file: str,
+    raw_candidates_file: str,
     db_path: str,
     limit: int,
     mode: Literal["unscored", "all"],
@@ -247,7 +247,7 @@ async def run_vibe_check(
     """Iterate exploration_raw.jsonl and score candidates with Gemini.
 
     Args:
-        raw_file: Path to exploration_raw.jsonl.
+        raw_candidates_file: Path to exploration_raw.jsonl.
         db_path: Path to the SQLite database.
         limit: Max number of candidates to score.
         mode: 'unscored' (skip already scored) or 'all' (force re-score).
@@ -282,7 +282,7 @@ async def run_vibe_check(
                 return s, r, issue_url
 
         # source_iter selection
-        async def iter_unscored_combined(raw_file: str, db_path: str) -> AsyncIterator[dict[str, Any]]:
+        async def iter_unscored_combined(raw_candidates_file: str, db_path: str) -> AsyncIterator[dict[str, Any]]:
             # Load existing scored URLs from DB
             scored_urls = set()
             if os.path.exists(db_path):
@@ -303,7 +303,7 @@ async def run_vibe_check(
             # (numeric_amount, file_offset) for unscored items, then sort.
             def _scan_file() -> list[tuple[float, int]]:
                 _offsets = []
-                with open(raw_file, "r", encoding="utf-8") as f:
+                with open(raw_candidates_file, "r", encoding="utf-8") as f:
                     while True:
                         pos = f.tell()
                         line = f.readline()
@@ -337,7 +337,7 @@ async def run_vibe_check(
                 # Sort by file position for sequential I/O, then re-sort by amount after
                 pos_sorted = sorted(offsets, key=lambda x: x[1])
                 results: list[tuple[float, dict[str, Any]]] = []
-                with open(raw_file, "r", encoding="utf-8") as f:
+                with open(raw_candidates_file, "r", encoding="utf-8") as f:
                     for amt, pos in pos_sorted:
                         f.seek(pos)
                         try:
@@ -354,9 +354,9 @@ async def run_vibe_check(
 
         source_iter: AsyncIterator[dict[str, Any]]
         if mode == "unscored":
-            source_iter = iter_unscored_combined(raw_file, db_path)
+            source_iter = iter_unscored_combined(raw_candidates_file, db_path)
         else:
-            source_iter = iter_raw_candidates(raw_file)
+            source_iter = iter_raw_candidates(raw_candidates_file)
 
         from .config import load_signals
         compiled_signals = load_signals()
@@ -392,4 +392,4 @@ async def run_vibe_check(
             count += 1
             log.info("VIBE %3d for %s — %s", score, url, reason)
 
-    log.info("Vibe-check complete. Scored %d candidates from %s", count, raw_file)
+    log.info("Vibe-check complete. Scored %d candidates from %s", count, raw_candidates_file)
