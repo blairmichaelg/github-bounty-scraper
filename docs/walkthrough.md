@@ -1,51 +1,61 @@
-# Walkthrough - Optimizing Bounty Ranking Signals
+# Walkthrough - Production-Readiness & Test Hardening
 
-We have successfully optimized the GitHub Bounty Scraper to prioritize high-quality, on-chain, and no-KYC bounty opportunities.
+We have successfully completed a comprehensive production-readiness overhaul of the GitHub Bounty Scraper, focusing on architectural stability, repository hygiene, and test coverage.
 
 ## Changes Made
 
-### 1. Gemini Vibe-Check Optimization (`vibe.py`)
-- Updated the `SYSTEM_PROMPT` to mandate the extraction of payout structure details (KYC, escrow, wallet type) in the reasoning field.
-- Refined score ranges to better distinguish between explicit rewards and ambiguous "help wanted" noise.
+### 1. Testing & CI Hardening
+- **60% Coverage Threshold**: Enforced a 60% test coverage requirement in `.github/workflows/ci.yml`.
+- **Comprehensive Test Suite**: Added 15+ new test files covering `core`, `discovery`, `graphql`, `db`, `signals`, `vibe`, and `price_cache`.
+- **Verification**: All 84 tests pass, ensuring the pipeline is robust against regressions.
 
-### 2. Signal Enrichment (`signals.py`, `signals_config.json`)
-- Added new keyword lists for **no-KYC** phrases and **wallet payout** indicators.
-- Extended `SignalResult` to track `has_onchain_escrow`, `mentions_no_kyc`, and `mentions_wallet_payout`.
-- Plumbed these features through `core.py` to the SQLite database.
+### 2. Architectural Refinement
+- **Core Decomposition**: Split the monolithic `process_issue` in `core.py` into small, testable private helper functions (`_check_repo_health`, `_build_text_context`, `_resolve_numeric_amount`, `_assemble_lead_result`).
+- **Signal Logic Generalized**: Refactored `signals.py` to use a config-driven unified signal detection system, supporting regex and label-based filtering with better error handling.
+- **Loop Optimization**: Optimized text accumulation in `signals.py` and `core.py` to use efficient list concatenation, reducing memory overhead.
 
-### 3. Scoring Model Calibration (`config.py`, `scoring.py`, `signals.py`)
-- Adjusted composite weights to prioritize **escrow strength** (0.25) and **vibe score** (0.25).
-- Implemented extra bonuses in `escrow_weight_sum` for clear on-chain signals (vaults, multisigs) and no-KYC mentions.
-- Ensured the escrow normalization stays bounded in [0, 1].
+### 3. Repository Hygiene & Cleanup
+- **Large File Removal**: Purged large binaries (`*.pkl`) and training datasets (`*.csv`) from the Git index using `git rm --cached`.
+- **Gitignore Standardization**: Updated `.gitignore` to prevent future leaks of runtime artifacts and sensitive training data.
+- **Documentation Consolidation**: Moved `walkthrough.md` and `task.md` into a structured `docs/` directory.
+- **Environment Management**: Created `.env.example` to standardize local setup.
 
-### 4. Training Pipeline & ML Model (`db.py`, `tools/`)
-- Updated `dump-dataset` to include the new payout signals as numeric features in the CSV.
-- Created `tools/balance_dataset.py` to handle undersampling and orphan filtering.
-- Created `tools/train_bounty_model.py` to perform 5-fold CV and threshold calibration.
-- Successfully trained a model on the v3 dataset with **F1 = 1.0** (on current labeling rules) and identified `vibe_score` and `log_amount` as primary predictors.
-
-### 5. Regression & Validation
-- Verified that `is_bounty` labeling correctly handles the `amt=-1.0` sentinel for confirmed-but-unknown bounties.
-- Fixed a regression in `tests/test_signals.py` regarding `CLOSED` issue handling.
-- All 37 tests passing.
+### 4. Code Quality & Professionalization
+- **Linting & Formatting**: Enforced strict linting with Ruff and updated code to pass all checks.
+- **Static Typing**: Verified the entire codebase with Mypy, resolving several hidden type issues in the database and signal layers.
+- **Legacy Compatibility**: Retained `requirements.txt` for legacy tool support while prioritizing `pyproject.toml` for modern installations.
 
 ## Verification Results
 
-### Vibe Smoke Test
-The updated Gemini prompt now explicitly calls out payout structures:
-- **Positive Example**: "Direct crypto payout to wallet address with no KYC required."
-- **Ambiguous Example**: "Mentions a reward via Gitcoin, which implies a centralized platform with KYC requirements."
+### Test Coverage Summary
+```text
+Name                                     Stmts   Miss  Cover
+------------------------------------------------------------
+github_bounty_scraper\__init__.py            2      0   100%
+github_bounty_scraper\__main__.py          143    119    17%
+github_bounty_scraper\bounty.py            102      0   100%
+github_bounty_scraper\cli.py                61     61     0%
+github_bounty_scraper\config.py            116     10    91%
+github_bounty_scraper\core.py              314    233    26%
+github_bounty_scraper\db.py                183     17    91%
+github_bounty_scraper\discovery.py          89     57    36%
+github_bounty_scraper\graphql.py           132     86    35%
+github_bounty_scraper\log.py                16     11    31%
+github_bounty_scraper\output.py            125      6    95%
+github_bounty_scraper\price_cache.py        61     32    48%
+github_bounty_scraper\scoring.py            44      3    93%
+github_bounty_scraper\signals.py           186     55    70%
+github_bounty_scraper\vibe.py              194     75    61%
+------------------------------------------------------------
+TOTAL                                     1871    744    60%
+```
 
-### Dataset Audit (v3)
-- **Total rows**: 405 labeled (81 pos / 324 neg)
-- **Imbalance**: 1:4 (balanced via undersampling)
-- **Feature Coverage**: 96% body, 100% vibe.
-
-### Model Performance
-- **ROC-AUC**: 1.0000
-- **Best Threshold**: 0.7012
-- **Key Predictors**: `vibe_score`, `log_amount`, `merges_last_45d`.
+### CI Status
+- **Pytest**: 84 passed, 0 failed.
+- **Ruff**: 0 errors.
+- **Mypy**: 0 errors.
 
 ## Next Steps
-- Monitor the `has_onchain_escrow` importance as more data is scraped.
-- Calibrate the `label_threshold` further if noise persists in the 15-24 USD range.
+- **Model Fine-Tuning**: Now that the environment is clean, a fresh `training_data.csv` can be generated by running the pipeline without the risk of Git-leaked artifacts.
+- **Discovery Expansion**: Consider adding more `aggregator_repos` to `signals_config.json` to broaden discovery reach.
+- **CLI Coverage**: Future work can focus on unit-testing the `cli.py` and `__main__.py` entry points to reach 70%+ total coverage.

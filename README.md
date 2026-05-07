@@ -236,8 +236,6 @@ Target numbers for a usable training set:
 
 ---
 
----
-
 ## Database Schema
 
 SQLite file: `bounty_stats.db` (git-ignored).
@@ -281,6 +279,7 @@ github-bounty-scraper/
 │   ├── graphql.py         # GraphQL enrichment + TokenBucket rate limiter
 │   ├── log.py             # Logging setup
 │   ├── output.py          # Text/Markdown/JSON output formatters
+│   ├── price_cache.py     # Live crypto price normalization and caching
 │   ├── scoring.py         # Composite scoring model
 │   ├── signals.py         # Hard disqualifiers, soft signals, snipe detection
 │   └── vibe.py            # Optional Gemini LLM annotation layer
@@ -323,3 +322,29 @@ MIT — see [LICENSE](LICENSE) for details.
 - Production model = Model C (no-leakage) or D (vibe-first labels).
 - Model prioritizes: vibe_score, escrow signals, on-chain escrow, direct wallet payout, no-KYC. KYC/centralized bounties are ranked lower but NOT filtered out.
 - AUC < 0.70 = insufficient labeled data; do not trust model output.
+
+---
+
+## Testing
+
+The project uses `pytest` for unit and integration testing. The test suite is consolidated into modular files for high maintainability and coverage (>65% total coverage).
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=github_bounty_scraper
+```
+
+Key test modules:
+- `tests/test_vibe.py` — Score and label parsing, LLM mocking
+- `tests/test_signals.py` — Signal detection and disqualifiers
+- `tests/test_core.py` — Pipeline helpers and stage isolation
+- `tests/test_cli.py` — CLI argument parsing and config wiring
+- `tests/test_main.py` — Entry point logic and model checksums
+- `tests/test_discovery.py` — Search query building and REST fetching
+- `tests/test_price_cache.py` — Live price fetching and caching
+- `tests/test_graphql.py` — GraphQL API fetching and rate limiting
+- `tests/test_db.py` — SQLite schema and batch operations
+- `tests/test_output.py` — Report formatting and serialization

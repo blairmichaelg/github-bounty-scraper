@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+from typing import overload
 
 from .config import ScraperConfig, build_config
 from .log import setup_logging
@@ -31,7 +32,65 @@ def _build_parser() -> argparse.ArgumentParser:
 
     _DEFAULT_SINCE = (datetime.date.today() - datetime.timedelta(days=90)).isoformat()
 
-    subparsers = main_parser.add_subparsers(dest="command", required=True)
+    main_parser.add_argument(
+        "--max-issues",
+        type=int,
+        dest="max_issues_per_run",
+        metavar="N",
+        help="Hard upper bound on total issues processed this run (default: 1000).",
+    )
+    main_parser.add_argument(
+        "--min-amount",
+        type=float,
+        dest="min_amount",
+        metavar="USD",
+        help="Override minimum bounty amount threshold (default: $25).",
+    )
+    main_parser.add_argument(
+        "--output",
+        "--output-file",
+        type=str,
+        dest="output_file",
+        metavar="PATH",
+        help="Base name for output files (e.g. 'results' -> results.md, results.json).",
+    )
+    main_parser.add_argument(
+        "--db",
+        "--db-path",
+        type=str,
+        dest="db_path",
+        metavar="PATH",
+        help="Path to the SQLite DB.",
+    )
+    main_parser.add_argument(
+        "--top",
+        "--top-n",
+        type=int,
+        dest="top_n",
+        metavar="N",
+        help="Number of leads to show.",
+    )
+    main_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Run without writing to the database.",
+    )
+    main_parser.add_argument(
+        "--no-vibe",
+        action="store_false",
+        dest="enable_vibe",
+        help="Disable LLM vibe checks.",
+    )
+    main_parser.add_argument(
+        "--min-stars",
+        type=int,
+        dest="min_stars",
+        metavar="N",
+        help="Minimum repo star count.",
+    )
+
+    subparsers = main_parser.add_subparsers(dest="command", required=False)
 
     # ── Scrape Command ──
     parser = subparsers.add_parser("scrape", help="Run the scraper pipeline", argument_default=argparse.SUPPRESS)
@@ -43,12 +102,6 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="languages",
         metavar="LANG",
         help="Filter by programming language (repeatable, e.g. --language Python --language TypeScript).",
-    )
-    parser.add_argument(
-        "--min-stars",
-        type=int,
-        metavar="N",
-        help="Minimum repo star count for search queries (default: 10).",
     )
     parser.add_argument(
         "--since",
@@ -64,13 +117,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--refresh-days", type=int, default=3, help="Age threshold in days for --auto-refresh. Default: 3."
     )
     parser.add_argument(
-        "--max-issues",
-        type=int,
-        dest="max_issues_per_run",
-        metavar="N",
-        help="Hard upper bound on total issues processed this run (default: 1000).",
-    )
-    parser.add_argument(
         "--max-pages",
         type=int,
         dest="max_pages_per_query",
@@ -78,22 +124,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Max pages to fetch per search query (default: 5).",
     )
 
-    # ── Thresholds ──
-    parser.add_argument(
-        "--min-amount",
-        type=float,
-        dest="min_bounty_amount",
-        metavar="USD",
-        help="Override minimum bounty amount threshold (default: $25).",
-    )
-
     # ── Behaviour ──
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        dest="dry_run",
-        help="Run the pipeline without writing to the database.",
-    )
     parser.add_argument(
         "--no-cache",
         action="store_true",
@@ -119,13 +150,6 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["text", "markdown", "json"],
         dest="output_format",
         help="Output format (default: text).",
-    )
-    parser.add_argument(
-        "--output-file",
-        type=str,
-        dest="output_file",
-        metavar="PATH",
-        help="Base name for output files (e.g. 'results' -> results.md, results.json). Only written if this flag is passed.",
     )
 
     parser.add_argument(
@@ -228,14 +252,30 @@ def _build_parser() -> argparse.ArgumentParser:
     return main_parser
 
 
-def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, ScraperConfig]:
-    """Parse CLI arguments. Returns (command, namespace, ScraperConfig)."""
+@overload
+def parse_args(argv: None = None) -> tuple[str, argparse.Namespace, ScraperConfig]: ...
+
+
+@overload
+def parse_args(argv: list[str]) -> ScraperConfig: ...
+
+
+def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, ScraperConfig] | ScraperConfig:
+    """Parse CLI arguments. Returns (command, namespace, ScraperConfig) or just ScraperConfig if argv is not None."""
     parser = _build_parser()
+
+    # Make command optional for tests or if user just wants defaults
+    parser.set_defaults(command="scrape")
+    # Actually, to avoid "required=True" failure:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            action.required = False
+
     ns = parser.parse_args(argv)
 
     # vars(ns) now contains ONLY keys the user explicitly provided.
     overrides = dict(vars(ns))
-    command = overrides.pop("command", None)
+    command = overrides.pop("command", "scrape")
 
     # Filter out command-specific flags that aren't in ScraperConfig
     if command == "vibe-check":
@@ -251,7 +291,12 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
     # build_config handles this by ignoring unknown keys.
     config = build_config(overrides)
 
+    if config.max_issues_per_run < 0:
+        parser.error("--max-issues must be non-negative.")
+
     # Logging must be set up before anything else logs.
     setup_logging(config.verbose)
 
-    return ns.command, ns, config
+    if argv is not None:
+        return config
+    return command, ns, config

@@ -88,7 +88,9 @@ def _build_text_context(issue: dict[str, Any], comments: list[dict[str, Any]]) -
     """Build the combined text string for signal scanning and bounty extraction."""
     title = issue.get("title") or ""
     body = issue.get("body") or ""
-    concat_text = f"{title} {body}"
+    labels = issue.get("labels", {}).get("nodes", [])
+    label_text = " ".join([L.get("name", "") for L in labels])
+    concat_text = f"{title} {body} {label_text}"
     for c in comments:
         concat_text += " " + c.get("body", "")
     return concat_text

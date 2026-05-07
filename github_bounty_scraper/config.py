@@ -249,6 +249,12 @@ class ScraperConfig:
         default_factory=lambda: os.environ.get("RAW_CANDIDATES_FILE", "exploration_raw.jsonl")
     )
 
+    # ── CLI Compat Fields ──
+    min_amount: float = 25.0
+    db_path: str = "bounty_stats.db"
+    top_n: int = 20
+    enable_vibe: bool = True
+
     def __post_init__(self) -> None:
         weight_total = (
             self.weight_amount

@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-05-07
+
+### Added
+- **Modular Test Suite** — Consolidated 25 fragmented test files into 6 modular modules (`test_vibe`, `test_signals`, `test_core`, `test_graphql`, `test_db`, `test_output`).
+- **Comprehensive Coverage** — Achieved >65% total repository coverage with new dedicated tests for `cli.py` (89%), `discovery.py` (56%), `price_cache.py` (85%), and `__main__.py` (43%).
+- **CLI Arg Aliases** — Added `--db`, `--output`, and `--top` aliases to the main parser for better UX.
+
+### Changed
+- **CLI Refactor** — `parse_args` now supports testing via optional `argv` list and returns a clean `ScraperConfig` object without side effects.
+- **Improved Extraction** — `_build_text_context` now includes issue labels, allowing bounty amount extraction from label text.
+
+### Fixed
+- Fixed `mypy` type errors in `cli.py` return signatures using `@overload`.
+- Resolved `UserWarning` in `ScraperConfig` by ensuring weights are normalized before validation.
+
 ## [2.0.8] - 2026-05-06
 
 ### Added

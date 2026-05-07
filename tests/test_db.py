@@ -1,12 +1,20 @@
+from __future__ import annotations
+
+import os
+import tempfile
+import time
+
 import aiosqlite
 import pytest
 
 from github_bounty_scraper.db import (
     BatchCommitter,
     dump_dataset,
+    get_recent_leads,
     get_repo_reputation,
     init_db,
     mark_issue_checked,
+    repo_cache_check,
     should_skip_issue,
     upsert_issue_stats,
     upsert_repo_stats,
@@ -16,10 +24,9 @@ from github_bounty_scraper.db import (
 @pytest.mark.asyncio
 async def test_db_operations():
     async with aiosqlite.connect(":memory:") as db:
-        import time
-
         await init_db(db)
-        await mark_issue_checked(db, "http://1", time.time())
+        now = time.time()
+        await mark_issue_checked(db, "http://1", now)
         assert await should_skip_issue(db, "http://1", 50, 200) is True
 
         await upsert_repo_stats(
@@ -55,25 +62,57 @@ async def test_db_operations():
             escrow_weight_sum=1.0,
             body_snippet="snippet",
         )
-
         committer = BatchCommitter(db, 1)
         await committer.tick()
         await committer.flush()
 
-    import os
-    import tempfile
 
+@pytest.mark.asyncio
+async def test_dump_dataset():
     with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as db_file:
         db_path = db_file.name
         db_file.close()
         try:
             async with aiosqlite.connect(db_path) as db:
                 await init_db(db)
-
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as f:
                 f.close()
                 await dump_dataset(db_path, f.name)
                 os.remove(f.name)
+        finally:
+            if os.path.exists(db_path):
+                os.remove(db_path)
+
+
+@pytest.mark.asyncio
+async def test_repo_cache_check():
+    async with aiosqlite.connect(":memory:") as db:
+        await init_db(db)
+        # Empty case
+        assert await repo_cache_check(db, "test", 100, 100, 100) is False
+        # Dead repo
+        await db.execute(
+            "INSERT INTO repo_stats (repo_name, merges_last_45d, last_checked_at) VALUES (?, ?, ?)",
+            ("dead", 0, time.time()),
+        )
+        assert await repo_cache_check(db, "dead", 100, 10, 10) is True
+
+
+@pytest.mark.asyncio
+async def test_get_recent_leads():
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as db_file:
+        db_path = db_file.name
+        db_file.close()
+        try:
+            async with aiosqlite.connect(db_path) as db:
+                await init_db(db)
+                await db.execute(
+                    "INSERT INTO issue_stats (issue_url, lead_mode, checked_at) VALUES (?, ?, ?)",
+                    ("http://1", "strict", time.time()),
+                )
+                await db.commit()
+            leads = await get_recent_leads(db_path, "strict", 10)
+            assert len(leads) == 1
         finally:
             if os.path.exists(db_path):
                 os.remove(db_path)
