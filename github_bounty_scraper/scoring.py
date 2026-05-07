@@ -119,21 +119,22 @@ def compute_score(
     # ── Vibe component ──
     if vibe_score_int is not None:
         vibe_norm = vibe_score_int / 100.0
-        effective_vibe_weight = 0.20 # Optimized weight
+        w_vibe = getattr(config, "weight_vibe", 0.20)
     else:
         vibe_norm = 0.0
-        effective_vibe_weight = 0.0
+        w_vibe = 0.0  # exclude vibe from denominator when unavailable
 
-    # Rebalanced weights for higher ceiling on large bounties
-    w_amt = 0.30
-    w_rec = 0.10
-    w_act = 0.15
-    w_esc = 0.15
-    w_repo = 0.10
-    w_vibe = effective_vibe_weight
+    w_amt = getattr(config, "weight_amount", 0.30)
+    w_rec = getattr(config, "weight_recency", 0.10)
+    w_act = getattr(config, "weight_activity", 0.15)
+    w_esc = getattr(config, "weight_escrow_strength", 0.15)
+    w_repo = getattr(config, "w_repo_reputation", 0.10)
 
-    other_weight_total = w_amt + w_rec + w_act + w_esc + w_repo
-    scale = 1.0 / (other_weight_total + w_vibe)
+    # Normalize so weights always sum to 1.0 regardless of vibe availability
+    total_w = w_amt + w_rec + w_act + w_esc + w_repo + w_vibe
+    if total_w <= 0:
+        total_w = 1.0
+    scale = 1.0 / total_w
 
     raw_score = (
         amount_norm * w_amt

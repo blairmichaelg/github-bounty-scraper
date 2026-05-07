@@ -38,7 +38,7 @@ def rescore(model_path: str, blend_ml: float) -> None:
         d = dict(r)
         try:
             x = np.array([[float(d.get(f) or 0) for f in features]])
-            ml_prob = float(model.predict_proba(x)[pos_idx]) * 100
+            ml_prob = float(model.predict_proba(x)[0][pos_idx]) * 100
             heuristic = float(d.get("score") or 0)
             blended = round((1 - blend_ml) * heuristic + blend_ml * ml_prob, 2)
             conn.execute("UPDATE issue_stats SET score = ? WHERE issue_url = ?",

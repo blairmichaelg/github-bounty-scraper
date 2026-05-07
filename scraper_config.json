@@ -1,8 +1,8 @@
 {
-  "min_stars": 50,
-  "max_pages_per_query": 5,
+  "min_stars": 10,
+  "max_pages_per_query": 10,
   "sort_by": "updated",
-  "max_expanded_queries": 22,
+  "max_expanded_queries": 50,
   "min_bounty_amount": 50.0,
   "max_sane_amount": 50000.0,
   "new_repo_grace_days": 90,
@@ -33,8 +33,8 @@
   "gemini_model": "gemini-2.5-flash",
   "vibe_check_concurrency": 3,
   "vibe_check_limit": 100,
-  "max_issues_per_run": 2000,
-  "since": "2026-01-01",
+  "max_issues_per_run": 3000,
+  "since": "2025-10-01",
   "languages": [],
   "search_queries": [
     "is:open is:issue label:bounty",
@@ -66,6 +66,15 @@
     "\"hackerone\" reward",
     "\"immunefi\" bug bounty",
     "\"paid\" \"fix\" \"reward\" is:open",
-    "\"ossf\" \"reward\" security"
+    "\"ossf\" \"reward\" security",
+    "repo:Expensify/App label:\"Help Wanted\" state:open",
+    "repo:commaai/opendbc label:bounty state:open",
+    "repo:commaai/openpilot label:bounty state:open",
+    "repo:tari-project/tari label:bounty state:open",
+    "org:nicehash label:bounty state:open",
+    "org:gitcoinco label:bounty state:open",
+    "repo:nicehash/NiceHashQuickMiner label:bounty state:open",
+    "label:bounty state:open is:issue created:>2026-01-01",
+    "label:\"help wanted\" bounty state:open is:issue created:>2026-01-01"
   ]
 }

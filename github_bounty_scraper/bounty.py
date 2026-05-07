@@ -38,13 +38,13 @@ _BOUNTY_PROXIMITY_KEYWORDS = re.compile(
 
 # Generic bounty value: bounty: 500, reward: 1000
 _BOUNTY_VALUE_RE = re.compile(
-    r"\b(?:bounty|reward|price|pays?|paid):\s?\$?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\b",
+    r"\b(?:bounty|reward|price|pays?|paid):\s?\$?([\d,]+(?:\.\d+)?)\b",
     re.IGNORECASE,
 )
 
 # ─── Currency patterns ──────────────────────────────────────────────
 # Dollar amounts: $1,000  $500.50  $10,000.00
-_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)")
+_DOLLAR_RE = re.compile(r"\$\s*([\d,]+(?:\.\d+)?)")
 
 # Crypto/Fiat amounts: 1000 USDC, 0.5 ETH, 10,000 USD
 _CRYPTO_SUFFIXES = (
@@ -62,9 +62,11 @@ _CRYPTO_SUFFIXES = (
     "STRK",
     "BUSD",
     "USD",
+    "XTM",
+    "BNB",
 )
 _CRYPTO_RE = re.compile(
-    r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)"
+    r"([\d,]+(?:\.\d+)?)"
     r"\s*"
     r"(" + "|".join(re.escape(s) for s in _CRYPTO_SUFFIXES) + r")\b",
     re.IGNORECASE,
@@ -142,6 +144,23 @@ def extract_bounty_amount(
             prox = 0.5  # Conservative bonus — title amounts are high signal.
         candidates.append((val, raw.strip(), "USD", prox))
 
+    # ── K-multiplier matches ──
+    for m in re.finditer(r'(?:^|\s|\$)\s*([\d,]+(?:\.\d+)?)\s*k\b', text, re.IGNORECASE):
+        raw = m.group(0)
+        if raw in seen:
+            continue
+        seen.add(raw)
+        try:
+            val = _parse_number(m.group(1)) * 1000.0
+        except ValueError:
+            continue
+        if val <= 0 or val > max_sane:
+            continue
+        prox = _proximity_score(text, m.start(), proximity_window)
+        if m.start() < 200 and prox == 0.0:
+            prox = 0.5
+        candidates.append((val, raw.strip(), "USD", prox))
+
     # ── Crypto matches ──
     for m in _CRYPTO_RE.finditer(text):
         raw = m.group(0)
@@ -208,37 +227,54 @@ def extract_bounty_amount(
     return result
 
 
-_SNIPE_PHRASES: tuple[str, ...] = (
+_SNIPE_PHRASES: frozenset[str] = frozenset({
+    # Original 3
     "bounty paid",
     "reward sent",
     "bounty claimed",
+    # Payment completion
     "payout complete",
-    "payout sent",
     "payment sent",
     "payment complete",
+    "payment processed",
     "reward delivered",
-    "reward paid",
-    "bounty awarded",
-    "prize awarded",
     "funds sent",
     "funds transferred",
-    "transfer complete",
-    "marked as resolved",
-    "issue resolved",
-    "fix merged",
-    "pr merged",
+    "tokens sent",
+    "tokens transferred",
+    # Claim/assignment
+    "i am working on this",
+    "i'm working on this",
+    "taking this",
+    "claiming this",
+    "assigned to me",
     "already claimed",
-    "duplicate submission",
-)
+    "pr submitted",
+    "pr merged",
+    "fix merged",
+    "patch merged",
+    # Resolution
+    "marked as resolved",
+    "marked resolved",
+    "closing as completed",
+    "closing as fixed",
+    "this has been fixed",
+    "this is fixed",
+    "resolved in",
+    "fixed in",
+})
 
 
-def detect_snipe(timeline_nodes: list[dict]) -> bool:
+def detect_snipe(issue: dict, timeline_nodes: list[dict]) -> bool:
     """Return ``True`` if the timeline shows the bounty has been claimed.
 
     Checks for claim-completion language (e.g. "bounty paid", "reward
     sent") in comment bodies.  A ``True`` result hard-disqualifies the
     issue regardless of mode.
     """
+    if str(issue.get("state", "")).lower() == "closed":
+        return True
+
     for node in timeline_nodes:
         typename = node.get("__typename", "")
         if typename in ("CrossReferencedEvent", "ConnectedEvent"):

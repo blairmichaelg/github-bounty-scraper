@@ -90,3 +90,9 @@ vibe_retry.txt
 
 # Documentation artifacts
 docs/task.md
+
+# Runtime outputs — never commit these
+# Dataset files — use Git LFS or releases instead
+# Temp scripts
+temp_*.py
+scripts/temp_*.py

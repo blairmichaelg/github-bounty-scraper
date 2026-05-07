@@ -233,7 +233,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--db-path", type=str, default="bounty_stats.db", help="Path to the SQLite DB (default: bounty_stats.db)"
     )
     dump_parser.add_argument(
-        "--out", type=str, required=True, help="Path to the output CSV file (e.g. bounty_dataset.csv)"
+        "--out-csv", type=str, required=True, help="Path to the output CSV file (e.g. bounty_dataset.csv)"
     )
     dump_parser.add_argument(
         "--raw-file",
@@ -285,7 +285,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
         for k in ["mode", "limit", "db_path"]:
             overrides.pop(k, None)
     elif command == "dump-dataset":
-        for k in ["db_path", "out", "raw_file", "label_threshold"]:
+        for k in ["db_path", "out_csv", "raw_file", "label_threshold"]:
             overrides.pop(k, None)
 
     # build_config handles this by ignoring unknown keys.

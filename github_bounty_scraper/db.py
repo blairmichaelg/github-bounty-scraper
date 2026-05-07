@@ -408,12 +408,13 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
                 r.merges_last_45d
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
+            WHERE (i.lead_mode NOT LIKE '%closed%' OR i.lead_mode IS NULL)
         """
         params: list[Any] = []
         if mode != "all":
-            query += " WHERE i.lead_mode = ?"
+            query += " AND i.lead_mode = ?"
             params.append(mode)
-        query += " ORDER BY i.checked_at DESC LIMIT ?"
+        query += " ORDER BY i.score DESC, i.checked_at DESC LIMIT ?"
         params.append(limit)
 
         async with conn.execute(query, params) as cursor:

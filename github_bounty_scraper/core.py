@@ -166,6 +166,11 @@ async def process_issue(
     if not url:
         return None
 
+    # Early exit for closed issues — no value in scoring them
+    if issue_item.get("state") == "closed":
+        log.debug("Skipping closed issue: %s", url)
+        return None
+
     # 1. Enrichment & Filtering
     enriched = await _enrich_issue(session, bucket, issue_item, db_conn, sem, config, signals, seen_aggregators)
     if not enriched:
@@ -370,7 +375,7 @@ async def _persist_lead(
         return None
 
     escrow_inc = 1 if soft.has_positive_escrow else 0
-    snipe_inc = 1 if detect_snipe(issue.get("timelineItems", {}).get("nodes", [])) else 0
+    snipe_inc = 1 if detect_snipe(issue, issue.get("timelineItems", {}).get("nodes", [])) else 0
 
     if not config.dry_run:
         await upsert_repo_stats(

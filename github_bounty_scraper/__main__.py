@@ -207,7 +207,7 @@ def main() -> None:
         asyncio.run(
             dump_dataset(
                 db_path=ns.db_path,
-                out_path=ns.out,
+                out_path=ns.out_csv,
                 raw_file=getattr(ns, "raw_file", "exploration_raw.jsonl"),
                 label_threshold=getattr(ns, "label_threshold", 25.0),
             )
