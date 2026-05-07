@@ -16,7 +16,7 @@ from typing import Any, TypedDict, cast
 import aiohttp
 import aiosqlite
 
-from .bounty import detect_snipe, extract_bounty_amount
+from .bounty import detect_snipe, parse_numeric_amount
 from .config import ScraperConfig, load_signals
 from .db import (
     BatchCommitter,
@@ -73,9 +73,20 @@ def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool
         return False
     if repo_data.get("isFork", False):
         return False
-    stars = repo_data.get("stargazerCount", 0)
-    if stars < config.min_stars:
+
+    # Blocklist check
+    full_name = repo_data.get("nameWithOwner", "")
+    if full_name in (config.repo_blocklist or []):
+        log.debug("Skipping blocklisted repo: %s", full_name)
         return False
+
+    # Star threshold
+    stars = repo_data.get("stargazerCount", 0)
+    min_stars = getattr(config, "min_repo_stars", config.min_stars)
+    if stars < min_stars:
+        log.debug("Skipping low-star repo (%d stars): %s", stars, full_name)
+        return False
+
     owner_type = repo_data.get("owner", {}).get("__typename", "")
     contrib_count = repo_data.get("mentionableUsers", {}).get("totalCount", 0)
     if owner_type.upper() == "USER" and contrib_count < 2:
@@ -100,20 +111,10 @@ def _resolve_numeric_amount(issue: dict[str, Any], config: ScraperConfig) -> tup
     comments = issue.get("comments", {}).get("nodes", [])
     concat_text = _build_text_context(issue, comments)
 
-    bounty = extract_bounty_amount(
+    bounty = parse_numeric_amount(
         concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window, config=config
     )
     num_val = bounty.numeric_amount
-
-    title_lower = (issue.get("title") or "").lower()
-    labels_lower = [lbl.get("name", "").lower() for lbl in issue.get("labels", {}).get("nodes", [])]
-    has_bounty_title = any(w in title_lower for w in ["bounty", "reward", "paid", "pays", "bounties"])
-    has_bounty_label = any("bounty" in lbl or "reward" in lbl for lbl in labels_lower)
-    has_cue = has_bounty_title or has_bounty_label
-
-    if num_val == 0.0 and has_cue:
-        num_val = -1.0
-
     return num_val, bounty.raw_display, bounty.currency_symbol
 
 
@@ -251,6 +252,21 @@ async def _enrich_issue(
 
     # Health check
     if not _check_repo_health(repository, config) and not config.log_raw_candidates:
+        return None
+
+    # Title-level bounty signal requirement
+    title = (issue.get("title") or "").lower()
+    TITLE_REQUIRED_SIGNALS = frozenset({
+        "bounty", "reward", "grant", "prize", "paid", "payment",
+        "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"
+    })
+    amount_in_title = any(c.isdigit() for c in title) and ("$" in title or any(
+        tok in title for tok in ("usdc", "eth", "xtm", "matic", "sol", "bnb")
+    ))
+    has_title_signal = any(kw in title for kw in TITLE_REQUIRED_SIGNALS) or amount_in_title
+
+    if not has_title_signal:
+        log.info("Skipping — no bounty signal in title: %s", issue.get("title", ""))
         return None
 
     # State check

@@ -29,7 +29,10 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     Note: Closed issues are included in the base set to provide high-quality
     historical positives for fine-tuning datasets.
     """
-    base_queries = config.search_queries
+    if config.query_override:
+        base_queries = [config.query_override]
+    else:
+        base_queries = config.search_queries
     if not base_queries:
         # Sensible built-in fallback if config has no queries.
         base_queries = [

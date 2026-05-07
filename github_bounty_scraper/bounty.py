@@ -94,8 +94,8 @@ def _proximity_score(text: str, match_start: int, window: int = 300) -> float:
     return min(len(hits) / 3.0, 1.0)  # cap at 1.0
 
 
-def extract_bounty_amount(
-    text: str,
+def parse_numeric_amount(
+    text: str | None,
     max_sane: float = 1e7,
     proximity_window: int = 300,
     config: ScraperConfig | None = None,
@@ -122,6 +122,8 @@ def extract_bounty_amount(
         >>> res.numeric_amount
         0.0
     """
+    if text is None:
+        return BountyResult(0.0, "None", "USD")
     result = BountyResult()
     seen: set[str] = set()
     candidates: list[tuple[float, str, str, float]] = []  # (val, raw, currency, prox)
@@ -210,7 +212,7 @@ def extract_bounty_amount(
     if not candidates:
         # Fallback: bounty cue detected but no parseable amount.
         if _CRYPTO_KEYWORD_RE.search(text) or _proximity_score(text, 0, len(text)) > 0:
-            result.numeric_amount = -1.0
+            result.numeric_amount = 0.0
             result.raw_display = "Unknown / Custom Tokens"
             result.currency_symbol = ""
         return result

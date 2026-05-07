@@ -1,0 +1,62 @@
+{
+  "_meta": {
+    "description": "High-value bounty programs with confirmed active pipelines",
+    "last_verified": "2026-05-07",
+    "usage": "These repos are scraped first on every run with their specific label filters"
+  },
+  "tier_1": {
+    "description": "Confirmed active, recurring, fast-pay (days not weeks)",
+    "repos": [
+      {
+        "repo": "Expensify/App",
+        "label_filter": "Help Wanted",
+        "state": "open",
+        "typical_range": "100-1500",
+        "currency": "USD",
+        "payout_method": "Upwork",
+        "notes": "High volume (20-100+ open at a time). Fast pay after merge. Competitive."
+      },
+      {
+        "repo": "commaai/opendbc",
+        "label_filter": "bounty",
+        "state": "open",
+        "typical_range": "1000-5000",
+        "currency": "USD",
+        "payout_method": "Direct",
+        "notes": "Vehicle port bounties. Hardware required. Less competition."
+      },
+      {
+        "repo": "commaai/openpilot",
+        "label_filter": "bounty",
+        "state": "open",
+        "typical_range": "500-5000",
+        "currency": "USD",
+        "payout_method": "Direct",
+        "notes": "Software bounties for vehicle support features."
+      },
+      {
+        "repo": "tari-project/tari",
+        "label_filter": "bounty",
+        "state": "open",
+        "typical_range": "10000-100000",
+        "currency": "XTM",
+        "payout_method": "Crypto",
+        "notes": "Structured tiers (XS/S/M/L/XL). AI dev encouraged. 14-day claim window."
+      }
+    ]
+  },
+  "tier_2": {
+    "description": "Known programs, moderate activity",
+    "repos": [
+      {
+        "repo": "nicehash/NiceHashQuickMiner",
+        "label_filter": "bounty",
+        "state": "open",
+        "typical_range": "50-500",
+        "currency": "USD",
+        "payout_method": "BTC",
+        "notes": "Sporadic. Check monthly."
+      }
+    ]
+  }
+}

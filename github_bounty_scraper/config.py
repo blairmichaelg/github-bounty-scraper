@@ -74,8 +74,24 @@ class ScraperConfig:
     threshold are hard-disqualified in strict mode (ignored in
     opportunistic mode).  Range: 0–∞.  Default: 5."""
 
+    min_repo_stars: int = 5
+    """Minimum repository star count for inclusion in any mode. Default: 5."""
+
+    repo_blocklist: list[str] = field(default_factory=lambda: [
+        "josix/awesome-claude-md",
+        "Jamie-BitFlight/claude_skills",
+        "awesome-selfhosted/awesome-selfhosted",
+        "sindresorhus/awesome",
+        "vinta/awesome-python",
+        "topics/bounty",
+    ])
+    """Repos to permanently exclude regardless of score."""
+
     since: str = ""  # YYYY-MM-DD — override in scraper_config.json; recommend "2026-01-01"
     """Only consider issues updated on or after this date.  Default: ''."""
+
+    query_override: str | None = None
+    """Override config queries with a single custom search query."""
 
     max_issues_per_run: int = 1000
     """Hard upper bound on total issues processed per run.  Default: 1000."""

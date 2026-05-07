@@ -104,6 +104,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by programming language (repeatable, e.g. --language Python --language TypeScript).",
     )
     parser.add_argument(
+        "--query",
+        type=str,
+        dest="query_override",
+        help="Override config queries with a single custom search query.",
+    )
+    parser.add_argument(
         "--since",
         type=str,
         default=_DEFAULT_SINCE,
