@@ -17,7 +17,7 @@ def mock_aiohttp_session():
     session = MagicMock()
     session.__aenter__ = AsyncMock(return_value=session)
     session.__aexit__ = AsyncMock(return_value=False)
-    
+
     mock_response = MagicMock()
     mock_response.status = 200
     mock_response.ok = True
@@ -25,7 +25,7 @@ def mock_aiohttp_session():
     mock_response.text = AsyncMock(return_value="")
     mock_response.__aenter__ = AsyncMock(return_value=mock_response)
     mock_response.__aexit__ = AsyncMock(return_value=False)
-    
+
     session.post = MagicMock(return_value=mock_response)
     session.get = MagicMock(return_value=mock_response)
     return session

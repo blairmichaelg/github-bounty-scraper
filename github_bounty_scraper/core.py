@@ -215,15 +215,24 @@ async def _enrich_issue(
 
     # Repo cache check
     if not config.no_cache:
-        if await repo_cache_check(db_conn, repo_name, config.cache_ttl_dead, config.cache_ttl_low, config.cache_ttl_active):
+        if await repo_cache_check(
+            db_conn, repo_name, config.cache_ttl_dead, config.cache_ttl_low, config.cache_ttl_active
+        ):
             return None
 
     # GraphQL Audit
     try:
         async with sem:
             data = await run_graphql_audit(
-                session, bucket, config.github_token, owner, repo, issue_number,
-                pr_cap=config.pr_cap, tl_max_pages=config.tl_max_pages, tl_page_size=config.timeline_page_size,
+                session,
+                bucket,
+                config.github_token,
+                owner,
+                repo,
+                issue_number,
+                pr_cap=config.pr_cap,
+                tl_max_pages=config.tl_max_pages,
+                tl_page_size=config.timeline_page_size,
             )
     except Exception as e:
         log.error("GraphQL audit failed for %s: %s", url, e)
@@ -266,14 +275,20 @@ async def _enrich_issue(
     if disqualified:
         if not config.dry_run:
             rug_inc = 1 if ("negative" in reason or "kill label" in reason) else 0
-            await upsert_repo_stats(db_conn, repo_name, last_merged_pr_at=last_merged_ts, merges_last_45d=merges_45d, rug_increment=rug_inc)
+            await upsert_repo_stats(
+                db_conn, repo_name, last_merged_pr_at=last_merged_ts, merges_last_45d=merges_45d, rug_increment=rug_inc
+            )
             await mark_issue_checked(db_conn, url, time.time())
         return None
 
     # Soft Signals
     soft = compute_soft_signals(
-        body=issue.get("body") or "", comments=comments, labels_nodes=labels,
-        timeline_nodes=issue.get("timelineItems", {}).get("nodes", []), issue=issue, signals=signals,
+        body=issue.get("body") or "",
+        comments=comments,
+        labels_nodes=labels,
+        timeline_nodes=issue.get("timelineItems", {}).get("nodes", []),
+        issue=issue,
+        signals=signals,
         allow_assigned_if_stale=config.allow_assigned_if_stale,
         active_signal_max_age_days=config.active_signal_max_age_days,
     )
@@ -286,10 +301,17 @@ async def _enrich_issue(
     num_val, display, currency = _resolve_numeric_amount(issue, config)
 
     return {
-        "url": url, "repo_name": repo_name, "issue_number": issue_number,
-        "issue": issue, "repository": repository, "soft": soft,
-        "num_val": num_val, "display": display, "currency": currency,
-        "merges_45d": merges_45d, "last_merged_ts": last_merged_ts,
+        "url": url,
+        "repo_name": repo_name,
+        "issue_number": issue_number,
+        "issue": issue,
+        "repository": repository,
+        "soft": soft,
+        "num_val": num_val,
+        "display": display,
+        "currency": currency,
+        "merges_45d": merges_45d,
+        "last_merged_ts": last_merged_ts,
         "lead_mode_override": lead_mode_override,
     }
 
@@ -352,9 +374,13 @@ async def _persist_lead(
 
     if not config.dry_run:
         await upsert_repo_stats(
-            db_conn, repo_name, last_merged_pr_at=last_merged_ts,
-            merges_last_45d=merges_45d, escrow_increment=escrow_inc,
-            snipe_increment=snipe_inc, bounty_amount=max(0, num_val),
+            db_conn,
+            repo_name,
+            last_merged_pr_at=last_merged_ts,
+            merges_last_45d=merges_45d,
+            escrow_increment=escrow_inc,
+            snipe_increment=snipe_inc,
+            bounty_amount=max(0, num_val),
         )
 
     if snipe_inc or soft.ghost_squatter:
@@ -366,31 +392,52 @@ async def _persist_lead(
     prev_score, vibe_score, vibe_at = await _get_issue_meta(db_conn, url, config)
 
     score = compute_score(
-        numeric_amount=max(0, num_val), issue_updated_at=issue.get("updatedAt", ""),
-        merges_last_45d=merges_45d, positive_escrow_count=soft.positive_escrow_count,
-        positive_escrow_weight_sum=soft.escrow_weight_sum, repo_reputation=repo_rep,
+        numeric_amount=max(0, num_val),
+        issue_updated_at=issue.get("updatedAt", ""),
+        merges_last_45d=merges_45d,
+        positive_escrow_count=soft.positive_escrow_count,
+        positive_escrow_weight_sum=soft.escrow_weight_sum,
+        repo_reputation=repo_rep,
         vibe_score_int=vibe_score if not config.dry_run else None,
-        has_negative_soft=soft.has_negative_soft, config=config,
-        has_onchain_escrow=soft.has_onchain_escrow, mentions_no_kyc=soft.mentions_no_kyc,
-        mentions_wallet_payout=soft.mentions_wallet_payout, requires_hardware=soft.requires_hardware,
+        has_negative_soft=soft.has_negative_soft,
+        config=config,
+        has_onchain_escrow=soft.has_onchain_escrow,
+        mentions_no_kyc=soft.mentions_no_kyc,
+        mentions_wallet_payout=soft.mentions_wallet_payout,
+        requires_hardware=soft.requires_hardware,
     )
 
     if not config.dry_run:
         updated_at = issue.get("updatedAt", "")
         try:
-            _ts = datetime.datetime.strptime(updated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc).timestamp()
+            _ts = (
+                datetime.datetime.strptime(updated_at, "%Y-%m-%dT%H:%M:%SZ")
+                .replace(tzinfo=datetime.timezone.utc)
+                .timestamp()
+            )
         except ValueError:
             _ts = 0.0
 
         await upsert_issue_stats(
-            db_conn, url, scraped_amount=num_val, numeric_amount=num_val,
-            raw_display_amount=enriched["display"], currency_symbol=enriched["currency"],
-            score=score, last_updated_at=_ts, title=issue.get("title") or "",
-            repo_name=repo_name, lead_mode=enriched["lead_mode_override"] or config.mode,
-            escrow_verified=soft.has_positive_escrow, is_dead_repo=(merges_45d == 0),
-            has_onchain_escrow=soft.has_onchain_escrow, mentions_no_kyc=soft.mentions_no_kyc,
-            mentions_wallet_payout=soft.mentions_wallet_payout, positive_escrow_count=soft.positive_escrow_count,
-            escrow_weight_sum=soft.escrow_weight_sum, body_snippet=(issue.get("body") or "")[:300].replace("\n", " "),
+            db_conn,
+            url,
+            scraped_amount=num_val,
+            numeric_amount=num_val,
+            raw_display_amount=enriched["display"],
+            currency_symbol=enriched["currency"],
+            score=score,
+            last_updated_at=_ts,
+            title=issue.get("title") or "",
+            repo_name=repo_name,
+            lead_mode=enriched["lead_mode_override"] or config.mode,
+            escrow_verified=soft.has_positive_escrow,
+            is_dead_repo=(merges_45d == 0),
+            has_onchain_escrow=soft.has_onchain_escrow,
+            mentions_no_kyc=soft.mentions_no_kyc,
+            mentions_wallet_payout=soft.mentions_wallet_payout,
+            positive_escrow_count=soft.positive_escrow_count,
+            escrow_weight_sum=soft.escrow_weight_sum,
+            body_snippet=(issue.get("body") or "")[:300].replace("\n", " "),
         )
         await mark_issue_checked(db_conn, url, time.time())
         await committer.tick()
@@ -414,13 +461,19 @@ def _is_qualified_lead(enriched: dict, config: ScraperConfig) -> bool:
 async def _log_raw_candidate(enriched: dict, is_lead: bool, config: ScraperConfig):
     repository, issue = enriched["repository"], enriched["issue"]
     cand = {
-        "url": enriched["url"], "repo_name": enriched["repo_name"], "issue_number": enriched["issue_number"],
-        "title": issue.get("title") or "", "numeric_amount": max(-1, enriched["num_val"]),
-        "raw_display_amount": enriched["display"], "currency_symbol": enriched["currency"],
-        "merges_last_45d": enriched["merges_45d"], "stars": repository.get("stargazerCount", 0),
+        "url": enriched["url"],
+        "repo_name": enriched["repo_name"],
+        "issue_number": enriched["issue_number"],
+        "title": issue.get("title") or "",
+        "numeric_amount": max(-1, enriched["num_val"]),
+        "raw_display_amount": enriched["display"],
+        "currency_symbol": enriched["currency"],
+        "merges_last_45d": enriched["merges_45d"],
+        "stars": repository.get("stargazerCount", 0),
         "is_org_owner": repository.get("owner", {}).get("__typename", "").upper() == "ORGANIZATION",
         "contributors_count": repository.get("mentionableUsers", {}).get("totalCount", 0),
-        "is_fork": repository.get("isFork", False), "is_archived": repository.get("isArchived", False),
+        "is_fork": repository.get("isFork", False),
+        "is_archived": repository.get("isArchived", False),
         "labels": [lbl.get("name") for lbl in issue.get("labels", {}).get("nodes", [])],
         "body_snippet": (issue.get("body") or "")[:300].replace("\n", " "),
         "reasons": ["LEAD_CANDIDATE"] if is_lead else ["failed_filter"],
@@ -431,7 +484,9 @@ async def _log_raw_candidate(enriched: dict, is_lead: bool, config: ScraperConfi
 async def _get_issue_meta(db_conn, url, config):
     if config.dry_run:
         return None, None, 0.0
-    async with db_conn.execute("SELECT score, vibe_score, vibe_scored_at FROM issue_stats WHERE issue_url = ?", (url,)) as cursor:
+    async with db_conn.execute(
+        "SELECT score, vibe_score, vibe_scored_at FROM issue_stats WHERE issue_url = ?", (url,)
+    ) as cursor:
         row = await cursor.fetchone()
         if not row:
             return None, None, 0.0
@@ -506,6 +561,7 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
 
     if config.enable_live_prices:
         from .config import CRYPTO_KEYWORDS
+
         await refresh_prices(CRYPTO_KEYWORDS)
 
     async with aiosqlite.connect(config.db_file) as db_conn:

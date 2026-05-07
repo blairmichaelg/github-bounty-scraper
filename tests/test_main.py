@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
-import os
-import sys
-import pathlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -190,12 +186,13 @@ class TestModelLoadAndInspect:
     async def test_run_inspect_leakage_fatal(self):
         """If best_threshold.json says leakage_free=False, exit 1."""
         from github_bounty_scraper.__main__ import _run_inspect
-        
-        with patch("os.path.exists", side_effect=lambda p: p in ["best_threshold.json", "bounty_model.pkl"]), \
-             patch("builtins.open", MagicMock()), \
-             patch("json.load", return_value={"leakage_free": False}), \
-             patch("sys.exit") as mock_exit:
-            
+
+        with (
+            patch("os.path.exists", side_effect=lambda p: p in ["best_threshold.json", "bounty_model.pkl"]),
+            patch("builtins.open", MagicMock()),
+            patch("json.load", return_value={"leakage_free": False}),
+            patch("sys.exit") as mock_exit,
+        ):
             await _run_inspect("db.db", "strict", 10)
             mock_exit.assert_any_call(1)
 
@@ -203,38 +200,42 @@ class TestModelLoadAndInspect:
     async def test_run_inspect_with_model_success(self):
         """Verify model load and inference path."""
         from github_bounty_scraper.__main__ import _run_inspect
-        
-        leads = [{
-            "score": 80.0,
-            "repo_name": "owner/repo",
-            "issue_url": "https://url",
-            "numeric_amount": 100.0,
-            "vibe_score": 75,
-            "positive_escrow_count": 2,
-            "escrow_weight_sum": 3.0,
-            "has_onchain_escrow": 1,
-            "mentions_no_kyc": 0,
-            "mentions_wallet_payout": 1,
-            "merges_last_45d": 10,
-            "lead_mode": "strict"
-        }]
-        
+
+        leads = [
+            {
+                "score": 80.0,
+                "repo_name": "owner/repo",
+                "issue_url": "https://url",
+                "numeric_amount": 100.0,
+                "vibe_score": 75,
+                "positive_escrow_count": 2,
+                "escrow_weight_sum": 3.0,
+                "has_onchain_escrow": 1,
+                "mentions_no_kyc": 0,
+                "mentions_wallet_payout": 1,
+                "merges_last_45d": 10,
+                "lead_mode": "strict",
+            }
+        ]
+
         import numpy as np
+
         mock_model = MagicMock()
-        mock_model.predict_proba.return_value = np.array([[0.1, 0.9]]) # 90% prob
+        mock_model.predict_proba.return_value = np.array([[0.1, 0.9]])  # 90% prob
         mock_joblib = MagicMock()
         mock_joblib.load.return_value = mock_model
-        
+
         # Patch exists to return True for the model file
-        with patch.dict("sys.modules", {"joblib": mock_joblib}), \
-             patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)), \
-             patch("os.path.exists", return_value=True), \
-             patch("builtins.open", MagicMock()), \
-             patch("json.load", return_value={"leakage_free": True}), \
-             patch("github_bounty_scraper.__main__._verify_model_checksum"):
-            
+        with (
+            patch.dict("sys.modules", {"joblib": mock_joblib}),
+            patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)),
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", MagicMock()),
+            patch("json.load", return_value={"leakage_free": True}),
+            patch("github_bounty_scraper.__main__._verify_model_checksum"),
+        ):
             await _run_inspect("db.db", "strict", 1)
-            
+
         assert leads[0]["ml_prob"] == 0.9
         mock_model.predict_proba.assert_called_once()
 
@@ -242,16 +243,17 @@ class TestModelLoadAndInspect:
     async def test_run_inspect_model_checksum_fail_swallowed(self):
         """A checksum failure in _run_inspect is swallowed (model remains None)."""
         from github_bounty_scraper.__main__ import _run_inspect
-        
+
         leads = [{"score": 50.0, "repo_name": "test", "issue_url": "url", "numeric_amount": 0.0}]
-        
-        with patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)), \
-             patch("os.path.exists", side_effect=lambda p: p == "bounty_model.pkl"), \
-             patch("github_bounty_scraper.__main__._verify_model_checksum", side_effect=RuntimeError("bad hash")), \
-             patch("joblib.load") as mock_load:
-            
+
+        with (
+            patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)),
+            patch("os.path.exists", side_effect=lambda p: p == "bounty_model.pkl"),
+            patch("github_bounty_scraper.__main__._verify_model_checksum", side_effect=RuntimeError("bad hash")),
+            patch("joblib.load") as mock_load,
+        ):
             await _run_inspect("db.db", "strict", 1)
-            
+
         mock_load.assert_not_called()
         assert leads[0]["ml_prob"] == 0.0
 
@@ -259,16 +261,17 @@ class TestModelLoadAndInspect:
     async def test_run_inspect_inference_exception_swallowed(self):
         """An inference exception is swallowed per-lead."""
         from github_bounty_scraper.__main__ import _run_inspect
-        
+
         leads = [{"score": 50.0, "repo_name": "test", "issue_url": "url", "numeric_amount": 0.0}]
         mock_model = MagicMock()
         mock_model.predict_proba.side_effect = Exception("infer fail")
-        
-        with patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)), \
-             patch("os.path.exists", side_effect=lambda p: p == "bounty_model.pkl"), \
-             patch("github_bounty_scraper.__main__._verify_model_checksum"), \
-             patch("joblib.load", return_value=mock_model):
-            
+
+        with (
+            patch("github_bounty_scraper.db.get_recent_leads", AsyncMock(return_value=leads)),
+            patch("os.path.exists", side_effect=lambda p: p == "bounty_model.pkl"),
+            patch("github_bounty_scraper.__main__._verify_model_checksum"),
+            patch("joblib.load", return_value=mock_model),
+        ):
             await _run_inspect("db.db", "strict", 1)
-            
+
         assert leads[0]["ml_prob"] == 0.0
