@@ -40,6 +40,8 @@ CRYPTO_KEYWORDS = [
 STABLECOIN_SYMBOLS = {"USDC", "USDT", "DAI", "BUSD"}
 
 ESCROW_WEIGHT_CAP: float = 5.0
+ACTIVITY_TRUST_THRESHOLD: int = 40  # If an issue has >= this many merges, lack of explicit escrow is less suspicious
+ACTIVITY_TRUST_FLOOR: float = 0.4  # Minimum escrow score given to repos crossing the activity threshold
 
 
 @dataclass
@@ -143,8 +145,8 @@ class ScraperConfig:
     token_bucket_fill_rate: float = 10.0
     """Token bucket fill rate (tokens/sec).  Default: 10.0."""
 
-    batch_commit_size: int = 25
-    """Number of DB ops before commit.  Default: 25."""
+    db_batch_size: int = 50
+    """Number of DB ops before commit.  Default: 50."""
 
     # ── Scoring weights ──
     weight_amount: float = 0.30
@@ -164,6 +166,9 @@ class ScraperConfig:
 
     weight_vibe: float = 0.20
     """Weight for LLM vibe score term. Default: 0.20."""
+
+    hardware_penalty_factor: float = 0.5
+    """Multiplier applied to final score for issues requiring physical hardware. Default: 0.5."""
 
     # ── Output ──
     output_format: str = "text"  # text | markdown | json
@@ -433,6 +438,8 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
             data["semaphore_limit"] = data.pop("concurrency")
         if "raw_file" in data:
             data["raw_candidates_file"] = data.pop("raw_file")
+        if "batch_commit_size" in data:
+            data["db_batch_size"] = data.pop("batch_commit_size")
 
         unknown = set(data) - known
         if unknown:
@@ -455,6 +462,8 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
         overrides["semaphore_limit"] = overrides.pop("concurrency")
     if "raw_file" in overrides:
         overrides["raw_candidates_file"] = overrides.pop("raw_file")
+    if "batch_commit_size" in overrides:
+        overrides["db_batch_size"] = overrides.pop("batch_commit_size")
 
     for k, v in overrides.items():
         if k in known:

@@ -585,9 +585,9 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
         await refresh_prices(CRYPTO_KEYWORDS)
 
     async with aiosqlite.connect(config.db_file) as db_conn:
-        await init_db(db_conn)
+        await init_db(db_conn, db_path=config.db_file)
         sem = asyncio.Semaphore(config.semaphore_limit)
-        committer = BatchCommitter(db_conn, config.batch_commit_size)
+        committer = BatchCommitter(db_conn, config.db_batch_size)
 
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
         seen_aggregators: set[str] = set()

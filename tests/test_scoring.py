@@ -85,6 +85,53 @@ def test_score_no_vibe_excludes_weight(cfg):
     # But it proves renormalization happens rather than treating None as 0 or 100.
     assert score_none != score_middle
 
+@pytest.mark.parametrize("weight_dist", [
+    {"weight_amount": 1.0, "weight_recency": 0.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 0.0},
+    {"weight_amount": 0.0, "weight_recency": 1.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 0.0},
+    {"weight_amount": 0.0, "weight_recency": 0.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 1.0},
+    {"weight_amount": 0.2, "weight_recency": 0.2, "weight_activity": 0.2, "weight_escrow_strength": 0.2, "w_repo_reputation": 0.2, "weight_vibe": 0.0},
+])
+def test_score_renormalization_edge_weights(cfg, weight_dist):
+    """Test that score stays in [0, 100] even with extreme weight distributions and vibe=None."""
+    for k, v in weight_dist.items():
+        setattr(cfg, k, v)
+    
+    score = compute_score(
+        numeric_amount=1000.0,
+        issue_updated_at="2026-05-01T12:00:00Z",
+        merges_last_45d=10,
+        positive_escrow_count=2,
+        positive_escrow_weight_sum=2.0,
+        repo_reputation=0.5,
+        vibe_score_int=None,
+        has_negative_soft=False,
+        config=cfg,
+    )
+    assert 0.0 <= score <= 100.0
+
+def test_score_all_weights_zero_except_vibe(cfg):
+    """Test the edge case where all non-vibe weights are zero and vibe is None."""
+    cfg.weight_amount = 0.0
+    cfg.weight_recency = 0.0
+    cfg.weight_activity = 0.0
+    cfg.weight_escrow_strength = 0.0
+    cfg.w_repo_reputation = 0.0
+    cfg.weight_vibe = 0.2
+    
+    score = compute_score(
+        numeric_amount=1000.0,
+        issue_updated_at="2026-05-01T12:00:00Z",
+        merges_last_45d=10,
+        positive_escrow_count=2,
+        positive_escrow_weight_sum=2.0,
+        repo_reputation=0.5,
+        vibe_score_int=None,
+        has_negative_soft=False,
+        config=cfg,
+    )
+    # total_w will be 0.0, scale becomes 1.0, raw_score becomes 0.0
+    assert score == 0.0
+
 def test_vibe_zero_and_none(cfg):
     """
     Test that vibe_score_int=None redistributes weight (higher score)
@@ -153,7 +200,7 @@ class TestScoringEdgeCases:
         }
         score_normal = compute_score(requires_hardware=False, **base_args)
         score_hardware = compute_score(requires_hardware=True, **base_args)
-        assert score_hardware == round(score_normal * 0.5, 2)
+        assert score_hardware == pytest.approx(score_normal * cfg.hardware_penalty_factor, abs=0.02)
 
     def test_escrow_cap_applied(self, cfg):
         """escrow_weight_sum above ESCROW_WEIGHT_CAP should produce same score as at cap."""

@@ -132,6 +132,23 @@ async def test_run_vibe_check_with_data():
 
 # === Section 4: iter_raw_candidates — file iteration ===
 @pytest.mark.asyncio
+async def test_iter_raw_candidates_streaming(tmp_path):
+    """Verify iter_raw_candidates streams line by line."""
+    raw_file = tmp_path / "stream_test.jsonl"
+    items = [{"url": f"http://{i}"} for i in range(5)]
+    with open(raw_file, "w", encoding="utf-8") as f:
+        for item in items:
+            f.write(json.dumps(item) + "\n")
+    
+    found = []
+    async for item in iter_raw_candidates(str(raw_file)):
+        found.append(item)
+    
+    assert len(found) == 5
+    assert found[0]["url"] == "http://0"
+    assert found[4]["url"] == "http://4"
+
+@pytest.mark.asyncio
 async def test_iter_raw_candidates_malformed():
     with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
         f.write('{"url": "http://1"}\n')

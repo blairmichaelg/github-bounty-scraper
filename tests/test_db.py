@@ -76,7 +76,7 @@ async def test_dump_dataset():
         db_file.close()
         try:
             async with aiosqlite.connect(db_path) as db:
-                await init_db(db)
+                await init_db(db, db_path=db_path)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as f:
                 f.close()
                 await dump_dataset(db_path, f.name)
@@ -106,7 +106,7 @@ async def test_get_recent_leads():
         db_file.close()
         try:
             async with aiosqlite.connect(db_path) as db:
-                await init_db(db)
+                await init_db(db, db_path=db_path)
                 await db.execute(
                     """
                     INSERT INTO issue_stats
@@ -127,9 +127,9 @@ async def test_get_recent_leads():
 async def test_get_recent_leads_excludes_vibe_only_rows(tmp_path):
     db_path = str(tmp_path / "test_recent_vibe_only.db")
 
-    await set_issue_vibe(db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time(), compiled_signals=None)
     async with aiosqlite.connect(db_path) as conn:
-        await init_db(conn)
+        await set_issue_vibe(conn, db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time(), compiled_signals=None)
+        await init_db(conn, db_path=db_path)
         await conn.execute(
             """
             INSERT INTO issue_stats
@@ -151,7 +151,7 @@ async def test_is_bounty_label_threshold(tmp_path):
     out_path = str(tmp_path / "dataset.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
         # url1: ambiguous
         await conn.execute(
             "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url1", 40.0, None)
@@ -195,7 +195,7 @@ async def test_closed_issue_labeled_positive(tmp_path):
     out_path = str(tmp_path / "dataset_closed_pos.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
         await conn.execute(
             "INSERT INTO issue_stats (issue_url, lead_mode, numeric_amount, vibe_score) VALUES (?, ?, ?, ?)",
             ("url_closed", "closed_historical", 5.0, 70),
@@ -217,7 +217,7 @@ async def test_high_amount_is_positive_even_if_unscored(tmp_path):
     out_path = str(tmp_path / "dataset_high.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
         await conn.execute(
             "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
             ("url_high", 500.0, None),
@@ -239,7 +239,7 @@ async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
     out_path = str(tmp_path / "dataset_sentinel.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
         await conn.execute(
             "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
             ("url_sentinel", 0.0, None),
@@ -263,8 +263,9 @@ async def test_set_issue_vibe_signal_extraction(tmp_path):
     now = time.time()
     compiled_signals = load_signals()
 
-    await set_issue_vibe(db_path, "url1", 80, "payout in eth. No KYC.", now, compiled_signals=compiled_signals)
-    await set_issue_vibe(db_path, "url2", 90, "On-chain escrow vault.", now, compiled_signals=compiled_signals)
+    async with aiosqlite.connect(db_path) as conn:
+        await set_issue_vibe(conn, db_path, "url1", 80, "payout in eth. No KYC.", now, compiled_signals=compiled_signals)
+        await set_issue_vibe(conn, db_path, "url2", 90, "On-chain escrow vault.", now, compiled_signals=compiled_signals)
 
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row

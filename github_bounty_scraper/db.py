@@ -14,14 +14,18 @@ from .log import get_logger
 
 log = get_logger()
 
+_db_initialized: set[str] = set()
 
 # ─── Schema creation & migration ────────────────────────────────────
-async def init_db(conn: aiosqlite.Connection) -> None:
+async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     """Create or migrate the SQLite schema for caching.
 
     Uses ``ALTER TABLE … ADD COLUMN`` wrapped in try/except so the
     migration is idempotent and safe to run on every startup.
     """
+    if db_path and db_path in _db_initialized:
+        return
+
     await conn.execute("PRAGMA journal_mode=WAL;")
     await conn.execute("PRAGMA synchronous=NORMAL;")
     await conn.execute("PRAGMA cache_size = -32000;")  # 32MB page cache
@@ -92,7 +96,6 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         "is_dead_repo INTEGER DEFAULT 0",
         "vibe_score INTEGER",
         "vibe_reason TEXT",
-        "vibe_checked_at REAL",
         "vibe_scored_at REAL DEFAULT 0.0",
         "prev_score REAL",
         "label INTEGER",
@@ -111,6 +114,7 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at ON issue_stats(checked_at DESC);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC);")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC);")
 
     # ── checked_cache ──
     await conn.execute("""
@@ -148,7 +152,17 @@ async def init_db(conn: aiosqlite.Connection) -> None:
             """
         )
         await conn.execute("PRAGMA user_version = 2")
+        _uv = 2
 
+    if _uv < 3:
+        try:
+            await conn.execute("ALTER TABLE issue_stats DROP COLUMN vibe_checked_at;")
+        except aiosqlite.OperationalError:
+            pass  # Already dropped or not supported
+        await conn.execute("PRAGMA user_version = 3")
+
+    if db_path:
+        _db_initialized.add(db_path)
     await conn.commit()
 
 
@@ -412,7 +426,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
         return []
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
         query = """
             SELECT
                 i.score, i.prev_score, i.numeric_amount, i.lead_mode, i.escrow_verified, i.is_dead_repo,
@@ -441,6 +455,7 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
 
 
 async def set_issue_vibe(
+    conn: aiosqlite.Connection,
     db_path: str,
     issue_url: str,
     vibe_score: int,
@@ -454,72 +469,71 @@ async def set_issue_vibe(
     If the issue already exists in issue_stats, update only the vibe_* fields.
     If it does not exist, insert a minimal row with these fields populated.
     """
-    async with aiosqlite.connect(db_path) as conn:
-        # Ensure schema is initialized/migrated
-        await init_db(conn)
+    # Ensure schema is initialized/migrated
+    await init_db(conn, db_path=db_path)
 
-        # Task 2c: Extract signals from vibe_reason bonus
-        reason_lower = (vibe_reason or "").lower()
+    # Task 2c: Extract signals from vibe_reason bonus
+    reason_lower = (vibe_reason or "").lower()
 
-        if compiled_signals:
-            has_onchain_escrow = int(bool(compiled_signals.get("positive_escrow_re") and compiled_signals["positive_escrow_re"].search(reason_lower)))
-            mentions_no_kyc = int(bool(compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)))
-            mentions_wallet_payout = int(bool(compiled_signals.get("wallet_payout_phrases_re") and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)))
-        else:
-            has_onchain_escrow = 0
-            mentions_no_kyc = 0
-            mentions_wallet_payout = 0
+    if compiled_signals:
+        has_onchain_escrow = int(bool(compiled_signals.get("positive_escrow_re") and compiled_signals["positive_escrow_re"].search(reason_lower)))
+        mentions_no_kyc = int(bool(compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)))
+        mentions_wallet_payout = int(bool(compiled_signals.get("wallet_payout_phrases_re") and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)))
+    else:
+        has_onchain_escrow = 0
+        mentions_no_kyc = 0
+        mentions_wallet_payout = 0
 
-        # Try to update existing row first, incorporating bonuses
-        cursor = await conn.execute(
+    # Try to update existing row first, incorporating bonuses
+    cursor = await conn.execute(
+        """
+        UPDATE issue_stats
+        SET
+            vibe_score     = ?,
+            vibe_reason    = ?,
+            vibe_scored_at = ?,
+            checked_at     = ?,
+            has_onchain_escrow = MAX(has_onchain_escrow, ?),
+            mentions_no_kyc    = MAX(mentions_no_kyc, ?),
+            mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
+        WHERE issue_url = ?
+        """,
+        (
+            vibe_score,
+            vibe_reason,
+            checked_at,
+            checked_at,
+            has_onchain_escrow,
+            mentions_no_kyc,
+            mentions_wallet_payout,
+            issue_url,
+        ),
+    )
+    if cursor.rowcount == 0:
+        # If not exists, insert a minimal row.
+        # Mark it incomplete until a proper scrape enriches title/repo/amount fields.
+        await conn.execute(
             """
-            UPDATE issue_stats
-            SET
-                vibe_score     = ?,
-                vibe_reason    = ?,
-                vibe_scored_at = ?,
-                checked_at     = ?,
-                has_onchain_escrow = MAX(has_onchain_escrow, ?),
-                mentions_no_kyc    = MAX(mentions_no_kyc, ?),
-                mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
-            WHERE issue_url = ?
+            INSERT INTO issue_stats (
+                issue_url, checked_at, lead_mode, escrow_verified, score,
+                vibe_score, vibe_reason, vibe_scored_at,
+                has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout
+            )
+            VALUES (?, ?, 'vibe_only', 0, 0, ?, ?, ?, ?, ?, ?)
             """,
             (
+                issue_url,
+                checked_at,
                 vibe_score,
                 vibe_reason,
-                checked_at,
                 checked_at,
                 has_onchain_escrow,
                 mentions_no_kyc,
                 mentions_wallet_payout,
-                issue_url,
             ),
         )
-        if cursor.rowcount == 0:
-            # If not exists, insert a minimal row.
-            # Mark it incomplete until a proper scrape enriches title/repo/amount fields.
-            await conn.execute(
-                """
-                INSERT INTO issue_stats (
-                    issue_url, checked_at, lead_mode, escrow_verified, score,
-                    vibe_score, vibe_reason, vibe_scored_at,
-                    has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout
-                )
-                VALUES (?, ?, 'vibe_only', 0, 0, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    issue_url,
-                    checked_at,
-                    vibe_score,
-                    vibe_reason,
-                    checked_at,
-                    has_onchain_escrow,
-                    mentions_no_kyc,
-                    mentions_wallet_payout,
-                ),
-            )
 
-        await conn.commit()
+    await conn.commit()
 
 
 async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> float:
@@ -579,7 +593,7 @@ async def dump_dataset(
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
         # Ensure schema is at least initialized (if DB was empty/new)
-        await init_db(conn)
+        await init_db(conn, db_path=db_path)
 
         query = """
             SELECT i.*,

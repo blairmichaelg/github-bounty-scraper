@@ -73,21 +73,25 @@ async def iter_raw_candidates(raw_candidates_file: str) -> AsyncIterator[dict[st
         log.warning("Raw file %s does not exist; nothing to vibe-check.", raw_candidates_file)
         return
 
-    def _read_lines(path: str) -> list[str]:
+    def _iter_lines(path: str):
         with open(path, "r", encoding="utf-8") as fh:
-            return fh.read().splitlines()
+            for line in fh:
+                yield line
 
-    lines = await asyncio.to_thread(_read_lines, raw_candidates_file)
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
-            log.warning("Skipping malformed JSON line in %s", raw_candidates_file)
-            continue
-        yield obj
+    # We use asyncio to yield out of the generator so we don't block
+    loop = asyncio.get_running_loop()
+    with open(raw_candidates_file, "r", encoding="utf-8") as fh:
+        while True:
+            line = await loop.run_in_executor(None, fh.readline)
+            if not line:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                log.warning("Skipping malformed JSON line in %s", raw_candidates_file)
 
 
 async def call_gemini(
@@ -119,7 +123,7 @@ async def call_gemini(
     # User content to provide to the model
     user_text = f"TITLE: {title}\n\nBODY:\n{body_snippet}"
 
-    params = {"key": api_key}
+    headers = {"x-goog-api-key": api_key}
     payload: dict[str, Any] = {
         "systemInstruction": {
             "role": "system",
@@ -144,7 +148,7 @@ async def call_gemini(
     for attempt in range(MAX_ATTEMPTS):
         try:
             async with session.post(
-                _gemini_endpoint(model), params=params, json=payload, timeout=aiohttp.ClientTimeout(total=30)
+                _gemini_endpoint(model), headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 # Handle rate limits / transient errors with backoff
                 if resp.status == 429 or resp.status == 503:
@@ -269,7 +273,8 @@ async def run_vibe_check(
     import aiosqlite
 
     connector = aiohttp.TCPConnector(limit=10)
-    async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session:
+    async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session, \
+               aiosqlite.connect(db_path) as db_conn:
         count = 0
 
         async def _guarded_vibe(obj: dict[str, Any]) -> tuple[int, str, str]:
@@ -282,16 +287,14 @@ async def run_vibe_check(
                 return s, r, issue_url
 
         # source_iter selection
-        async def iter_unscored_combined(raw_candidates_file: str, db_path: str) -> AsyncIterator[dict[str, Any]]:
+        async def iter_unscored_combined(raw_candidates_file: str, db_path: str, db_conn: aiosqlite.Connection) -> AsyncIterator[dict[str, Any]]:
             # Load existing scored URLs from DB
             scored_urls = set()
-            if os.path.exists(db_path):
-                async with aiosqlite.connect(db_path) as _conn:
-                    async with _conn.execute(
-                        "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0"
-                    ) as cur:
-                        async for r in cur:
-                            scored_urls.add(r[0])
+            async with db_conn.execute(
+                "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0"
+            ) as cur:
+                async for r in cur:
+                    scored_urls.add(r[0])
 
             # Load optional retry list
             allowlist = set()
@@ -354,7 +357,7 @@ async def run_vibe_check(
 
         source_iter: AsyncIterator[dict[str, Any]]
         if mode == "unscored":
-            source_iter = iter_unscored_combined(raw_candidates_file, db_path)
+            source_iter = iter_unscored_combined(raw_candidates_file, db_path, db_conn)
         else:
             source_iter = iter_raw_candidates(raw_candidates_file)
 
@@ -378,6 +381,7 @@ async def run_vibe_check(
             checked_at = time.time()
             try:
                 await set_issue_vibe(
+                    conn=db_conn,
                     db_path=db_path,
                     issue_url=url,
                     vibe_score=score,

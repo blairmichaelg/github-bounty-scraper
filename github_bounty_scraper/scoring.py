@@ -31,7 +31,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from .config import ESCROW_WEIGHT_CAP, ScraperConfig
+from .config import ESCROW_WEIGHT_CAP, ACTIVITY_TRUST_THRESHOLD, ACTIVITY_TRUST_FLOOR, ScraperConfig
 from .log import get_logger
 
 log = get_logger()
@@ -80,7 +80,7 @@ def compute_score(
         amount_norm = 0.0
     else:
         # Boosted normalization cap to 50k for better differentiation
-        _norm_cap = getattr(config, "amount_norm_cap", 50000.0)
+        _norm_cap = config.amount_norm_cap
         _log_cap = math.log10(_norm_cap + 1)
         amount_norm = min(math.log10(numeric_amount + 1) / _log_cap, 1.0)
 
@@ -106,8 +106,8 @@ def compute_score(
     escrow_norm = max(count_norm, weighted_norm)
 
     # High activity trust bonus: if a repo is very active, lack of explicit escrow signals is less suspicious.
-    if merges_last_45d >= 40:
-        escrow_norm = max(escrow_norm, 0.4)
+    if merges_last_45d >= ACTIVITY_TRUST_THRESHOLD:
+        escrow_norm = max(escrow_norm, ACTIVITY_TRUST_FLOOR)
 
     if has_onchain_escrow:
         escrow_norm = min(escrow_norm + 0.25, 1.0)
@@ -149,11 +149,12 @@ def compute_score(
         * 100.0
     )
 
-    # Soft negative penalty.
+    # Soft negative penalty. Applied before hardware penalty.
     if has_negative_soft:
         raw_score = max(raw_score - 10.0, 0.0)
 
+    # Hardware penalty halves (by default) the entire score because hardware tasks are highly constrained.
     if requires_hardware:
-        raw_score *= 0.5
+        raw_score *= config.hardware_penalty_factor
 
     return round(max(0.0, min(100.0, raw_score)), 2)
