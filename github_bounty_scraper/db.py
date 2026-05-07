@@ -281,7 +281,7 @@ async def upsert_issue_stats(
             lead_mode,
             int(escrow_verified),
             int(is_dead_repo),
-            score,
+            None,
             int(has_onchain_escrow),
             int(mentions_no_kyc),
             int(mentions_wallet_payout),
@@ -447,6 +447,7 @@ async def set_issue_vibe(
     vibe_score: int,
     vibe_reason: str,
     checked_at: float,
+    compiled_signals: dict | None = None,
 ) -> None:
     """
     Upsert vibe-check metadata for an issue.
@@ -461,27 +462,30 @@ async def set_issue_vibe(
         # Task 2c: Extract signals from vibe_reason bonus
         reason_lower = (vibe_reason or "").lower()
 
-        # We can use the globally compiled regexes or define local ones if lists differ.
-        # Here we just use local fast regexes since lists differ slightly from global ones.
-        has_onchain_escrow = int(
-            bool(
-                re.search(
-                    r"on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract",
-                    reason_lower,
+        if compiled_signals:
+            has_onchain_escrow = int(bool(compiled_signals.get("positive_escrow_re") and compiled_signals["positive_escrow_re"].search(reason_lower)))
+            mentions_no_kyc = int(bool(compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)))
+            mentions_wallet_payout = int(bool(compiled_signals.get("wallet_payout_phrases_re") and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)))
+        else:
+            has_onchain_escrow = int(
+                bool(
+                    re.search(
+                        r"on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract",
+                        reason_lower,
+                    )
                 )
             )
-        )
-        mentions_no_kyc = int(
-            bool(re.search(r"no kyc|without kyc|no identity|anonymous payout|pseudonymous payout", reason_lower))
-        )
-        mentions_wallet_payout = int(
-            bool(
-                re.search(
-                    r"direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer",
-                    reason_lower,
+            mentions_no_kyc = int(
+                bool(re.search(r"no kyc|without kyc|no identity|anonymous payout|pseudonymous payout", reason_lower))
+            )
+            mentions_wallet_payout = int(
+                bool(
+                    re.search(
+                        r"direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer",
+                        reason_lower,
+                    )
                 )
             )
-        )
 
         # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(

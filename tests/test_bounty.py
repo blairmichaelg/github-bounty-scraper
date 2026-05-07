@@ -71,7 +71,7 @@ def test_extract_amount_title_bonus():
 def test_extract_amount_max_sane():
     """Amounts above max_sane should be ignored (falls back to Unknown if keywords present)."""
     result = extract_bounty_amount("Bounty: $1,000,000,000", max_sane=1e6)
-    assert result.numeric_amount == -1.0
+    assert result.numeric_amount == 0.0
 
 
 def test_extract_amount_seen_deduplication():
@@ -83,7 +83,7 @@ def test_extract_amount_seen_deduplication():
 def test_extract_amount_fallback_unknown():
     """Should return -1.0 if keywords exist but no amount found."""
     result = extract_bounty_amount("Bounty is available for this issue.")
-    assert result.numeric_amount == -1.0
+    assert result.numeric_amount == 0.0
     assert result.raw_display == "Unknown / Custom Tokens"
 
 

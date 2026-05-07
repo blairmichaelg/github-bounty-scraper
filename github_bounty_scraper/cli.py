@@ -24,7 +24,7 @@ def _add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--min-amount",
         type=float,
-        dest="min_amount",
+        dest="min_bounty_amount",
         metavar="USD",
         help="Override minimum bounty amount threshold (default: $25).",
     )
@@ -53,7 +53,7 @@ def _add_run_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--min-stars",
         type=int,
-        dest="min_stars",
+        dest="min_repo_stars",
         metavar="N",
         help="Minimum repo star count.",
     )

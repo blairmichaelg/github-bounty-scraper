@@ -358,6 +358,9 @@ async def run_vibe_check(
         else:
             source_iter = iter_raw_candidates(raw_file)
 
+        from .config import load_signals
+        compiled_signals = load_signals()
+
         async for obj in source_iter:
             if limit and count >= limit:
                 break
@@ -380,6 +383,7 @@ async def run_vibe_check(
                     vibe_score=score,
                     vibe_reason=reason,
                     checked_at=checked_at,
+                    compiled_signals=compiled_signals,
                 )
             except Exception as db_exc:
                 log.warning("Failed to persist vibe score for %s: %s", url, db_exc)

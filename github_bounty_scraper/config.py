@@ -69,11 +69,6 @@ class ScraperConfig:
     languages: list[str] = field(default_factory=list)
     """Filter by programming language.  Repeatable.  Default: []."""
 
-    min_stars: int = 5
-    """Minimum repository star count.  Issues from repos below this
-    threshold are hard-disqualified in strict mode (ignored in
-    opportunistic mode).  Range: 0–∞.  Default: 5."""
-
     min_repo_stars: int = 5
     """Minimum repository star count for inclusion in any mode. Default: 5."""
 
@@ -268,8 +263,6 @@ class ScraperConfig:
     )
 
     # ── CLI Compat Fields ──
-    min_amount: float = 25.0
-    db_path: str = "bounty_stats.db"
     top_n: int = 20
     enable_vibe: bool = True
 
@@ -387,10 +380,15 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
     ]
     for key in regex_keys:
         if defaults[key]:
-            # Use \b where possible, but not for phrases containing punctuation at boundaries.
-            # For simplicity and backward compatibility with `in`, we just do standard | join
-            # since the strings could be arbitrary phrases without clean word boundaries.
-            pattern = "|".join(map(re.escape, defaults[key]))
+            # Use \b for single words to avoid substring matches.
+            single_words = [re.escape(w) for w in defaults[key] if " " not in w]
+            multi_words = [re.escape(w) for w in defaults[key] if " " in w]
+            parts = []
+            if single_words:
+                parts.append(r"\b(?:" + "|".join(single_words) + r")\b")
+            if multi_words:
+                parts.append("|".join(multi_words))
+            pattern = "|".join(parts)
             defaults[f"{key}_re"] = re.compile(pattern)
         else:
             defaults[f"{key}_re"] = None
@@ -430,6 +428,10 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     known = {f.name for f in dc_fields(ScraperConfig)}
 
     if data:
+        # Backward compat aliases
+        if "db_path" in data:
+            data["db_file"] = data.pop("db_path")
+
         unknown = set(data) - known
         if unknown:
             import warnings
@@ -443,6 +445,11 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     # 3. Apply CLI overrides.
     cli_data = {}
     cli_unknown = set()
+    
+    # Backward compat aliases for CLI
+    if "db_path" in overrides:
+        overrides["db_file"] = overrides.pop("db_path")
+
     for k, v in overrides.items():
         if k in known:
             cli_data[k] = v
@@ -461,12 +468,6 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     # Merge: defaults (in dataclass) < config file < CLI
     combined = {**data, **cli_data}
-    if "min_amount" in combined:
-        combined["min_bounty_amount"] = combined["min_amount"]
-    if "db_path" in combined:
-        combined["db_file"] = combined["db_path"]
-    if "min_stars" in combined:
-        combined["min_repo_stars"] = combined["min_stars"]
     cfg = ScraperConfig(**combined)
 
     # ── Mode overrides ──
@@ -479,18 +480,5 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     if not cfg.github_token:
         print("Error: No valid token available in GitHub CLI or environment variables.")
         sys.exit(1)
-
-    # 5. Validate scoring weights.
-    log = get_logger()
-    total_weight = (
-        cfg.weight_amount
-        + cfg.weight_recency
-        + cfg.weight_activity
-        + cfg.weight_escrow_strength
-        + cfg.w_repo_reputation
-        + cfg.weight_vibe
-    )
-    if not (0.99 <= total_weight <= 1.01):
-        log.warning("Scoring weights sum to %.3f (expected 1.0). Scores may fall outside [0, 100].", total_weight)
 
     return cfg

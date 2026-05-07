@@ -123,7 +123,7 @@ def parse_numeric_amount(
         0.0
         >>> res = extract_bounty_amount("Bounty available, amount TBD")
         >>> res.numeric_amount
-        -1.0
+        0.0
     """
     if text is None:
         return BountyResult(0.0, "None", "USD")
@@ -215,7 +215,7 @@ def parse_numeric_amount(
     if not candidates:
         # Fallback: bounty cue detected but no parseable amount.
         if _CRYPTO_KEYWORD_RE.search(text) or _proximity_score(text, 0, len(text)) > 0:
-            result.numeric_amount = -1.0
+            result.numeric_amount = 0.0
             result.raw_display = "Unknown / Custom Tokens"
             result.currency_symbol = ""
         return result

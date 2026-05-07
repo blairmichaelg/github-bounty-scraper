@@ -20,32 +20,32 @@ from github_bounty_scraper.signals import SignalResult
 # === Section 1: _check_repo_health ===
 class TestCheckRepoHealth:
     def test_low_stars_rejected(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 5}
         assert _check_repo_health(repo, cfg) is False
 
     def test_archived_repo_rejected(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 100, "isArchived": True}
         assert _check_repo_health(repo, cfg) is False
 
     def test_repo_is_fork_rejected(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 100, "isFork": True}
         assert _check_repo_health(repo, cfg) is False
 
     def test_user_repo_with_low_mentions_rejected(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 100, "owner": {"__typename": "User"}, "mentionableUsers": {"totalCount": 1}}
         assert _check_repo_health(repo, cfg) is False
 
     def test_organization_repo_accepted(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 100, "owner": {"__typename": "Organization"}}
         assert _check_repo_health(repo, cfg) is True
 
     def test_user_repo_with_high_mentions_accepted(self, cfg):
-        cfg.min_stars = 10
+        cfg.min_repo_stars = 10
         repo = {"stargazerCount": 100, "owner": {"__typename": "User"}, "mentionableUsers": {"totalCount": 10}}
         assert _check_repo_health(repo, cfg) is True
 
@@ -79,7 +79,7 @@ class TestResolveNumericAmount:
     def test_no_amount_with_cue_returns_negative_one(self, cfg):
         issue = {"title": "Bounty for fix", "body": "It crashes."}
         amount, _, _ = _resolve_numeric_amount(issue, cfg)
-        assert amount == -1.0
+        assert amount == 0.0
 
     def test_amount_in_labels_extracted(self, cfg):
         issue = {"title": "Fix", "body": "Help", "labels": {"nodes": [{"name": "bounty: $200"}]}}
@@ -108,7 +108,7 @@ def test_assemble_lead_result_mapping():
 # === Section 5: Integration / process_issue ===
 @pytest.mark.asyncio
 async def test_process_issue_disqualified_repo(cfg, mock_token_bucket):
-    cfg.min_stars = 100
+    cfg.min_repo_stars = 100
     issue = {"repository": {"stargazerCount": 10}, "html_url": "http://test"}
     # Should return None if repo health check fails
     res = await process_issue(None, mock_token_bucket, issue, None, asyncio.Semaphore(1), cfg, {}, None, set())

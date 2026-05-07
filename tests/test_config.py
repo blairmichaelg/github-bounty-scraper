@@ -34,8 +34,8 @@ def test_resolve_github_token(monkeypatch):
 
 def test_build_config(monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "test_token")
-    cfg = build_config({"min_stars": 100})
-    assert cfg.min_stars == 100
+    cfg = build_config({"min_repo_stars": 100})
+    assert cfg.min_repo_stars == 100
     assert cfg.github_token == "test_token"
 
 

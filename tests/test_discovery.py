@@ -17,7 +17,7 @@ def test_build_search_queries_default(cfg):
 
 
 def test_build_search_queries_with_filters(cfg):
-    cfg.min_stars = 100
+    cfg.min_repo_stars = 100
     cfg.since = "2024-01-01"
     cfg.languages = ["Python", "Go"]
     queries = build_search_queries(cfg)

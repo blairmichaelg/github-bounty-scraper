@@ -80,7 +80,7 @@ def compute_score(
         amount_norm = 0.0
     else:
         # Boosted normalization cap to 50k for better differentiation
-        _norm_cap = 50000.0
+        _norm_cap = getattr(config, "amount_norm_cap", 50000.0)
         _log_cap = math.log10(_norm_cap + 1)
         amount_norm = min(math.log10(numeric_amount + 1) / _log_cap, 1.0)
 
