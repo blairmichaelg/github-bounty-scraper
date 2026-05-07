@@ -6,6 +6,6 @@ on GitHub Issues.
 from .config import ScraperConfig, build_config
 from .scoring import compute_score
 
-__version__ = "2.0.7"
+__version__ = "2.4.0"
 
 __all__ = ["ScraperConfig", "build_config", "compute_score", "__version__"]

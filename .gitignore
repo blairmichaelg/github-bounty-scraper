@@ -1,98 +1,69 @@
-# Python
+# Python build and cache files
 __pycache__/
 *.py[cod]
 *.pyo
 .Python
-*.egg-info/
-dist/
-build/
-.eggs/
 *.egg
+*.egg-info/
+.eggs/
+build/
+dist/
 
 # Virtual environments
-venv/
 .venv/
 env/
+venv/
 
-# Environment
+# Environment and local secrets
 .env
 *.env
 
-# IDE
-.vscode/
+# Editor and OS files
 .idea/
+.vscode/
 *.swp
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Model and data artifacts
-*.pkl
-*.pkl.sha256
-bounty_dataset*.csv
-training_data.csv
-leads_to_label.txt
-results_*.json
-coverage_*.txt
-coverage.xml
-bounty_leads.db
-exploration_raw.jsonl
-vibe_retry.txt
-
-# Project runtime artifacts
-bounty_stats.db
-output.md
-output.json
-strict_test.txt
-opp_test.txt
-
-# Test artifacts
-.pytest_cache/
-htmlcov/
+# Test, type-check, and coverage output
 .coverage
-
-vibe_test.log
-
-# auto-added
-.claude/
-audit_env.py
-*.log
-
-# Model artifacts
-best_threshold.json
-
-# Scratch / temp
-scratch/
-vibe_smoke_test.py
-section*.py
-vibe_test.log
-
-# Scraper run outputs ?" never commit these
-exploration_raw.jsonl
-results_*.md
-results_*.json
-results*.json
-sweep_*.json
-results.json
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+coverage_*.txt
+coverage_current.txt
 coverage_final.txt
-best_threshold.json
-scrape_run*.log
-vibe_run*.log
+htmlcov/
+
+# Runtime databases and caches
 *.db
 *.db-shm
 *.db-wal
-leads_to_label.txt
-vibe_retry.txt
+bounty_stats.db
+bounty_leads.db
 
-# SHA256 sidecar files (regenerated at runtime)
+# Generated scrape, scoring, and training artifacts
+*.log
+*.pkl
+*.pkl.sha256
 *.sha256
+best_threshold.json
+bounty_dataset*.csv
+exploration_raw.jsonl
+leads_to_label.txt
+output.json
+output.md
+results*.json
+results_*.md
+scrape_run*.log
+sweep_*.json
+training_data.csv
+vibe_retry.txt
+vibe_run*.log
 
-# Documentation artifacts
-docs/task.md
-
-# Runtime outputs — never commit these
-# Dataset files — use Git LFS or releases instead
-# Temp scripts
+# Local scratch space and temporary scripts
+scratch/
 temp_*.py
 scripts/temp_*.py
+docs/task.md

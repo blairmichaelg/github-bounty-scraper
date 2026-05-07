@@ -108,8 +108,12 @@ async def test_get_recent_leads():
             async with aiosqlite.connect(db_path) as db:
                 await init_db(db)
                 await db.execute(
-                    "INSERT INTO issue_stats (issue_url, lead_mode, checked_at) VALUES (?, ?, ?)",
-                    ("http://1", "strict", time.time()),
+                    """
+                    INSERT INTO issue_stats
+                        (issue_url, lead_mode, checked_at, title, repo_name, numeric_amount)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    ("http://1", "strict", time.time(), "Bounty", "owner/repo", 100.0),
                 )
                 await db.commit()
             leads = await get_recent_leads(db_path, "strict", 10)
@@ -117,6 +121,27 @@ async def test_get_recent_leads():
         finally:
             if os.path.exists(db_path):
                 os.remove(db_path)
+
+
+@pytest.mark.asyncio
+async def test_get_recent_leads_excludes_vibe_only_rows(tmp_path):
+    db_path = str(tmp_path / "test_recent_vibe_only.db")
+
+    await set_issue_vibe(db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time())
+    async with aiosqlite.connect(db_path) as conn:
+        await init_db(conn)
+        await conn.execute(
+            """
+            INSERT INTO issue_stats
+                (issue_url, lead_mode, checked_at, title, repo_name, numeric_amount, score)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("url_enriched", "strict", time.time(), "Real bounty", "owner/repo", 100.0, 42.0),
+        )
+        await conn.commit()
+
+    leads = await get_recent_leads(db_path, "all", 10)
+    assert [lead["issue_url"] for lead in leads] == ["url_enriched"]
 
 
 @pytest.mark.asyncio
@@ -242,6 +267,8 @@ async def test_set_issue_vibe_signal_extraction(tmp_path):
         conn.row_factory = aiosqlite.Row
         async with conn.execute("SELECT * FROM issue_stats ORDER BY issue_url") as cur:
             rows = {r["issue_url"]: dict(r) for r in await cur.fetchall()}
+            assert rows["url1"]["lead_mode"] == "vibe_only"
+            assert rows["url1"]["escrow_verified"] == 0
             assert rows["url1"]["mentions_wallet_payout"] == 1
             assert rows["url1"]["mentions_no_kyc"] == 1
             assert rows["url2"]["has_onchain_escrow"] == 1
@@ -259,5 +286,8 @@ def test_model_feature_count_matches_json():
         meta = json.load(f)
 
     saved_feats = meta.get("features", [])
+    from github_bounty_scraper.__main__ import PROD_MODEL_FEATURES
+
+    assert saved_feats == PROD_MODEL_FEATURES
     assert model.n_features_in_ == len(saved_feats)
     assert meta.get("leakage_free") is True

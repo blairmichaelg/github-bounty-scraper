@@ -6,6 +6,7 @@ Usage:
     python scripts/train_model.py --input bounty_dataset_train.csv
     python scripts/train_model.py --input bounty_dataset_train.csv --output models/bounty_model.pkl
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,7 +20,6 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.preprocessing import LabelEncoder
-
 
 # Features aligned with github_bounty_scraper/__main__.py (leakage-free)
 FEATURE_COLUMNS = [
@@ -38,7 +38,7 @@ def load_and_validate(input_path: Path) -> pd.DataFrame:
     # Map lead_mode to is_closed
     if "is_closed" not in df.columns and "lead_mode" in df.columns:
         df["is_closed"] = df["lead_mode"].apply(lambda x: 1 if "closed" in str(x).lower() else 0)
-    
+
     missing = [c for c in FEATURE_COLUMNS + [LABEL_COLUMN] if c not in df.columns]
     if missing:
         print(f"ERROR: Missing columns in dataset: {missing}", file=sys.stderr)
@@ -50,7 +50,7 @@ def load_and_validate(input_path: Path) -> pd.DataFrame:
     # Also drop rows where is_bounty is empty string (ambiguous)
     df = df[df[LABEL_COLUMN] != ""]
     df[LABEL_COLUMN] = df[LABEL_COLUMN].astype(int)
-    
+
     dropped = before - len(df)
     if dropped:
         print(f"Dropped {dropped} rows with nulls or ambiguity in feature/label columns")
@@ -88,9 +88,7 @@ def train(input_path: Path, output_path: Path) -> None:
     print(f"\n5-Fold CV F1 (weighted): {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
     # Train/test split for final evaluation
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y_enc, test_size=0.2, stratify=y_enc, random_state=42
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y_enc, test_size=0.2, stratify=y_enc, random_state=42)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
 

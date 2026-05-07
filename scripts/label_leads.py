@@ -7,15 +7,12 @@ Usage:
     python scripts/label_leads.py --limit 100 --min-vibe 30 --max-vibe 70
     python scripts/label_leads.py --unlabeled-only --limit 50
 """
+
 from __future__ import annotations
 
 import argparse
 import sqlite3
-import subprocess
-import sys
 import webbrowser
-from pathlib import Path
-
 
 DB_PATH = "bounty_stats.db"
 MANUAL_LABEL_TABLE = "manual_labels"
@@ -35,10 +32,14 @@ def ensure_label_table(conn: sqlite3.Connection) -> None:
 
 def get_candidates(conn: sqlite3.Connection, limit: int, min_vibe: int, max_vibe: int, unlabeled_only: bool) -> list:
     already_labeled = {row[0] for row in conn.execute(f"SELECT issue_url FROM {MANUAL_LABEL_TABLE}").fetchall()}
-    query = f"""
+    query = """
         SELECT issue_url, repo_name, score, vibe_score, numeric_amount
         FROM issue_stats
         WHERE vibe_score BETWEEN ? AND ?
+          AND COALESCE(lead_mode, '') NOT IN ('vibe_only', 'incomplete')
+          AND COALESCE(title, '') != ''
+          AND COALESCE(repo_name, '') != ''
+          AND numeric_amount IS NOT NULL
         ORDER BY score DESC
         LIMIT ?
     """
@@ -57,15 +58,15 @@ def label_leads(limit: int = 100, min_vibe: int = 30, max_vibe: int = 70, unlabe
         print("No candidates to label with the given filters.")
         return
 
-    print(f"\n=== BOUNTY LABELING TOOL ===")
+    print("\n=== BOUNTY LABELING TOOL ===")
     print(f"Labeling {len(candidates)} leads. Commands: y=bounty, n=not bounty, s=skip, q=quit\n")
 
     labeled = 0
     for i, (url, repo, score, vibe, amount) in enumerate(candidates):
-        print(f"[{i+1}/{len(candidates)}] {repo}")
+        print(f"[{i + 1}/{len(candidates)}] {repo}")
         print(f"  Score: {score:.1f} | Vibe: {vibe} | Amount: ${amount or 0:.0f}")
         print(f"  URL: {url}")
-        
+
         # Open in browser
         try:
             webbrowser.open(url)
@@ -87,8 +88,7 @@ def label_leads(limit: int = 100, min_vibe: int = 30, max_vibe: int = 70, unlabe
             elif answer in ("y", "n"):
                 label_val = 1 if answer == "y" else 0
                 conn.execute(
-                    f"INSERT OR REPLACE INTO {MANUAL_LABEL_TABLE} (issue_url, label) VALUES (?, ?)",
-                    (url, label_val)
+                    f"INSERT OR REPLACE INTO {MANUAL_LABEL_TABLE} (issue_url, label) VALUES (?, ?)", (url, label_val)
                 )
                 conn.commit()
                 labeled += 1
@@ -108,7 +108,9 @@ def export_labeled_csv(output_path: str = "bounty_dataset_manual.csv") -> None:
     conn = sqlite3.connect(DB_PATH)
     ensure_label_table(conn)
     import pandas as pd
-    df = pd.read_sql_query(f"""
+
+    df = pd.read_sql_query(
+        f"""
         SELECT
             s.issue_url,
             s.repo_name,
@@ -126,15 +128,25 @@ def export_labeled_csv(output_path: str = "bounty_dataset_manual.csv") -> None:
         FROM issue_stats s
         LEFT JOIN repo_stats r ON s.repo_name = r.repo_name
         INNER JOIN {MANUAL_LABEL_TABLE} m ON s.issue_url = m.issue_url
-    """, conn)
+        WHERE COALESCE(s.lead_mode, '') NOT IN ('vibe_only', 'incomplete')
+    """,
+        conn,
+    )
     conn.close()
     df.to_csv(output_path, index=False)
     print(f"Exported {len(df)} manually labeled rows to {output_path}")
     print(f"Columns: {list(df.columns)}")
     if not df.empty:
         print(f"Label distribution: {df['manual_label'].value_counts().to_dict()}")
-        print(f"Null counts in feature columns:")
-        feat_cols = ["numeric_amount","merges_last_45d","total_escrows_seen","rugs_seen","is_dead_repo","escrow_verified"]
+        print("Null counts in feature columns:")
+        feat_cols = [
+            "numeric_amount",
+            "merges_last_45d",
+            "total_escrows_seen",
+            "rugs_seen",
+            "is_dead_repo",
+            "escrow_verified",
+        ]
         print(df[feat_cols].isnull().sum().to_string())
 
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 
@@ -139,7 +140,11 @@ def train_and_eval():
     }
 
     joblib.dump(prod_model, "bounty_model.pkl")
+    digest = hashlib.sha256(open("bounty_model.pkl", "rb").read()).hexdigest()
+    with open("bounty_model.pkl.sha256", "w") as f:
+        f.write(digest + "\n")
     print(f"Saved Model {prod_model_name} to bounty_model.pkl")
+    print("Saved bounty_model.pkl.sha256")
 
     with open("best_threshold.json", "w") as f:
         json.dump(results, f, indent=2)

@@ -23,6 +23,7 @@ def test_max_issues_flag():
 def test_min_amount_flag():
     config = parse_args(["--min-amount", "250"])
     assert config.min_amount == 250.0
+    assert config.min_bounty_amount == 250.0
 
 
 def test_output_flag():
@@ -33,6 +34,7 @@ def test_output_flag():
 def test_db_path_flag():
     config = parse_args(["--db", "custom.db"])
     assert config.db_path == "custom.db"
+    assert config.db_file == "custom.db"
 
 
 def test_top_n_flag():
@@ -63,6 +65,32 @@ def test_vibe_enabled_by_default():
 def test_min_stars_flag():
     config = parse_args(["--min-stars", "10"])
     assert config.min_stars == 10
+    assert config.min_repo_stars == 10
+
+
+def test_scrape_accepts_run_options_after_subcommand():
+    config = parse_args(
+        [
+            "scrape",
+            "--max-issues",
+            "50",
+            "--dry-run",
+            "--output-file",
+            "results",
+            "--min-amount",
+            "250",
+            "--db-path",
+            "custom.db",
+            "--min-stars",
+            "12",
+        ]
+    )
+    assert config.max_issues_per_run == 50
+    assert config.dry_run is True
+    assert config.output_file == "results"
+    assert config.min_bounty_amount == 250.0
+    assert config.db_file == "custom.db"
+    assert config.min_repo_stars == 12
 
 
 def test_invalid_max_issues_raises():

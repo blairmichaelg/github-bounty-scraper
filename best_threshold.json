@@ -1,1 +1,0 @@
-{"leakage_free": true, "features": ["vibe_score", "positive_escrow_count", "escrow_weight_sum", "has_onchain_escrow", "mentions_no_kyc", "mentions_wallet_payout", "merges_last_45d", "is_closed"]}

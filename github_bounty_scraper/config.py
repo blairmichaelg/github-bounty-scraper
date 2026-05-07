@@ -77,14 +77,16 @@ class ScraperConfig:
     min_repo_stars: int = 5
     """Minimum repository star count for inclusion in any mode. Default: 5."""
 
-    repo_blocklist: list[str] = field(default_factory=lambda: [
-        "josix/awesome-claude-md",
-        "Jamie-BitFlight/claude_skills",
-        "awesome-selfhosted/awesome-selfhosted",
-        "sindresorhus/awesome",
-        "vinta/awesome-python",
-        "topics/bounty",
-    ])
+    repo_blocklist: list[str] = field(
+        default_factory=lambda: [
+            "josix/awesome-claude-md",
+            "Jamie-BitFlight/claude_skills",
+            "awesome-selfhosted/awesome-selfhosted",
+            "sindresorhus/awesome",
+            "vinta/awesome-python",
+            "topics/bounty",
+        ]
+    )
     """Repos to permanently exclude regardless of score."""
 
     since: str = ""  # YYYY-MM-DD — override in scraper_config.json; recommend "2026-01-01"
@@ -459,6 +461,12 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     # Merge: defaults (in dataclass) < config file < CLI
     combined = {**data, **cli_data}
+    if "min_amount" in combined:
+        combined["min_bounty_amount"] = combined["min_amount"]
+    if "db_path" in combined:
+        combined["db_file"] = combined["db_path"]
+    if "min_stars" in combined:
+        combined["min_repo_stars"] = combined["min_stars"]
     cfg = ScraperConfig(**combined)
 
     # ── Mode overrides ──

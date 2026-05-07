@@ -1,45 +1,85 @@
-# Production Hardening Walkthrough (v2.3.0)
+# Operational Walkthrough
 
-The `github-bounty-scraper` has been upgraded to a production-grade, maintainable state. This session focused on consolidation, standardization, and decomposing the core logic monolith.
+This walkthrough describes the current production-oriented workflow for GitHub Bounty Scraper.
 
-## Key Accomplishments
+## 1. Prepare The Environment
 
-### 1. Monolith Decomposition
-- **`core.py` Refactor**: The complex `process_issue` monolith was surgically decomposed into testable sub-functions:
-    - `_enrich_issue`: Orchestrates API calls, health checks, and signal extraction.
-    - `_persist_lead`: Handles database updates, raw logging, and reputation logic.
-    - `_build_lead_result`: Pure helper for constructing return types.
-- **Helper Extraction**: Extracted logic for repo activity (`_get_repo_activity`), grace periods (`_is_new_repo_grace`), and qualification (`_is_qualified_lead`) into discrete, unit-testable helpers.
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -e ".[dev]"
+```
 
-### 2. Test Suite Hardening
-- **Consolidation**: Legacy fragmented tests (like `test_db_label.py`) were merged into core test files, reducing maintenance overhead.
-- **Shared Fixtures**: Standardized `conftest.py` with `cfg`, `mock_db_conn`, and `mock_aiohttp_session` to ensure isolated, repeatable tests.
-- **Integration Coverage**: Added deep integration tests for the full pipeline dispatch and model inference paths.
+Authenticate with GitHub:
 
-### 3. Edge Case Resilience
-- **Vibe Checks**: Hardened Gemini API interactions to handle rate limits (429) and server errors (500) gracefully.
-- **Signal Extraction**: Improved robustness against malformed labels or empty comments, preventing pipeline crashes on unexpected GitHub data.
+```bash
+gh auth login
+```
 
-## Final Verification Results
+Optional Gemini support:
 
-| Metric | Result |
-|--------|--------|
-| Total Tests | 156 |
-| Total Coverage | 87.00% |
-| CI Pipeline | Passing (Enforced in `.github/workflows/ci.yml`) |
-| Static Analysis | 0 Ruff/Mypy errors |
+```bash
+copy .env.example .env
+```
 
-### Core Coverage (87% Repo-wide)
-- **__main__.py**: 93%
-- **scoring.py**: 100%
-- **signals.py**: 86%
-- **core.py**: 88%
-- **output.py**: 95%
+Then fill in `GEMINI_API_KEY` in `.env`.
 
-### Hygiene & Security
-- Large binary/dataset files removed from git index to optimize repo size.
-- `.env.example` added for standardized secret management.
-- Model checksum verification enforced in the CLI entry point.
+## 2. Run A Focused Scrape
 
----
-*All changes have been committed and pushed to `master` with no outstanding branches or PRs.*
+Start with a bounded run and inspect the results before scaling up:
+
+```bash
+github-bounty-scraper scrape --mode strict --since 2025-01-01 --max-issues 300 --output-format json --output-file results
+github-bounty-scraper inspect-leads --mode all --limit 20
+```
+
+For broader scouting and future model labeling:
+
+```bash
+github-bounty-scraper scrape --mode opportunistic --since 2025-01-01 --max-issues 1000 --log-raw-candidates
+```
+
+## 3. Run Vibe Checks
+
+Vibe checks score raw candidates from `exploration_raw.jsonl` and update `bounty_stats.db`.
+
+```bash
+github-bounty-scraper vibe-check --mode unscored --limit 500 --concurrency 3
+```
+
+Rows created only by vibe checks are marked `vibe_only`. They are not shown by `inspect-leads` and are not exported for training until a scrape enriches their title, repository, amount, and signal fields.
+
+## 4. Export And Train
+
+```bash
+github-bounty-scraper dump-dataset --db-path bounty_stats.db --raw-file exploration_raw.jsonl --out-csv bounty_dataset.csv
+python tools/balance_dataset.py --input bounty_dataset.csv --output bounty_dataset_train.csv
+python tools/train_bounty_model.py
+```
+
+This produces local generated artifacts such as `bounty_model.pkl`, `bounty_model.pkl.sha256`, and `best_threshold.json`. These files are intentionally ignored by git.
+
+## 5. Verify Before Commit
+
+Run the full local quality gate:
+
+```bash
+ruff check github_bounty_scraper tests scripts tools
+ruff format --check github_bounty_scraper tests scripts tools
+mypy github_bounty_scraper
+pytest --cov=github_bounty_scraper --cov-fail-under=80
+```
+
+## 6. Artifact Policy
+
+Commit source, tests, configs, and docs only. Do not commit:
+
+- `.env`
+- SQLite databases
+- raw exploration logs
+- generated datasets
+- trained model pickle files
+- output reports
+- scratch files
+
+Publish valuable generated artifacts through GitHub Releases or another artifact store.

@@ -28,8 +28,8 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check github_bounty_scraper/ tests/
-          ruff format --check github_bounty_scraper/ tests/
+          ruff check github_bounty_scraper/ tests/ scripts/ tools/
+          ruff format --check github_bounty_scraper/ tests/ scripts/ tools/
 
       - name: Type check with mypy
         run: mypy github_bounty_scraper/

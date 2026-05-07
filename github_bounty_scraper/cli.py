@@ -12,6 +12,53 @@ from .config import ScraperConfig, build_config
 from .log import setup_logging
 
 
+def _add_run_options(parser: argparse.ArgumentParser) -> None:
+    """Add options that should work before or after the scrape subcommand."""
+    parser.add_argument(
+        "--max-issues",
+        type=int,
+        dest="max_issues_per_run",
+        metavar="N",
+        help="Hard upper bound on total issues processed this run (default: 1000).",
+    )
+    parser.add_argument(
+        "--min-amount",
+        type=float,
+        dest="min_amount",
+        metavar="USD",
+        help="Override minimum bounty amount threshold (default: $25).",
+    )
+    parser.add_argument(
+        "--output",
+        "--output-file",
+        type=str,
+        dest="output_file",
+        metavar="PATH",
+        help="Base name for output files (e.g. 'results' -> results.md, results.json).",
+    )
+    parser.add_argument(
+        "--db",
+        "--db-path",
+        type=str,
+        dest="db_path",
+        metavar="PATH",
+        help="Path to the SQLite DB.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Run without writing to the database.",
+    )
+    parser.add_argument(
+        "--min-stars",
+        type=int,
+        dest="min_stars",
+        metavar="N",
+        help="Minimum repo star count.",
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # argument_default=SUPPRESS ensures unprovided args are absent from the
     # namespace entirely, so we can distinguish "not passed" from "passed
@@ -32,36 +79,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     _DEFAULT_SINCE = (datetime.date.today() - datetime.timedelta(days=90)).isoformat()
 
-    main_parser.add_argument(
-        "--max-issues",
-        type=int,
-        dest="max_issues_per_run",
-        metavar="N",
-        help="Hard upper bound on total issues processed this run (default: 1000).",
-    )
-    main_parser.add_argument(
-        "--min-amount",
-        type=float,
-        dest="min_amount",
-        metavar="USD",
-        help="Override minimum bounty amount threshold (default: $25).",
-    )
-    main_parser.add_argument(
-        "--output",
-        "--output-file",
-        type=str,
-        dest="output_file",
-        metavar="PATH",
-        help="Base name for output files (e.g. 'results' -> results.md, results.json).",
-    )
-    main_parser.add_argument(
-        "--db",
-        "--db-path",
-        type=str,
-        dest="db_path",
-        metavar="PATH",
-        help="Path to the SQLite DB.",
-    )
+    _add_run_options(main_parser)
     main_parser.add_argument(
         "--top",
         "--top-n",
@@ -71,29 +89,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of leads to show.",
     )
     main_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        dest="dry_run",
-        help="Run without writing to the database.",
-    )
-    main_parser.add_argument(
         "--no-vibe",
         action="store_false",
         dest="enable_vibe",
         help="Disable LLM vibe checks.",
-    )
-    main_parser.add_argument(
-        "--min-stars",
-        type=int,
-        dest="min_stars",
-        metavar="N",
-        help="Minimum repo star count.",
     )
 
     subparsers = main_parser.add_subparsers(dest="command", required=False)
 
     # ── Scrape Command ──
     parser = subparsers.add_parser("scrape", help="Run the scraper pipeline", argument_default=argparse.SUPPRESS)
+    _add_run_options(parser)
 
     # ── Discovery ──
     parser.add_argument(
@@ -117,10 +123,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Only consider issues updated on or after this date (default: 90 days ago, %(default)s).",
     )
     parser.add_argument(
-        "--auto-refresh", action="store_true", default=False, help="Skip scrape if newest lead is < --refresh-days old."
+        "--auto-refresh", action="store_true", help="Skip scrape if newest lead is < --refresh-days old."
     )
     parser.add_argument(
-        "--refresh-days", type=int, default=3, help="Age threshold in days for --auto-refresh. Default: 3."
+        "--refresh-days",
+        type=int,
+        default=argparse.SUPPRESS,
+        help="Age threshold in days for --auto-refresh. Default: 3.",
     )
     parser.add_argument(
         "--max-pages",

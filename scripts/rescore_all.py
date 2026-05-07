@@ -4,10 +4,16 @@ Rescore all leads blending heuristic score with ML model probability.
 
 Usage:
     python scripts/rescore_all.py
-    python scripts/rescore_all.py --model models/bounty_model_manual_v1.pkl --blend-ml 0.5
+    python scripts/rescore_all.py --model bounty_model.pkl --blend-ml 0.5
 """
+
 from __future__ import annotations
-import argparse, re, sqlite3, pathlib
+
+import argparse
+import pathlib
+import re
+import sqlite3
+
 import joblib
 import numpy as np
 
@@ -41,8 +47,7 @@ def rescore(model_path: str, blend_ml: float) -> None:
             ml_prob = float(model.predict_proba(x)[0][pos_idx]) * 100
             heuristic = float(d.get("score") or 0)
             blended = round((1 - blend_ml) * heuristic + blend_ml * ml_prob, 2)
-            conn.execute("UPDATE issue_stats SET score = ? WHERE issue_url = ?",
-                         (blended, d["issue_url"]))
+            conn.execute("UPDATE issue_stats SET score = ? WHERE issue_url = ?", (blended, d["issue_url"]))
             updated += 1
         except Exception:
             skipped += 1
@@ -54,7 +59,7 @@ def rescore(model_path: str, blend_ml: float) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rescore all leads with blended model")
-    parser.add_argument("--model", default="models/bounty_model_manual_v1.pkl")
+    parser.add_argument("--model", default="bounty_model.pkl")
     parser.add_argument("--blend-ml", type=float, default=0.4)
     args = parser.parse_args()
     rescore(args.model, args.blend_ml)

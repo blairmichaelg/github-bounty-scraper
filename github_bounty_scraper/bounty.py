@@ -121,6 +121,9 @@ def parse_numeric_amount(
         >>> res = extract_bounty_amount("No money here, just a thank you")
         >>> res.numeric_amount
         0.0
+        >>> res = extract_bounty_amount("Bounty available, amount TBD")
+        >>> res.numeric_amount
+        -1.0
     """
     if text is None:
         return BountyResult(0.0, "None", "USD")
@@ -147,7 +150,7 @@ def parse_numeric_amount(
         candidates.append((val, raw.strip(), "USD", prox))
 
     # ── K-multiplier matches ──
-    for m in re.finditer(r'(?:^|\s|\$)\s*([\d,]+(?:\.\d+)?)\s*k\b', text, re.IGNORECASE):
+    for m in re.finditer(r"(?:^|\s|\$)\s*([\d,]+(?:\.\d+)?)\s*k\b", text, re.IGNORECASE):
         raw = m.group(0)
         if raw in seen:
             continue
@@ -212,7 +215,7 @@ def parse_numeric_amount(
     if not candidates:
         # Fallback: bounty cue detected but no parseable amount.
         if _CRYPTO_KEYWORD_RE.search(text) or _proximity_score(text, 0, len(text)) > 0:
-            result.numeric_amount = 0.0
+            result.numeric_amount = -1.0
             result.raw_display = "Unknown / Custom Tokens"
             result.currency_symbol = ""
         return result
@@ -229,52 +232,70 @@ def parse_numeric_amount(
     return result
 
 
-_SNIPE_PHRASES: frozenset[str] = frozenset({
-    # Original 3
-    "bounty paid",
-    "reward sent",
-    "bounty claimed",
-    # Payment completion
-    "payout complete",
-    "payment sent",
-    "payment complete",
-    "payment processed",
-    "reward delivered",
-    "funds sent",
-    "funds transferred",
-    "tokens sent",
-    "tokens transferred",
-    # Claim/assignment
-    "i am working on this",
-    "i'm working on this",
-    "taking this",
-    "claiming this",
-    "assigned to me",
-    "already claimed",
-    "pr submitted",
-    "pr merged",
-    "fix merged",
-    "patch merged",
-    # Resolution
-    "marked as resolved",
-    "marked resolved",
-    "closing as completed",
-    "closing as fixed",
-    "this has been fixed",
-    "this is fixed",
-    "resolved in",
-    "fixed in",
-})
+def extract_bounty_amount(
+    text: str | None,
+    max_sane: float = 1e7,
+    proximity_window: int = 300,
+    config: ScraperConfig | None = None,
+) -> BountyResult:
+    """Backward-compatible alias for ``parse_numeric_amount``."""
+    return parse_numeric_amount(text, max_sane=max_sane, proximity_window=proximity_window, config=config)
 
 
-def detect_snipe(issue: dict, timeline_nodes: list[dict]) -> bool:
+_SNIPE_PHRASES: frozenset[str] = frozenset(
+    {
+        # Original 3
+        "bounty paid",
+        "reward sent",
+        "bounty claimed",
+        # Payment completion
+        "payout complete",
+        "payment sent",
+        "payment complete",
+        "payment processed",
+        "reward delivered",
+        "funds sent",
+        "funds transferred",
+        "tokens sent",
+        "tokens transferred",
+        # Claim/assignment
+        "i am working on this",
+        "i'm working on this",
+        "taking this",
+        "claiming this",
+        "assigned to me",
+        "already claimed",
+        "pr submitted",
+        "pr merged",
+        "fix merged",
+        "patch merged",
+        # Resolution
+        "marked as resolved",
+        "marked resolved",
+        "closing as completed",
+        "closing as fixed",
+        "this has been fixed",
+        "this is fixed",
+        "resolved in",
+        "fixed in",
+    }
+)
+
+
+def detect_snipe(issue: dict | list[dict], timeline_nodes: list[dict] | None = None) -> bool:
     """Return ``True`` if the timeline shows the bounty has been claimed.
 
     Checks for claim-completion language (e.g. "bounty paid", "reward
     sent") in comment bodies.  A ``True`` result hard-disqualifies the
     issue regardless of mode.
     """
-    if str(issue.get("state", "")).lower() == "closed":
+    if timeline_nodes is None:
+        timeline_nodes = issue if isinstance(issue, list) else []
+        issue_obj: dict = {}
+    else:
+        issue_obj = issue if isinstance(issue, dict) else {}
+
+    if str(issue_obj.get("state", "")).lower() == "closed":
         return True
 
     for node in timeline_nodes:

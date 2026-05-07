@@ -82,7 +82,7 @@ def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool
 
     # Star threshold
     stars = repo_data.get("stargazerCount", 0)
-    min_stars = getattr(config, "min_repo_stars", config.min_stars)
+    min_stars = max(getattr(config, "min_repo_stars", 0), getattr(config, "min_stars", 0))
     if stars < min_stars:
         log.debug("Skipping low-star repo (%d stars): %s", stars, full_name)
         return False
@@ -256,13 +256,12 @@ async def _enrich_issue(
 
     # Title-level bounty signal requirement
     title = (issue.get("title") or "").lower()
-    TITLE_REQUIRED_SIGNALS = frozenset({
-        "bounty", "reward", "grant", "prize", "paid", "payment",
-        "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"
-    })
-    amount_in_title = any(c.isdigit() for c in title) and ("$" in title or any(
-        tok in title for tok in ("usdc", "eth", "xtm", "matic", "sol", "bnb")
-    ))
+    TITLE_REQUIRED_SIGNALS = frozenset(
+        {"bounty", "reward", "grant", "prize", "paid", "payment", "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"}
+    )
+    amount_in_title = any(c.isdigit() for c in title) and (
+        "$" in title or any(tok in title for tok in ("usdc", "eth", "xtm", "matic", "sol", "bnb"))
+    )
     has_title_signal = any(kw in title for kw in TITLE_REQUIRED_SIGNALS) or amount_in_title
 
     if not has_title_signal:

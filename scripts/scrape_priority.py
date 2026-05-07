@@ -7,7 +7,9 @@ Usage:
     python scripts/scrape_priority.py
     python scripts/scrape_priority.py --max-issues 50 --dry-run
 """
+
 from __future__ import annotations
+
 import argparse
 import json
 import subprocess
@@ -45,23 +47,27 @@ def main() -> None:
         print(f"  [{prog['repo']}] {prog.get('typical_range', '?')} {prog['currency']}")
         print(f"  Query: {query}")
         if args.dry_run:
-            print(f"  [DRY RUN — skipping]\n")
+            print("  [DRY RUN — skipping]\n")
             continue
 
         cmd = [
-            sys.executable, "-m", "github_bounty_scraper",
-            "--max-issues", str(args.max_issues),
+            sys.executable,
+            "-m",
+            "github_bounty_scraper",
+            "--max-issues",
+            str(args.max_issues),
             "scrape",
-            "--query", query,
+            "--query",
+            query,
         ]
-        print(f"  Running...", flush=True)
+        print("  Running...", flush=True)
         result = subprocess.run(cmd, capture_output=False, text=True)
         if result.returncode != 0:
             print(f"  WARNING: scrape returned exit code {result.returncode}")
         print()
 
     print("Priority scrape complete.")
-    print("Run: venv/Scripts/python.exe scripts/rescore_all.py --model models/bounty_model_manual_v1.pkl --blend-ml 0.4")
+    print("Run: venv/Scripts/python.exe scripts/rescore_all.py --model bounty_model.pkl --blend-ml 0.4")
 
 
 if __name__ == "__main__":

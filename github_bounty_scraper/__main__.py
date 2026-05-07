@@ -22,6 +22,17 @@ import pathlib
 from .cli import parse_args  # noqa: E402
 from .core import run_pipeline  # noqa: E402
 
+PROD_MODEL_FEATURES = [
+    "vibe_score",
+    "positive_escrow_count",
+    "escrow_weight_sum",
+    "has_onchain_escrow",
+    "mentions_no_kyc",
+    "mentions_wallet_payout",
+    "merges_last_45d",
+    "is_closed",
+]
+
 
 def _verify_model_checksum(model_path: str, checksum_path: str) -> None:
     """Raise RuntimeError if the model file does not match its expected SHA256."""
@@ -51,16 +62,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
                 print("Run tools/train_bounty_model.py to generate a production-ready model.")
                 sys.exit(1)
 
-    prod_features = meta.get("features") or [
-        "vibe_score",
-        "positive_escrow_count",
-        "escrow_weight_sum",
-        "has_onchain_escrow",
-        "mentions_no_kyc",
-        "mentions_wallet_payout",
-        "merges_last_45d",
-        "is_closed",
-    ]
+    prod_features = meta.get("features") or PROD_MODEL_FEATURES
 
     from .db import get_recent_leads
 

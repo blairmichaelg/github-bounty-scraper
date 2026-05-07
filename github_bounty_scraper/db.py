@@ -134,6 +134,21 @@ async def init_db(conn: aiosqlite.Connection) -> None:
                 log.info("Migration v1: Purging %d zero-score ghost rows …", ghost_count)
                 await conn.execute("DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL")
         await conn.execute("PRAGMA user_version = 1")
+        _uv = 1
+
+    if _uv < 2:
+        await conn.execute(
+            """
+            UPDATE issue_stats
+            SET lead_mode = 'vibe_only',
+                escrow_verified = 0,
+                score = 0
+            WHERE numeric_amount IS NULL
+              AND COALESCE(title, '') = ''
+              AND COALESCE(repo_name, '') = ''
+            """
+        )
+        await conn.execute("PRAGMA user_version = 2")
 
     await conn.commit()
 
@@ -409,6 +424,10 @@ async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
             WHERE (i.lead_mode NOT LIKE '%closed%' OR i.lead_mode IS NULL)
+              AND COALESCE(i.lead_mode, '') NOT IN ('vibe_only', 'incomplete')
+              AND COALESCE(i.title, '') != ''
+              AND COALESCE(i.repo_name, '') != ''
+              AND i.numeric_amount IS NOT NULL
         """
         params: list[Any] = []
         if mode != "all":
@@ -491,14 +510,19 @@ async def set_issue_vibe(
         )
         if cursor.rowcount == 0:
             # If not exists, insert a minimal row.
-            # Note: other fields (title, etc) will be NULL until a proper scrape matches it.
+            # Mark it incomplete until a proper scrape enriches title/repo/amount fields.
             await conn.execute(
                 """
-                INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_scored_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO issue_stats (
+                    issue_url, checked_at, lead_mode, escrow_verified, score,
+                    vibe_score, vibe_reason, vibe_scored_at,
+                    has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout
+                )
+                VALUES (?, ?, 'vibe_only', 0, 0, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     issue_url,
+                    checked_at,
                     vibe_score,
                     vibe_reason,
                     checked_at,
@@ -579,6 +603,7 @@ async def dump_dataset(
             FROM issue_stats i
             LEFT JOIN repo_stats r ON i.repo_name = r.repo_name
             WHERE i.issue_url IS NOT NULL
+              AND COALESCE(i.lead_mode, '') NOT IN ('vibe_only', 'incomplete')
             ORDER BY i.checked_at DESC
         """
         async with conn.execute(query) as cursor:

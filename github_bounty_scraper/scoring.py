@@ -137,13 +137,17 @@ def compute_score(
     scale = 1.0 / total_w
 
     raw_score = (
-        amount_norm * w_amt
-        + recency_norm * w_rec
-        + activity_norm * w_act
-        + escrow_norm * w_esc
-        + repo_reputation * w_repo
-        + vibe_norm * w_vibe
-    ) * scale * 100.0
+        (
+            amount_norm * w_amt
+            + recency_norm * w_rec
+            + activity_norm * w_act
+            + escrow_norm * w_esc
+            + repo_reputation * w_repo
+            + vibe_norm * w_vibe
+        )
+        * scale
+        * 100.0
+    )
 
     # Soft negative penalty.
     if has_negative_soft:
