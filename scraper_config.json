@@ -30,9 +30,10 @@
   "exploration_min_stars_raw": 100,
   "opportunistic_allow_no_escrow": true,
   "opportunistic_allow_dead_repos": false,
-  "gemini_model": "gemini-2.5-pro",
+  "gemini_model": "gemini-2.5-flash",
   "vibe_check_concurrency": 3,
-  "vibe_check_limit": 25,
+  "vibe_check_limit": 100,
+  "max_issues_per_run": 2000,
   "since": "2026-01-01",
   "languages": [],
   "search_queries": [
@@ -57,6 +58,14 @@
     "is:open is:issue \"superteam\" OR \"earn.superteam\"",
     "is:open is:issue label:\"help wanted\" \"bounty\" language:Solidity",
     "is:open is:issue label:bounty \"upwork\" OR \"direct payment\"",
-    "is:open is:issue \"reward\" \"merge\" language:JavaScript"
+    "is:open is:issue \"reward\" \"merge\" language:JavaScript",
+    "\"bounty\" label:bounty",
+    "\"reward\" \"pull request\" merged",
+    "\"$\" \"USDC\" open-source",
+    "\"gitcoin\" bounty open",
+    "\"hackerone\" reward",
+    "\"immunefi\" bug bounty",
+    "\"paid\" \"fix\" \"reward\" is:open",
+    "\"ossf\" \"reward\" security"
   ]
 }

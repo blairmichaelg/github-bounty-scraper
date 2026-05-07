@@ -79,75 +79,70 @@ def compute_score(
     if numeric_amount <= 0:
         amount_norm = 0.0
     else:
-        # Normalize against configurable cap so the scale adapts to different bounty distributions.
-        # log10(amount_norm_cap + 1) gives the denominator that maps the cap to 1.0.
-        _log_cap = math.log10(config.amount_norm_cap + 1)
+        # Boosted normalization cap to 50k for better differentiation
+        _norm_cap = 50000.0
+        _log_cap = math.log10(_norm_cap + 1)
         amount_norm = min(math.log10(numeric_amount + 1) / _log_cap, 1.0)
 
     # ── Recency component ──
-    recency_norm = 0.0  # unknown age → no recency bonus
+    recency_norm = 0.0
     if issue_updated_at:
         try:
             updated_dt = datetime.datetime.strptime(issue_updated_at, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=datetime.timezone.utc
             )
             days_ago = (datetime.datetime.now(datetime.timezone.utc) - updated_dt).total_seconds() / 86400.0
-            # Exponential decay, half-life = 30 days.
             recency_norm = math.exp(-math.log(2) * days_ago / 30.0)
         except ValueError:
             pass
 
     # ── Activity component ──
-    activity_norm = min(merges_last_45d, 20) / 20.0
+    # Cap activity at 30 merges for full bonus
+    activity_norm = min(merges_last_45d, 30) / 30.0
 
-    # 5+ distinct positive escrow signal hits = full escrow score.
-    # (Using the total signal list length as divisor made this nearly
-    # always ~0, since the config list has 25+ entries.)
+    # ── Escrow component ──
     count_norm = min(positive_escrow_count / 5.0, 1.0)
-
-    # New weighted norm; cap at a reasonable max (e.g. ESCROW_WEIGHT_CAP)
     weighted_norm = min(positive_escrow_weight_sum / ESCROW_WEIGHT_CAP, 1.0)
-
     escrow_norm = max(count_norm, weighted_norm)
 
-    # Payout quality bonuses — capped so escrow_norm stays <= 1.0
+    # High activity trust bonus: if a repo is very active, lack of explicit escrow signals is less suspicious.
+    if merges_last_45d >= 40:
+        escrow_norm = max(escrow_norm, 0.4)
+
     if has_onchain_escrow:
-        escrow_norm = min(escrow_norm + 0.20, 1.0)
+        escrow_norm = min(escrow_norm + 0.25, 1.0)
     if mentions_wallet_payout:
         escrow_norm = min(escrow_norm + 0.15, 1.0)
     if mentions_no_kyc:
         escrow_norm = min(escrow_norm + 0.10, 1.0)
 
-    # ── Vibe component — excluded from weighted average if not yet scored ──
+    # ── Vibe component ──
     if vibe_score_int is not None:
         vibe_norm = vibe_score_int / 100.0
-        effective_vibe_weight = config.weight_vibe
+        effective_vibe_weight = 0.20 # Optimized weight
     else:
         vibe_norm = 0.0
         effective_vibe_weight = 0.0
 
-    # Redistribute the vibe weight proportionally among the other components
-    # when vibe is unavailable
-    other_weight_total = (
-        config.weight_amount
-        + config.weight_recency
-        + config.weight_activity
-        + config.weight_escrow_strength
-        + config.w_repo_reputation
-    )
-    if effective_vibe_weight == 0.0 and other_weight_total > 0:
-        scale = 1.0 / other_weight_total  # normalize remaining weights to 1.0
-    else:
-        scale = 1.0
+    # Rebalanced weights for higher ceiling on large bounties
+    w_amt = 0.30
+    w_rec = 0.10
+    w_act = 0.15
+    w_esc = 0.15
+    w_repo = 0.10
+    w_vibe = effective_vibe_weight
+
+    other_weight_total = w_amt + w_rec + w_act + w_esc + w_repo
+    scale = 1.0 / (other_weight_total + w_vibe)
 
     raw_score = (
-        amount_norm * config.weight_amount * scale
-        + recency_norm * config.weight_recency * scale
-        + activity_norm * config.weight_activity * scale
-        + escrow_norm * config.weight_escrow_strength * scale
-        + repo_reputation * config.w_repo_reputation * scale
-        + vibe_norm * effective_vibe_weight
-    ) * 100.0
+        amount_norm * w_amt
+        + recency_norm * w_rec
+        + activity_norm * w_act
+        + escrow_norm * w_esc
+        + repo_reputation * w_repo
+        + vibe_norm * w_vibe
+    ) * scale * 100.0
 
     # Soft negative penalty.
     if has_negative_soft:

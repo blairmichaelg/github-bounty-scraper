@@ -21,25 +21,24 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test
 from sklearn.preprocessing import LabelEncoder
 
 
-# Features determined from scoring.py and CSV headers
+# Features aligned with github_bounty_scraper/__main__.py (leakage-free)
 FEATURE_COLUMNS = [
     "numeric_amount",
-    "vibe_score",
     "merges_last_45d",
     "total_escrows_seen",
     "rugs_seen",
-    "has_onchain_escrow",
-    "mentions_no_kyc",
-    "mentions_wallet_payout",
-    "positive_escrow_count",
-    "escrow_weight_sum",
     "is_dead_repo",
+    "escrow_verified",
 ]
 LABEL_COLUMN = "is_bounty"
 
 
 def load_and_validate(input_path: Path) -> pd.DataFrame:
     df = pd.read_csv(input_path)
+    # Map lead_mode to is_closed
+    if "is_closed" not in df.columns and "lead_mode" in df.columns:
+        df["is_closed"] = df["lead_mode"].apply(lambda x: 1 if "closed" in str(x).lower() else 0)
+    
     missing = [c for c in FEATURE_COLUMNS + [LABEL_COLUMN] if c not in df.columns]
     if missing:
         print(f"ERROR: Missing columns in dataset: {missing}", file=sys.stderr)
