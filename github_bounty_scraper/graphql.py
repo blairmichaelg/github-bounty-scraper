@@ -17,10 +17,13 @@ log = get_logger()
 
 GRAPHQL_URL = "https://api.github.com/graphql"
 
+
 class _SecretStr(str):
     """A str subclass that masks its value in repr/str to prevent log leakage."""
+
     def __repr__(self) -> str:
         return "'***'"
+
     def __str__(self) -> str:
         return "***"
 
@@ -43,9 +46,7 @@ class TokenBucket:
                 now = time.monotonic()
                 elapsed = now - self.timestamp
                 self.timestamp = now
-                self.tokens = min(
-                    self.capacity, self.tokens + elapsed * self.fill_rate
-                )
+                self.tokens = min(self.capacity, self.tokens + elapsed * self.fill_rate)
                 if self.tokens >= tokens:
                     self.tokens -= tokens
                     return
@@ -77,11 +78,9 @@ async def fetch_graphql(
 
     for attempt in range(retries):
         try:
-            async with session.post(
-                GRAPHQL_URL, json=payload, headers=headers
-            ) as resp:
+            async with session.post(GRAPHQL_URL, json=payload, headers=headers) as resp:
                 if resp.status in (403, 429):
-                    wait_t = 5 * (2 ** attempt)
+                    wait_t = 5 * (2**attempt)
                     log.warning("GraphQL rate limit hit — sleeping %ds …", wait_t)
                     await asyncio.sleep(wait_t)
                     continue
@@ -216,14 +215,9 @@ async def run_graphql_audit(
     all_prs = list(pr_info.get("nodes", []))
 
     # Cutoff: PRs older than 45 days are outside the activity window.
-    forty_five_ago_dt = (
-        datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)
-    )
+    forty_five_ago_dt = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)
 
-    while (
-        page_info.get("hasNextPage")
-        and len(all_prs) < pr_cap
-    ):
+    while page_info.get("hasNextPage") and len(all_prs) < pr_cap:
         # Early-stop: PRs are ordered by MERGED_AT DESC, so once the
         # last PR on a page is older than the 45-day window, all
         # subsequent pages will also be older — safe to stop.
@@ -232,9 +226,9 @@ async def run_graphql_audit(
             merged_at_raw = last_pr.get("mergedAt", "")
             if merged_at_raw:
                 try:
-                    merged_dt = datetime.datetime.strptime(
-                        merged_at_raw, "%Y-%m-%dT%H:%M:%SZ"
-                    ).replace(tzinfo=datetime.timezone.utc)
+                    merged_dt = datetime.datetime.strptime(merged_at_raw, "%Y-%m-%dT%H:%M:%SZ").replace(
+                        tzinfo=datetime.timezone.utc
+                    )
                     if merged_dt < forty_five_ago_dt:
                         break
                 except ValueError:
@@ -245,7 +239,10 @@ async def run_graphql_audit(
             break
 
         page_data = await fetch_graphql(
-            session, bucket, token, _PR_PAGE_QUERY,
+            session,
+            bucket,
+            token,
+            _PR_PAGE_QUERY,
             {"owner": owner, "name": repo, "after": cursor},
         )
         if not page_data or not page_data.get("repository"):
@@ -271,7 +268,8 @@ async def run_graphql_audit(
         seen_dates = set()
         merged_comments = []
         for c in (first_c or []) + (last_c or []):
-            if not c: continue
+            if not c:
+                continue
             date = c.get("createdAt")
             if date not in seen_dates:
                 seen_dates.add(date)
@@ -290,7 +288,10 @@ async def run_graphql_audit(
                 break
 
             tl_data = await fetch_graphql(
-                session, bucket, token, _TIMELINE_PAGE_QUERY,
+                session,
+                bucket,
+                token,
+                _TIMELINE_PAGE_QUERY,
                 {"owner": owner, "name": repo, "issue": issue_number, "after": tl_cursor, "tl_page_size": tl_page_size},
             )
             if not tl_data or not tl_data.get("repository"):

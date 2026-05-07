@@ -39,9 +39,10 @@ SYMBOL_TO_ID: dict[str, str] = {
     "roxn": "roxonn",
 }
 
+
 async def refresh_prices(symbols: list[str]) -> None:
     """Fetch live prices for the given symbols from CoinGecko.
-    
+
     Updates _PRICE_CACHE on success. Never raises.
     """
     id_list: list[str] = [SYMBOL_TO_ID[s.lower()] for s in symbols if s.lower() in SYMBOL_TO_ID]
@@ -49,10 +50,7 @@ async def refresh_prices(symbols: list[str]) -> None:
         return
 
     url = "https://api.coingecko.com/api/v3/simple/price"
-    params: dict[str, str] = {
-        "ids": ",".join(id_list),
-        "vs_currencies": "usd"
-    }
+    params: dict[str, str] = {"ids": ",".join(id_list), "vs_currencies": "usd"}
 
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
@@ -101,6 +99,7 @@ async def refresh_prices(symbols: list[str]) -> None:
                     log.warning("price cache: Coinbase fallback HTTP %d — using static fallbacks", resp.status)
     except Exception as exc:
         log.warning("price cache: Coinbase fallback failed (%s) — using static fallbacks", exc)
+
 
 def get_usd_price(symbol: str) -> float:
     """Return the cached or fallback USD price for a symbol."""

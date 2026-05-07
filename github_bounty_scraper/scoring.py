@@ -76,23 +76,22 @@ def compute_score(
     # Score = (W_amt * AmountNorm + W_rec * RecencyNorm + W_act * ActivityNorm + W_esc * EscrowNorm) * 100
     # where all Norm values are [0, 1] and Weights sum to 1.0.
 
-    # ── Amount component ──
     if numeric_amount <= 0:
         amount_norm = 0.0
     else:
-        # log10(100_001) ≈ 5.0 → max normalised value = 1.0
-        amount_norm = min(math.log10(numeric_amount + 1) / 5.0, 1.0)
+        # Normalize against configurable cap so the scale adapts to different bounty distributions.
+        # log10(amount_norm_cap + 1) gives the denominator that maps the cap to 1.0.
+        _log_cap = math.log10(config.amount_norm_cap + 1)
+        amount_norm = min(math.log10(numeric_amount + 1) / _log_cap, 1.0)
 
     # ── Recency component ──
     recency_norm = 0.0  # unknown age → no recency bonus
     if issue_updated_at:
         try:
-            updated_dt = datetime.datetime.strptime(
-                issue_updated_at, "%Y-%m-%dT%H:%M:%SZ"
-            ).replace(tzinfo=datetime.timezone.utc)
-            days_ago = (
-                datetime.datetime.now(datetime.timezone.utc) - updated_dt
-            ).total_seconds() / 86400.0
+            updated_dt = datetime.datetime.strptime(issue_updated_at, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=datetime.timezone.utc
+            )
+            days_ago = (datetime.datetime.now(datetime.timezone.utc) - updated_dt).total_seconds() / 86400.0
             # Exponential decay, half-life = 30 days.
             recency_norm = math.exp(-math.log(2) * days_ago / 30.0)
         except ValueError:
@@ -142,12 +141,12 @@ def compute_score(
         scale = 1.0
 
     raw_score = (
-        amount_norm    * config.weight_amount            * scale
-        + recency_norm * config.weight_recency           * scale
-        + activity_norm * config.weight_activity         * scale
-        + escrow_norm  * config.weight_escrow_strength   * scale
-        + repo_reputation * config.w_repo_reputation     * scale
-        + vibe_norm    * effective_vibe_weight
+        amount_norm * config.weight_amount * scale
+        + recency_norm * config.weight_recency * scale
+        + activity_norm * config.weight_activity * scale
+        + escrow_norm * config.weight_escrow_strength * scale
+        + repo_reputation * config.w_repo_reputation * scale
+        + vibe_norm * effective_vibe_weight
     ) * 100.0
 
     # Soft negative penalty.

@@ -23,7 +23,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     main_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable DEBUG-level logging.",
     )
@@ -57,16 +58,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Only consider issues updated on or after this date (default: 90 days ago, %(default)s).",
     )
     parser.add_argument(
-        "--auto-refresh",
-        action="store_true",
-        default=False,
-        help="Skip scrape if newest lead is < --refresh-days old."
+        "--auto-refresh", action="store_true", default=False, help="Skip scrape if newest lead is < --refresh-days old."
     )
     parser.add_argument(
-        "--refresh-days",
-        type=int,
-        default=3,
-        help="Age threshold in days for --auto-refresh. Default: 3."
+        "--refresh-days", type=int, default=3, help="Age threshold in days for --auto-refresh. Default: 3."
     )
     parser.add_argument(
         "--max-issues",
@@ -157,7 +152,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── Inspect Leads Command ──
     inspect_parser = subparsers.add_parser("inspect-leads", help="Inspect recently saved leads")
-    inspect_parser.add_argument("--mode", choices=["strict", "opportunistic", "all"], default="strict", help="Filter by lead mode")
+    inspect_parser.add_argument(
+        "--mode", choices=["strict", "opportunistic", "all"], default="strict", help="Filter by lead mode"
+    )
     inspect_parser.add_argument("--limit", type=int, default=20, help="Number of leads to show")
     inspect_parser.add_argument(
         "--db-path",
@@ -207,21 +204,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # ── Dump Dataset Command ──
-    dump_parser = subparsers.add_parser(
-        "dump-dataset",
-        help="Export issue and repo stats to CSV for fine-tuning."
+    dump_parser = subparsers.add_parser("dump-dataset", help="Export issue and repo stats to CSV for fine-tuning.")
+    dump_parser.add_argument(
+        "--db-path", type=str, default="bounty_stats.db", help="Path to the SQLite DB (default: bounty_stats.db)"
     )
     dump_parser.add_argument(
-        "--db-path",
-        type=str,
-        default="bounty_stats.db",
-        help="Path to the SQLite DB (default: bounty_stats.db)"
-    )
-    dump_parser.add_argument(
-        "--out",
-        type=str,
-        required=True,
-        help="Path to the output CSV file (e.g. bounty_dataset.csv)"
+        "--out", type=str, required=True, help="Path to the output CSV file (e.g. bounty_dataset.csv)"
     )
     dump_parser.add_argument(
         "--raw-file",

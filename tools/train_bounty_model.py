@@ -10,6 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 
 TRAIN_FILE = "bounty_dataset_train.csv"
 
+
 def train_and_eval():
     if not os.path.exists(TRAIN_FILE):
         print(f"Error: {TRAIN_FILE} not found.")
@@ -18,32 +19,41 @@ def train_and_eval():
     df = pd.read_csv(TRAIN_FILE)
 
     # Filter only labeled rows for training
-    df = df[df['is_bounty'].notnull()].copy()
-    df['is_bounty'] = df['is_bounty'].astype(int)
+    df = df[df["is_bounty"].notnull()].copy()
+    df["is_bounty"] = df["is_bounty"].astype(int)
 
     # Feature Engineering
-    df['log_amount'] = np.log10(df['numeric_amount'].clip(lower=0) + 1)
-    df['vibe_score'] = pd.to_numeric(df['vibe_score'], errors='coerce').fillna(0)
-    df['merges_last_45d'] = pd.to_numeric(df['merges_last_45d'], errors='coerce').fillna(0)
-    df['positive_escrow_count'] = pd.to_numeric(df['positive_escrow_count'], errors='coerce').fillna(0)
-    df['escrow_weight_sum'] = pd.to_numeric(df['escrow_weight_sum'], errors='coerce').fillna(0)
+    df["log_amount"] = np.log10(df["numeric_amount"].clip(lower=0) + 1)
+    df["vibe_score"] = pd.to_numeric(df["vibe_score"], errors="coerce").fillna(0)
+    df["merges_last_45d"] = pd.to_numeric(df["merges_last_45d"], errors="coerce").fillna(0)
+    df["positive_escrow_count"] = pd.to_numeric(df["positive_escrow_count"], errors="coerce").fillna(0)
+    df["escrow_weight_sum"] = pd.to_numeric(df["escrow_weight_sum"], errors="coerce").fillna(0)
 
     # Strategy 1 — Amount-blind label
-    df['is_bounty_v2'] = (
-        (df['vibe_score'] >= 55) & (df['positive_escrow_count'] >= 1)
-    ).astype(int)
-    print(f"v2 label: {df['is_bounty_v2'].sum()} pos / {(df['is_bounty_v2']==0).sum()} neg")
+    df["is_bounty_v2"] = ((df["vibe_score"] >= 55) & (df["positive_escrow_count"] >= 1)).astype(int)
+    print(f"v2 label: {df['is_bounty_v2'].sum()} pos / {(df['is_bounty_v2'] == 0).sum()} neg")
 
     features_leaky = [
-        'log_amount', 'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
-        'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
-        'merges_last_45d', 'is_closed'
+        "log_amount",
+        "vibe_score",
+        "positive_escrow_count",
+        "escrow_weight_sum",
+        "has_onchain_escrow",
+        "mentions_no_kyc",
+        "mentions_wallet_payout",
+        "merges_last_45d",
+        "is_closed",
     ]
 
     features_clean = [
-        'vibe_score', 'positive_escrow_count', 'escrow_weight_sum',
-        'has_onchain_escrow', 'mentions_no_kyc', 'mentions_wallet_payout',
-        'merges_last_45d', 'is_closed'
+        "vibe_score",
+        "positive_escrow_count",
+        "escrow_weight_sum",
+        "has_onchain_escrow",
+        "mentions_no_kyc",
+        "mentions_wallet_payout",
+        "merges_last_45d",
+        "is_closed",
     ]
 
     def evaluate_model(feats, name, y):
@@ -64,7 +74,7 @@ def train_and_eval():
         precisions, recalls, thresholds = precision_recall_curve(y, all_probs)
         f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-9)
         best_idx = np.argmax(f1_scores)
-        best_threshold = float(thresholds[min(best_idx, len(thresholds)-1)])
+        best_threshold = float(thresholds[min(best_idx, len(thresholds) - 1)])
         max_f1 = float(f1_scores[best_idx])
         avg_auc = np.mean(cv_aucs)
 
@@ -83,10 +93,10 @@ def train_and_eval():
 
         return avg_auc, max_f1, best_threshold, importances, final_model
 
-    y_orig = df['is_bounty']
+    y_orig = df["is_bounty"]
     auc_a, f1_a, thr_a, imp_a, model_a = evaluate_model(features_leaky, "MODEL A (Leaky)", y_orig)
     auc_c, f1_c, thr_c, imp_c, model_c = evaluate_model(features_clean, "MODEL C (No-Leakage)", y_orig)
-    auc_d, f1_d, thr_d, imp_d, model_d = evaluate_model(features_leaky, "MODEL D (Vibe-labels)", df['is_bounty_v2'])
+    auc_d, f1_d, thr_d, imp_d, model_d = evaluate_model(features_leaky, "MODEL D (Vibe-labels)", df["is_bounty_v2"])
 
     print("\n=== MODEL COMPARISON ===")
     print(f"Model A (leaky):       AUC={auc_a:.4f}  F1={f1_a:.4f}  (DO NOT USE)")
@@ -125,7 +135,7 @@ def train_and_eval():
         "f1_score": prod_f1,
         "roc_auc": prod_auc,
         "features": prod_features,
-        "importances": prod_imp
+        "importances": prod_imp,
     }
 
     joblib.dump(prod_model, "bounty_model.pkl")
@@ -134,6 +144,7 @@ def train_and_eval():
     with open("best_threshold.json", "w") as f:
         json.dump(results, f, indent=2)
     print("Saved best_threshold.json")
+
 
 if __name__ == "__main__":
     train_and_eval()

@@ -53,12 +53,8 @@ def write_output(
     suppress_console = config.output_format == "json"
     write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
 
-    md_path = (
-        f"{config.output_file}.md" if config.output_file else config.output_md_file
-    )
-    json_path = (
-        f"{config.output_file}.json" if config.output_file else config.output_json_file
-    )
+    md_path = f"{config.output_file}.md" if config.output_file else config.output_md_file
+    json_path = f"{config.output_file}.json" if config.output_file else config.output_json_file
 
     if config.output_format == "markdown":
         write_markdown_output(verified, unknown, elapsed, md_path)
@@ -91,9 +87,7 @@ def write_text_output(
             if lead.get("Currency") and lead["Currency"] != "USD":
                 print(f"Currency: {lead['Currency']}")
             print(f"Repo    : {lead['Repo']}")
-            safe_title = (
-                str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
-            )
+            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
             print(f"Title   : {safe_title} {lead['Labels']}")
             print(f"Link    : {lead['Link']}")
             # Payout-preference tags
@@ -116,9 +110,7 @@ def write_text_output(
             print(f"Score   : {lead.get('Score', 'N/A')}")
             print(f"Amount  : {lead['Amount']}")
             print(f"Repo    : {lead['Repo']}")
-            safe_title = (
-                str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
-            )
+            safe_title = str(lead["Title"]).encode("ascii", "ignore").decode("ascii")
             print(f"Title   : {safe_title} {lead['Labels']}")
             print(f"Link    : {lead['Link']}")
             tags = []
@@ -142,10 +134,7 @@ def write_markdown_output(
     elapsed: float,
     path: str,
 ) -> None:
-    now_str = (
-        datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        + " UTC"
-    )
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
     lines = [
         "# GitHub Bounty Scraper — Results\n",
         f"**Generated:** {now_str}  ",
@@ -157,12 +146,8 @@ def write_markdown_output(
 
     if verified:
         lines.append("## Verified Bounty Leads\n")
-        lines.append(
-            "| Score | Amount | Currency | Repo | Title | Labels | Payout | Link |"
-        )
-        lines.append(
-            "|-------|--------|----------|------|-------|--------|--------|------|"
-        )
+        lines.append("| Score | Amount | Currency | Repo | Title | Labels | Payout | Link |")
+        lines.append("|-------|--------|----------|------|-------|--------|--------|------|")
         for lead in verified:
             score = lead.get("Score", 0.0)
             prev = lead.get("PrevScore")
@@ -193,12 +178,8 @@ def write_markdown_output(
 
     if unknown:
         lines.append("## Unknown / Custom Token Leads\n")
-        lines.append(
-            "| Score | Amount | Repo | Title | Labels | Payout | Link |"
-        )
-        lines.append(
-            "|-------|--------|------|-------|--------|--------|------|"
-        )
+        lines.append("| Score | Amount | Repo | Title | Labels | Payout | Link |")
+        lines.append("|-------|--------|------|-------|--------|--------|------|")
         for lead in unknown:
             badges = []
             if lead.get("HasOnchainEscrow"):
@@ -221,8 +202,7 @@ def write_markdown_output(
 
     lines.append("---\n")
     lines.append(
-        "> **Disclaimer:** This tool is for discovery only. "
-        "Always verify bounty legitimacy before investing time.\n"
+        "> **Disclaimer:** This tool is for discovery only. Always verify bounty legitimacy before investing time.\n"
     )
 
     with open(path, "w", encoding="utf-8") as fh:
@@ -238,9 +218,7 @@ def write_json_output(
 ) -> None:
     """Write all leads to a JSON file with key fields."""
     output = {
-        "generated_at": (
-            datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
-        ),
+        "generated_at": (datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"),
         "pipeline_time_seconds": round(elapsed, 2),
         "total_leads": len(leads),
         "leads": [

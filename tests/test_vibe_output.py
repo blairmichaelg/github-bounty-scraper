@@ -14,7 +14,7 @@ def test_markdown_vibe_arrows(tmp_path):
             "Repo": "owner/repo",
             "Title": "Increased Score",
             "Labels": "[]",
-            "Link": "https://github.com/..."
+            "Link": "https://github.com/...",
         },
         {
             "Score": 60.0,
@@ -24,7 +24,7 @@ def test_markdown_vibe_arrows(tmp_path):
             "Repo": "owner/repo2",
             "Title": "Decreased Score",
             "Labels": "[]",
-            "Link": "https://github.com/..."
+            "Link": "https://github.com/...",
         },
         {
             "Score": 50.0,
@@ -34,8 +34,8 @@ def test_markdown_vibe_arrows(tmp_path):
             "Repo": "owner/repo3",
             "Title": "New Score",
             "Labels": "[]",
-            "Link": "https://github.com/..."
-        }
+            "Link": "https://github.com/...",
+        },
     ]
 
     write_markdown_output(verified, [], 1.0, str(output_file))

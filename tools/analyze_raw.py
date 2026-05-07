@@ -4,6 +4,7 @@ import sys
 
 RAW_FILE = "exploration_raw.jsonl"
 
+
 def main():
     if not os.path.exists(RAW_FILE):
         print(f"No raw candidate file yet ({RAW_FILE} not found).")
@@ -41,6 +42,7 @@ def main():
         title = c.get("title", "").strip()
         url = c.get("url", "")
         print(f"- {title}\n  {url}")
+
 
 if __name__ == "__main__":
     main()

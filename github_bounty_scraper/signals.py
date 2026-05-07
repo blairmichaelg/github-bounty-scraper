@@ -75,9 +75,7 @@ def _parse_gh_ts(raw: str | None) -> datetime.datetime | None:
     if not raw:
         return None
     try:
-        return datetime.datetime.strptime(
-            raw, "%Y-%m-%dT%H:%M:%SZ"
-        ).replace(tzinfo=datetime.timezone.utc)
+        return datetime.datetime.strptime(raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     except ValueError:
         return None
 
@@ -159,10 +157,9 @@ def compute_soft_signals(
     issue_author = (issue.get("author", {}) or issue.get("user", {}) or {}).get("login", "").lower()
 
     body_lower = body.lower()
-    all_text = body_lower
-    for c in comments:
-        all_text += "\n" + c.get("body", "").lower()
-    all_text = ((issue.get("title") or "") + " " + all_text).lower()
+    title_lower = (issue.get("title") or "").lower()
+    comment_parts = [c.get("body", "").lower() for c in comments]
+    all_text = title_lower + " " + body_lower + "\n" + "\n".join(comment_parts)
 
     if issue_author in [a.lower() for a in blocked_authors]:
         result.is_blocked = True
@@ -206,12 +203,9 @@ def compute_soft_signals(
 
     # Explicit global bonuses to escrow_weight_sum (guarded against double-count)
     _vault_in_hits = any(
-        any(k in s for k in ["vault", "safe multisig", "gnosis safe", "multisig"])
-        for s in escrow_hits
+        any(k in s for k in ["vault", "safe multisig", "gnosis safe", "multisig"]) for s in escrow_hits
     )
-    if not _vault_in_hits and any(
-        k in all_text for k in ["vault", "safe multisig", "gnosis safe"]
-    ):
+    if not _vault_in_hits and any(k in all_text for k in ["vault", "safe multisig", "gnosis safe"]):
         result.escrow_weight_sum += 0.5
 
     _no_kyc_in_hits = any("no kyc" in s for s in escrow_hits)
@@ -235,11 +229,7 @@ def compute_soft_signals(
         result.mentions_wallet_payout = True
 
     result.has_onchain_escrow = any(
-        any(k in s for k in [
-            "vault", "escrow", "multisig", "gnosis", "hats",
-            "immunefi", "safe"
-        ])
-        for s in escrow_hits
+        any(k in s for k in ["vault", "escrow", "multisig", "gnosis", "hats", "immunefi", "safe"]) for s in escrow_hits
     )
 
     hw_re = signals.get("hardware_dependency_phrases_re")
@@ -248,14 +238,14 @@ def compute_soft_signals(
 
     # ── Lane status (True = lane is blocked by an active claim) ──
     result.lane_blocked = _is_lane_blocked(
-        comments, signals, active_signal_max_age_days,
+        comments,
+        signals,
+        active_signal_max_age_days,
         labels_nodes=labels_nodes,
     )
 
     # ── Ghost squatter (True = fresh non-stale assignee exists) ──
-    result.ghost_squatter = _check_ghost_squatter(
-        issue, comments, timeline_nodes, signals, allow_assigned_if_stale
-    )
+    result.ghost_squatter = _check_ghost_squatter(issue, comments, timeline_nodes, signals, allow_assigned_if_stale)
 
     # Soft ceiling: prevents runaway scores on richly-tagged issues.
     result.escrow_weight_sum = min(result.escrow_weight_sum, ESCROW_WEIGHT_CAP)
@@ -325,9 +315,7 @@ def _is_lane_blocked(
                     if max_active_ts is None or candidate > max_active_ts:
                         max_active_ts = candidate
 
-    if max_active_ts is not None and (
-        max_stale_ts is None or max_active_ts > max_stale_ts
-    ):
+    if max_active_ts is not None and (max_stale_ts is None or max_active_ts > max_stale_ts):
         # Age cap: if the active claim is too old, treat as stale.
         age_days = (now - max_active_ts).days
         if age_days > active_signal_max_age_days:

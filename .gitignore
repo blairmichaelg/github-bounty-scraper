@@ -27,10 +27,11 @@ env/
 .DS_Store
 Thumbs.db
 
-# Project runtime artifacts
+# Model and data files — use Git LFS or GitHub Releases instead
+*.pkl
 *.csv
-!training_data.csv
-!bounty_dataset.csv
+
+# Project runtime artifacts
 exploration_raw.jsonl
 bounty_stats.db
 output.md
@@ -60,14 +61,16 @@ section*.py
 vibe_test.log
 
 # Scraper run outputs — never commit these
+exploration_raw.jsonl
 results_*.md
 results_*.json
+results*.json
 sweep_*.json
 *.db
 *.db-shm
 *.db-wal
-*.pkl
-results*.json
 leads_to_label.txt
 vibe_retry.txt
-task.md
+
+# SHA256 sidecar files (regenerated at runtime)
+*.sha256

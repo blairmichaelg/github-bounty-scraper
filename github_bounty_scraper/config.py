@@ -15,16 +15,25 @@ from typing import Any
 from dotenv import load_dotenv
 
 # Ensure .env variables are loaded.
-load_dotenv()
-
 from .log import get_logger
+
+load_dotenv()
 
 # ─── Defaults ────────────────────────────────────────────────────────
 DEFAULT_CONFIG_FILE = "scraper_config.json"
 DEFAULT_SIGNALS_FILE = "signals_config.json"
 
 CRYPTO_KEYWORDS = [
-    "USDC", "ETH", "SOL", "OP", "ARB", "MATIC", "DAI", "WETH", "STRK", "ROXN",
+    "USDC",
+    "ETH",
+    "SOL",
+    "OP",
+    "ARB",
+    "MATIC",
+    "DAI",
+    "WETH",
+    "STRK",
+    "ROXN",
 ]
 
 # Stablecoins treated as 1:1 USD
@@ -87,6 +96,8 @@ class ScraperConfig:
     min_bounty_amount: float = 25.0
     """Override minimum bounty amount threshold (strict).  Default: 25.0."""
 
+    amount_norm_cap: float = 100_000.0  # USD cap for amount normalization log scale
+
     max_sane_amount: float = 1e7
     """Upper sanity bound for bounty amounts (default: $10M)."""
 
@@ -97,7 +108,7 @@ class ScraperConfig:
     cache_ttl_dead: int = 259200  # 3 days  (merges=0)
     """Cache TTL for dead repos.  Default: 3 days."""
 
-    cache_ttl_low: int = 43200    # 12 hours (merges 1-2)
+    cache_ttl_low: int = 43200  # 12 hours (merges 1-2)
     """Cache TTL for low-activity repos.  Default: 12 hours."""
 
     cache_ttl_active: int = 7200  # 2 hours  (merges >= 3)
@@ -233,7 +244,11 @@ class ScraperConfig:
     vibe_check_limit: int = 10
     limit: int = 0
     concurrency: int = 5
-    raw_file: str = 'exploration_raw.jsonl'
+    raw_file: str = "exploration_raw.jsonl"
+    raw_candidates_file: str = field(
+        default_factory=lambda: os.environ.get("RAW_CANDIDATES_FILE", "exploration_raw.jsonl")
+    )
+
     def __post_init__(self) -> None:
         weight_total = (
             self.weight_amount
@@ -247,9 +262,9 @@ class ScraperConfig:
             raise ValueError("Scoring weights must sum to a positive number.")
         if abs(weight_total - 1.0) > 0.001:
             import warnings
+
             warnings.warn(
-                f"Scoring weights sum to {weight_total:.4f}, not 1.0. "
-                "Normalizing automatically.",
+                f"Scoring weights sum to {weight_total:.4f}, not 1.0. Normalizing automatically.",
                 stacklevel=2,
             )
             # Normalize in-place
@@ -262,6 +277,7 @@ class ScraperConfig:
 
     def __repr__(self) -> str:
         import dataclasses
+
         d = {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
         if d.get("github_token"):
             d["github_token"] = "ghp_***REDACTED***"
@@ -283,7 +299,10 @@ def resolve_github_token() -> str:
         return token
     try:
         res = subprocess.run(
-            ["gh", "auth", "token"], capture_output=True, text=True, check=True,
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            check=True,
             timeout=5,
         )
         token = res.stdout.strip()
@@ -304,6 +323,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
     Falls back to empty lists if the file is missing or malformed.
     """
     import re
+
     log = get_logger()
     defaults: dict[str, Any] = {
         "positive_escrow": [],
@@ -330,10 +350,16 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
 
     # Compile regexes for text matching optimization
     regex_keys = [
-        "positive_escrow", "negative_filters", "stale_signals",
-        "active_signals", "active_label_signals", "soft_negative_signals",
-        "no_kyc_phrases", "wallet_payout_phrases",
-        "hardware_dependency_phrases", "completion_signals"
+        "positive_escrow",
+        "negative_filters",
+        "stale_signals",
+        "active_signals",
+        "active_label_signals",
+        "soft_negative_signals",
+        "no_kyc_phrases",
+        "wallet_payout_phrases",
+        "hardware_dependency_phrases",
+        "completion_signals",
     ]
     for key in regex_keys:
         if defaults[key]:
@@ -376,12 +402,14 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     data = load_config_file(config_path)
 
     from dataclasses import fields as dc_fields
+
     known = {f.name for f in dc_fields(ScraperConfig)}
 
     if data:
         unknown = set(data) - known
         if unknown:
             import warnings
+
             warnings.warn(
                 f"scraper_config.json contains unrecognized keys (will be ignored): {unknown}",
                 stacklevel=2,
@@ -401,6 +429,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     if cli_unknown:
         import warnings
+
         warnings.warn(
             f"CLI provided unrecognized keys (will be ignored): {cli_unknown}",
             stacklevel=2,
@@ -424,15 +453,14 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     # 5. Validate scoring weights.
     log = get_logger()
     total_weight = (
-        cfg.weight_amount + cfg.weight_recency
-        + cfg.weight_activity + cfg.weight_escrow_strength
-        + cfg.w_repo_reputation + cfg.weight_vibe
+        cfg.weight_amount
+        + cfg.weight_recency
+        + cfg.weight_activity
+        + cfg.weight_escrow_strength
+        + cfg.w_repo_reputation
+        + cfg.weight_vibe
     )
     if not (0.99 <= total_weight <= 1.01):
-        log.warning(
-            "Scoring weights sum to %.3f (expected 1.0). "
-            "Scores may fall outside [0, 100].", total_weight
-        )
+        log.warning("Scoring weights sum to %.3f (expected 1.0). Scores may fall outside [0, 100].", total_weight)
 
     return cfg
-

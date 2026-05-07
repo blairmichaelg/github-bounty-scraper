@@ -5,12 +5,11 @@ Database initialisation, schema migration, and caching helpers.
 from __future__ import annotations
 
 import csv
+import re
 import time
 from typing import Any
 
 import aiosqlite
-
-import re
 
 from .log import get_logger
 
@@ -26,9 +25,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
     """
     await conn.execute("PRAGMA journal_mode=WAL;")
     await conn.execute("PRAGMA synchronous=NORMAL;")
-    await conn.execute("PRAGMA cache_size = -32000;")   # 32MB page cache
+    await conn.execute("PRAGMA cache_size = -32000;")  # 32MB page cache
     await conn.execute("PRAGMA mmap_size = 268435456;")  # 256MB memory-mapped I/O
-    await conn.execute("PRAGMA temp_store = MEMORY;")    # Temp tables in RAM
+    await conn.execute("PRAGMA temp_store = MEMORY;")  # Temp tables in RAM
 
     # ── repo_stats ──
     await conn.execute("""
@@ -110,18 +109,9 @@ async def init_db(conn: aiosqlite.Connection) -> None:
             pass  # Column already exists.
 
     # ── Indexes ──
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at "
-        "ON issue_stats(checked_at DESC);"
-    )
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode "
-        "ON issue_stats(lead_mode);"
-    )
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_issue_stats_score "
-        "ON issue_stats(score DESC);"
-    )
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at ON issue_stats(checked_at DESC);")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode);")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC);")
 
     # ── checked_cache ──
     await conn.execute("""
@@ -137,16 +127,12 @@ async def init_db(conn: aiosqlite.Connection) -> None:
         _uv_row = await _uv_cur.fetchone()
         _uv = _uv_row[0] if _uv_row else 0
     if _uv < 1:
-        async with conn.execute(
-            "SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
-        ) as c2:
+        async with conn.execute("SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL") as c2:
             ghost_row = await c2.fetchone()
             ghost_count = ghost_row[0] if ghost_row else 0
             if ghost_count > 0:
                 log.info("Migration v1: Purging %d zero-score ghost rows …", ghost_count)
-                await conn.execute(
-                    "DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL"
-                )
+                await conn.execute("DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL")
         await conn.execute("PRAGMA user_version = 1")
 
     await conn.commit()
@@ -186,9 +172,17 @@ async def upsert_repo_stats(
             max_bounty_amount  = MAX(repo_stats.max_bounty_amount, excluded.max_bounty_amount)
         """,
         (
-            repo_name, now, last_merged_pr_at, merges_last_45d,
-            escrow_increment, rug_increment, snipe_increment,
-            now, now, escrow_increment, bounty_amount,
+            repo_name,
+            now,
+            last_merged_pr_at,
+            merges_last_45d,
+            escrow_increment,
+            rug_increment,
+            snipe_increment,
+            now,
+            now,
+            escrow_increment,
+            bounty_amount,
         ),
     )
 
@@ -220,8 +214,6 @@ async def upsert_issue_stats(
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
-
-
 
     await conn.execute(
         """
@@ -259,12 +251,30 @@ async def upsert_issue_stats(
             vibe_scored_at     = COALESCE(excluded.vibe_scored_at, issue_stats.vibe_scored_at)
         """,
         (
-            issue_url, now, scraped_amount,
-            now, now, last_updated_at,
-            numeric_amount, raw_display_amount, currency_symbol, score,
-            title, repo_name, lead_mode, int(escrow_verified), int(is_dead_repo), score,
-            int(has_onchain_escrow), int(mentions_no_kyc), int(mentions_wallet_payout),
-            positive_escrow_count, escrow_weight_sum, vibe_score, vibe_reason, vibe_scored_at
+            issue_url,
+            now,
+            scraped_amount,
+            now,
+            now,
+            last_updated_at,
+            numeric_amount,
+            raw_display_amount,
+            currency_symbol,
+            score,
+            title,
+            repo_name,
+            lead_mode,
+            int(escrow_verified),
+            int(is_dead_repo),
+            score,
+            int(has_onchain_escrow),
+            int(mentions_no_kyc),
+            int(mentions_wallet_payout),
+            positive_escrow_count,
+            escrow_weight_sum,
+            vibe_score,
+            vibe_reason,
+            vibe_scored_at,
         ),
     )
 
@@ -373,9 +383,7 @@ class BatchCommitter:
             self._count = 0
 
 
-async def mark_issue_checked(
-    conn: aiosqlite.Connection, issue_url: str, checked_at: float
-) -> None:
+async def mark_issue_checked(conn: aiosqlite.Connection, issue_url: str, checked_at: float) -> None:
     """Insert or update a check timestamp in the tombstone cache."""
     await conn.execute(
         "INSERT OR REPLACE INTO checked_cache (issue_url, checked_at) VALUES (?, ?)",
@@ -385,15 +393,16 @@ async def mark_issue_checked(
 
 async def get_recent_leads(db_path: str, mode: str, limit: int) -> list[dict]:
     import os
+
     if not os.path.exists(db_path):
         return []
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row
         await init_db(conn)
         query = """
-            SELECT 
-                i.score, i.prev_score, i.numeric_amount, i.lead_mode, i.escrow_verified, i.is_dead_repo, 
-                i.repo_name, i.issue_url, i.vibe_score, i.has_onchain_escrow, 
+            SELECT
+                i.score, i.prev_score, i.numeric_amount, i.lead_mode, i.escrow_verified, i.is_dead_repo,
+                i.repo_name, i.issue_url, i.vibe_score, i.has_onchain_escrow,
                 i.mentions_wallet_payout, i.mentions_no_kyc,
                 i.positive_escrow_count, i.escrow_weight_sum,
                 r.merges_last_45d
@@ -434,9 +443,25 @@ async def set_issue_vibe(
 
         # We can use the globally compiled regexes or define local ones if lists differ.
         # Here we just use local fast regexes since lists differ slightly from global ones.
-        has_onchain_escrow = int(bool(re.search(r'on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract', reason_lower)))
-        mentions_no_kyc = int(bool(re.search(r'no kyc|without kyc|no identity|anonymous payout|pseudonymous payout', reason_lower)))
-        mentions_wallet_payout = int(bool(re.search(r'direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer', reason_lower)))
+        has_onchain_escrow = int(
+            bool(
+                re.search(
+                    r"on-chain escrow|vault|gnosis safe|multisig|hats vault|immunefi vault|escrowed|locked in contract",
+                    reason_lower,
+                )
+            )
+        )
+        mentions_no_kyc = int(
+            bool(re.search(r"no kyc|without kyc|no identity|anonymous payout|pseudonymous payout", reason_lower))
+        )
+        mentions_wallet_payout = int(
+            bool(
+                re.search(
+                    r"direct wallet payout|direct wallet|wallet payout|wallet address|crypto address|0x|payout in eth|payout in usdc|payout in tokens|token transfer",
+                    reason_lower,
+                )
+            )
+        )
 
         # Try to update existing row first, incorporating bonuses
         cursor = await conn.execute(
@@ -452,7 +477,16 @@ async def set_issue_vibe(
                 mentions_wallet_payout = MAX(mentions_wallet_payout, ?)
             WHERE issue_url = ?
             """,
-            (vibe_score, vibe_reason, checked_at, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout, issue_url),
+            (
+                vibe_score,
+                vibe_reason,
+                checked_at,
+                checked_at,
+                has_onchain_escrow,
+                mentions_no_kyc,
+                mentions_wallet_payout,
+                issue_url,
+            ),
         )
         if cursor.rowcount == 0:
             # If not exists, insert a minimal row.
@@ -462,7 +496,15 @@ async def set_issue_vibe(
                 INSERT INTO issue_stats (issue_url, vibe_score, vibe_reason, vibe_scored_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (issue_url, vibe_score, vibe_reason, checked_at, has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout),
+                (
+                    issue_url,
+                    vibe_score,
+                    vibe_reason,
+                    checked_at,
+                    has_onchain_escrow,
+                    mentions_no_kyc,
+                    mentions_wallet_payout,
+                ),
             )
 
         await conn.commit()
@@ -470,7 +512,7 @@ async def set_issue_vibe(
 
 async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> float:
     """Return a reputation score in [0, 1] based on historical escrows vs rugs.
-    
+
     If no history is available, returns 0.5 (neutral prior).
     """
     async with conn.execute(
@@ -489,7 +531,9 @@ async def get_repo_reputation(conn: aiosqlite.Connection, repo_name: str) -> flo
     return total_escrows / (total_escrows + rugs)
 
 
-async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0) -> None:
+async def dump_dataset(
+    db_path: str, out_path: str, raw_file: str = "exploration_raw.jsonl", label_threshold: float = 25.0
+) -> None:
     """Export scored issues to a CSV file for supervised fine-tuning.
 
     Calculates an 'is_bounty' label:
@@ -504,12 +548,15 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
     # Load bodies from exploration_raw.jsonl to enrich the dataset
     bodies = {}
     if os.path.exists(raw_file):
+
         def _read():
             with open(raw_file, "r", encoding="utf-8") as f:
                 return f.read().splitlines()
+
         lines = await asyncio.to_thread(_read)
         for line in lines:
-            if not line.strip(): continue
+            if not line.strip():
+                continue
             try:
                 obj = json.loads(line)
                 key = obj.get("issue_url") or obj.get("url") or ""
@@ -538,19 +585,31 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
 
         with open(out_path, "w", encoding="utf-8", newline="") as f:
             headers = [
-                "issue_url", "title", "body_snippet", "lead_mode", "numeric_amount",
-                "score", "prev_score", "escrow_verified", "is_dead_repo",
-                "checked_at", "vibe_score", "vibe_reason",
-                "merges_last_45d", "escrows_seen", "rugs_seen", "total_escrows_seen",
-                "has_onchain_escrow", "mentions_no_kyc", "mentions_wallet_payout",
-                "positive_escrow_count", "escrow_weight_sum",
-                "is_bounty"
+                "issue_url",
+                "title",
+                "body_snippet",
+                "lead_mode",
+                "numeric_amount",
+                "score",
+                "prev_score",
+                "escrow_verified",
+                "is_dead_repo",
+                "checked_at",
+                "vibe_score",
+                "vibe_reason",
+                "merges_last_45d",
+                "escrows_seen",
+                "rugs_seen",
+                "total_escrows_seen",
+                "has_onchain_escrow",
+                "mentions_no_kyc",
+                "mentions_wallet_payout",
+                "positive_escrow_count",
+                "escrow_weight_sum",
+                "is_bounty",
             ]
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
-
-            # Phrase lists for derived features (already global regexes ESCROW_RE, NO_KYC_RE, WALLET_PAYOUT_RE)
-            # The lists below were redundant.
 
             if not rows:
                 log.info("dump-dataset: no rows found, wrote headers to %s", out_path)
@@ -570,19 +629,17 @@ async def dump_dataset(db_path: str, out_path: str, raw_file: str = "exploration
                     else:
                         d[h] = ""
 
-
-
                 # Labeling rule from Section 5
                 amount = float(d.get("numeric_amount") or 0.0)
                 vibe_raw = d.get("vibe_score")
                 vibe = int(float(str(vibe_raw))) if vibe_raw not in (None, "") else None
                 mode = str(d.get("lead_mode") or "").lower()
 
-                is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) or \
-                              ("closed" in mode and vibe is not None and vibe >= 50)
+                is_positive = (amount >= label_threshold and vibe is not None and vibe >= 50) or (
+                    "closed" in mode and vibe is not None and vibe >= 50
+                )
 
-                is_negative = (vibe is not None and vibe < 30) or \
-                              (amount == 0 and vibe is None)
+                is_negative = (vibe is not None and vibe < 30) or (amount == 0 and vibe is None)
 
                 if is_positive:
                     d["is_bounty"] = 1

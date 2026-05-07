@@ -15,17 +15,27 @@ async def test_is_bounty_label_threshold(tmp_path):
     out_path = str(tmp_path / "dataset.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)")
-        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
+        await conn.execute(
+            "CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)"
+        )
+        await conn.execute(
+            "CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)"
+        )
 
         # Row 1: $40 bounty, no vibe. Ambiguous -> "".
-        await conn.execute("INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url1", 40.0, None))
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url1", 40.0, None)
+        )
 
         # Row 2: $60 bounty, vibe 70. Positive -> "1".
-        await conn.execute("INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url2", 60.0, 70))
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url2", 60.0, 70)
+        )
 
         # Row 3: $10 bounty, vibe 20. Negative -> "0".
-        await conn.execute("INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url3", 10.0, 20))
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)", ("url3", 10.0, 20)
+        )
 
         await conn.commit()
 
@@ -39,6 +49,7 @@ async def test_is_bounty_label_threshold(tmp_path):
     assert rows["url2"]["is_bounty"] == "1"
     assert rows["url3"]["is_bounty"] == "0"
 
+
 def test_label_threshold_default_matches_config():
     """Assert that the default label_threshold in dump_dataset() equals ScraperConfig().min_bounty_amount."""
     import inspect
@@ -50,6 +61,7 @@ def test_label_threshold_default_matches_config():
 
     assert default_val == ScraperConfig().min_bounty_amount
 
+
 @pytest.mark.asyncio
 async def test_closed_issue_labeled_positive(tmp_path):
     """Insert a closed row with vibe 70. Assert is_bounty == '1'."""
@@ -57,10 +69,16 @@ async def test_closed_issue_labeled_positive(tmp_path):
     out_path = str(tmp_path / "dataset_closed_pos.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)")
-        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
-        await conn.execute("INSERT INTO issue_stats (issue_url, lead_mode, numeric_amount, vibe_score) VALUES (?, ?, ?, ?)",
-                           ("url_closed", "closed_historical", 5.0, 70))
+        await conn.execute(
+            "CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)"
+        )
+        await conn.execute(
+            "CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)"
+        )
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, lead_mode, numeric_amount, vibe_score) VALUES (?, ?, ?, ?)",
+            ("url_closed", "closed_historical", 5.0, 70),
+        )
         await conn.commit()
 
     await dump_dataset(db_path, out_path, label_threshold=25.0)
@@ -71,6 +89,7 @@ async def test_closed_issue_labeled_positive(tmp_path):
 
     assert row["is_bounty"] == "1"
 
+
 @pytest.mark.asyncio
 async def test_high_amount_is_positive_even_if_unscored(tmp_path):
     """Insert a row: numeric_amount=500.0, but unscored.
@@ -80,10 +99,16 @@ async def test_high_amount_is_positive_even_if_unscored(tmp_path):
     out_path = str(tmp_path / "dataset_high.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)")
-        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
-        await conn.execute("INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
-                           ("url_high", 500.0, None))
+        await conn.execute(
+            "CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)"
+        )
+        await conn.execute(
+            "CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)"
+        )
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
+            ("url_high", 500.0, None),
+        )
         await conn.commit()
 
     await dump_dataset(db_path, out_path, label_threshold=25.0)
@@ -94,6 +119,7 @@ async def test_high_amount_is_positive_even_if_unscored(tmp_path):
 
     assert row["is_bounty"] == ""
 
+
 @pytest.mark.asyncio
 async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
     """Insert a row: numeric_amount=0.0, no vibe. Assert is_bounty == '0'."""
@@ -101,10 +127,16 @@ async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
     out_path = str(tmp_path / "dataset_sentinel.csv")
 
     async with aiosqlite.connect(db_path) as conn:
-        await conn.execute("CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)")
-        await conn.execute("CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)")
-        await conn.execute("INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
-                           ("url_sentinel", 0.0, None))
+        await conn.execute(
+            "CREATE TABLE issue_stats (issue_url TEXT PRIMARY KEY, title TEXT, lead_mode TEXT, numeric_amount REAL, score REAL, prev_score REAL, escrow_verified INTEGER, is_dead_repo INTEGER, checked_at REAL, vibe_score INTEGER, vibe_reason TEXT, repo_name TEXT, has_onchain_escrow INTEGER, mentions_no_kyc INTEGER, mentions_wallet_payout INTEGER, positive_escrow_count INTEGER, escrow_weight_sum REAL)"
+        )
+        await conn.execute(
+            "CREATE TABLE repo_stats (repo_name TEXT PRIMARY KEY, merges_last_45d INTEGER, escrows_seen INTEGER, rugs_seen INTEGER, total_escrows_seen INTEGER)"
+        )
+        await conn.execute(
+            "INSERT INTO issue_stats (issue_url, numeric_amount, vibe_score) VALUES (?, ?, ?)",
+            ("url_sentinel", 0.0, None),
+        )
         await conn.commit()
 
     await dump_dataset(db_path, out_path, label_threshold=25.0)
@@ -114,6 +146,8 @@ async def test_sentinel_amount_requires_escrow_to_be_positive(tmp_path):
         row = next(reader)
 
     assert row["is_bounty"] == "0"
+
+
 async def test_set_issue_vibe_signal_extraction(tmp_path):
     """Verify that set_issue_vibe extracts boolean signals from the reason text."""
     db_path = str(tmp_path / "test_vibe_signals.db")
@@ -149,11 +183,13 @@ async def test_set_issue_vibe_signal_extraction(tmp_path):
             assert rows["url3"]["mentions_no_kyc"] == 0
             assert rows["url3"]["mentions_wallet_payout"] == 0
 
+
 def test_model_feature_count_matches_json():
     import json
 
     import joblib
     import pytest
+
     if not os.path.exists("bounty_model.pkl"):
         pytest.skip("bounty_model.pkl not found")
     model = joblib.load("bounty_model.pkl")
@@ -161,8 +197,6 @@ def test_model_feature_count_matches_json():
         meta = json.load(f)
     saved_feats = meta.get("features", [])
     assert model.n_features_in_ == len(saved_feats), (
-        f"Model expects {model.n_features_in_} features "
-        f"but best_threshold.json lists {len(saved_feats)}: {saved_feats}"
+        f"Model expects {model.n_features_in_} features but best_threshold.json lists {len(saved_feats)}: {saved_feats}"
     )
-    assert meta.get("leakage_free") is True, \
-        "best_threshold.json missing leakage_free:true"
+    assert meta.get("leakage_free") is True, "best_threshold.json missing leakage_free:true"

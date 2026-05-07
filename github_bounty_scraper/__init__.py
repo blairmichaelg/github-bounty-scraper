@@ -2,6 +2,7 @@
 github-bounty-scraper: discover and score funded crypto bounties
 on GitHub Issues.
 """
+
 from .config import ScraperConfig, build_config
 from .scoring import compute_score
 

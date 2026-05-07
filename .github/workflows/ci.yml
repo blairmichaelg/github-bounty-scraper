@@ -33,6 +33,6 @@ jobs:
         run: mypy github_bounty_scraper/
 
       - name: Run tests with coverage
-        run: pytest --cov=github_bounty_scraper --cov-report=term-missing --cov-fail-under=40
+        run: pytest --cov=github_bounty_scraper --cov-report=term-missing --cov-fail-under=60
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

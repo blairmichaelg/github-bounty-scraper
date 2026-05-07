@@ -51,11 +51,14 @@ SYSTEM_PROMPT = (
     "'REASON: [One brutal sentence including all applicable payout labels.]'"
 )
 
+
 def _make_sem(concurrency: int) -> asyncio.Semaphore:
     return asyncio.Semaphore(concurrency)
 
+
 def _gemini_endpoint(model: str) -> str:
     return f"{_GEMINI_BASE}/{model}:generateContent"
+
 
 async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
     """
@@ -85,6 +88,7 @@ async def iter_raw_candidates(raw_file: str) -> AsyncIterator[dict[str, Any]]:
             log.warning("Skipping malformed JSON line in %s", raw_file)
             continue
         yield obj
+
 
 async def call_gemini(
     session: aiohttp.ClientSession,
@@ -140,24 +144,24 @@ async def call_gemini(
     for attempt in range(MAX_ATTEMPTS):
         try:
             async with session.post(
-                _gemini_endpoint(model), params=params, json=payload,
-                timeout=aiohttp.ClientTimeout(total=30)
+                _gemini_endpoint(model), params=params, json=payload, timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 # Handle rate limits / transient errors with backoff
                 if resp.status == 429 or resp.status == 503:
                     if attempt < MAX_ATTEMPTS - 1:
-                        wait = 2 ** attempt
+                        wait = 2**attempt
                         log.warning(
                             "Gemini %d rate-limited — waiting %ds (attempt %d/%d)",
-                            resp.status, wait, attempt + 1, MAX_ATTEMPTS,
+                            resp.status,
+                            wait,
+                            attempt + 1,
+                            MAX_ATTEMPTS,
                         )
                         await asyncio.sleep(wait)
                         continue
                     else:
                         log.error("Gemini: exhausted retries after %d attempts", MAX_ATTEMPTS)
-                        raise aiohttp.ClientResponseError(
-                            resp.request_info, resp.history, status=resp.status
-                        )
+                        raise aiohttp.ClientResponseError(resp.request_info, resp.history, status=resp.status)
                 if resp.status != 200:
                     body = await resp.text()
                     log.error("Gemini error %d: %s", resp.status, body[:200])
@@ -167,8 +171,10 @@ async def call_gemini(
         except aiohttp.ClientError as exc:
             # Retry on transient client errors
             if attempt < MAX_ATTEMPTS - 1:
-                wait = 2 ** attempt
-                log.warning("Gemini client error on attempt %d/%d: %s — retrying in %ds", attempt + 1, MAX_ATTEMPTS, exc, wait)
+                wait = 2**attempt
+                log.warning(
+                    "Gemini client error on attempt %d/%d: %s — retrying in %ds", attempt + 1, MAX_ATTEMPTS, exc, wait
+                )
                 await asyncio.sleep(wait)
                 continue
             raise
@@ -186,6 +192,7 @@ async def call_gemini(
 
     score, reason = parse_vibe_output(raw_text)
     return score, reason
+
 
 def parse_vibe_output(raw_text: str) -> tuple[int, str]:
     """Parse SCORE and REASON from model output with regex fallbacks.
@@ -228,6 +235,7 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
 
     return score, reason
 
+
 async def run_vibe_check(
     raw_file: str,
     db_path: str,
@@ -252,17 +260,16 @@ async def run_vibe_check(
     # Resolve API key from GEMINI_API_KEY or GOOGLE_API_KEY
     api_key = os.environ.get(GEMINI_API_KEY_ENV) or os.environ.get(GOOGLE_API_KEY_ENV) or ""
     if not api_key:
-        raise RuntimeError(f"Gemini key not found. Set {GEMINI_API_KEY_ENV} or {GOOGLE_API_KEY_ENV} in .env or environment")
+        raise RuntimeError(
+            f"Gemini key not found. Set {GEMINI_API_KEY_ENV} or {GOOGLE_API_KEY_ENV} in .env or environment"
+        )
 
     sem = _make_sem(concurrency)
 
     import aiosqlite
 
     connector = aiohttp.TCPConnector(limit=10)
-    async with aiohttp.ClientSession(
-        connector=connector,
-        timeout=aiohttp.ClientTimeout(total=35)
-    ) as session:
+    async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session:
         count = 0
 
         async def _guarded_vibe(obj: dict[str, Any]) -> tuple[int, str, str]:
@@ -280,7 +287,9 @@ async def run_vibe_check(
             scored_urls = set()
             if os.path.exists(db_path):
                 async with aiosqlite.connect(db_path) as _conn:
-                    async with _conn.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0") as cur:
+                    async with _conn.execute(
+                        "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0"
+                    ) as cur:
                         async for r in cur:
                             scored_urls.add(r[0])
 
@@ -380,7 +389,3 @@ async def run_vibe_check(
             log.info("VIBE %3d for %s — %s", score, url, reason)
 
     log.info("Vibe-check complete. Scored %d candidates from %s", count, raw_file)
-
-
-
-

@@ -34,16 +34,16 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
         # Sensible built-in fallback if config has no queries.
         base_queries = [
             # Open — primary pipeline targets
-            'is:open is:issue label:bounty',
-            'is:open is:issue label:gitcoin',
+            "is:open is:issue label:bounty",
+            "is:open is:issue label:gitcoin",
             'is:open is:issue "bounty" "USDC" OR "DAI" OR "ETH"',
             'is:open is:issue "paid on merge" OR "reward on close"',
             'is:open is:issue "escrow" OR "escrow locked" OR "smart contract funded"',
             'is:open is:issue "gitcoin" OR "bounties network" OR "radicle"',
             'is:open is:issue "prize" OR "hackathon reward" OR "tip"',
             # Closed — verified historical positives (gold-standard training data)
-            'is:closed is:issue label:bounty',
-            'is:closed is:issue label:gitcoin',
+            "is:closed is:issue label:bounty",
+            "is:closed is:issue label:gitcoin",
             'is:closed is:issue "bounty" "USDC" OR "DAI" OR "ETH"',
             'is:closed is:issue "paid on merge" OR "reward on close"',
             'is:closed is:issue "escrow" "merged" OR "completed" OR "paid"',
@@ -67,7 +67,7 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     if config.languages:
         chunk_size = 3
         for i in range(0, len(config.languages), chunk_size):
-            chunk = config.languages[i:i+chunk_size]
+            chunk = config.languages[i : i + chunk_size]
             lang_chunks.append(" OR ".join(f"language:{lang}" for lang in chunk))
     else:
         lang_chunks = [""]
@@ -84,9 +84,9 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     max_eq = config.max_expanded_queries
     if len(expanded) > max_eq:
         log.warning(
-            "Query expansion produced %d queries (cap: %d). "
-            "Consider fewer base queries.",
-            len(expanded), max_eq,
+            "Query expansion produced %d queries (cap: %d). Consider fewer base queries.",
+            len(expanded),
+            max_eq,
         )
         expanded = expanded[:max_eq]
 
@@ -128,8 +128,7 @@ async def fetch_rest_search(
                 if resp.status in (403, 429):
                     retry_delays = [5, 10, 20, 40]
                     wait_t = retry_delays[attempt] if attempt < len(retry_delays) else 40
-                    log.warning("Rate limit — sleeping %ds (attempt %d/%d)…",
-                                wait_t, attempt + 1, retries + 1)
+                    log.warning("Rate limit — sleeping %ds (attempt %d/%d)…", wait_t, attempt + 1, retries + 1)
                     await asyncio.sleep(wait_t)
                     attempt += 1
                     continue
@@ -158,15 +157,17 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
     ``per_page`` results.
     """
     queries = build_search_queries(config)
-    log.info("Discovery: running %d search queries (~%d API calls max, %d min) …",
-             len(queries), len(queries) * config.max_pages_per_query, len(queries))
+    log.info(
+        "Discovery: running %d search queries (~%d API calls max, %d min) …",
+        len(queries),
+        len(queries) * config.max_pages_per_query,
+        len(queries),
+    )
 
     unique_urls: set[str] = set()
     per_page = 100
 
-    async with aiohttp.ClientSession(
-        timeout=aiohttp.ClientTimeout(total=30)
-    ) as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         for qi, query in enumerate(queries, 1):
             if config.max_issues_per_run and len(unique_urls) >= config.max_issues_per_run:
                 break
@@ -177,7 +178,11 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
                     break
 
                 items = await fetch_rest_search(
-                    session, config.github_token, query, page, per_page,
+                    session,
+                    config.github_token,
+                    query,
+                    page,
+                    per_page,
                     sort_by=config.sort_by,
                 )
 
@@ -191,7 +196,11 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
 
                 log.debug(
                     "  Query %d/%d page %d → %d items (%d new)",
-                    qi, len(queries), page, len(items), new_count,
+                    qi,
+                    len(queries),
+                    page,
+                    len(items),
+                    new_count,
                 )
 
                 await asyncio.sleep(config.search_delay_seconds / 2)

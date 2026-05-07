@@ -17,6 +17,7 @@ from .price_cache import get_usd_price
 
 # ─── Result container ────────────────────────────────────────────────
 
+
 @dataclass
 class BountyResult:
     """Parsed bounty amount with currency metadata."""
@@ -43,14 +44,24 @@ _BOUNTY_VALUE_RE = re.compile(
 
 # ─── Currency patterns ──────────────────────────────────────────────
 # Dollar amounts: $1,000  $500.50  $10,000.00
-_DOLLAR_RE = re.compile(
-    r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)"
-)
+_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)")
 
 # Crypto/Fiat amounts: 1000 USDC, 0.5 ETH, 10,000 USD
 _CRYPTO_SUFFIXES = (
-    "USDC", "USDT", "ETH", "SOL", "OP", "ARB", "MATIC",
-    "ROXN", "XDC", "DAI", "WETH", "STRK", "BUSD", "USD",
+    "USDC",
+    "USDT",
+    "ETH",
+    "SOL",
+    "OP",
+    "ARB",
+    "MATIC",
+    "ROXN",
+    "XDC",
+    "DAI",
+    "WETH",
+    "STRK",
+    "BUSD",
+    "USD",
 )
 _CRYPTO_RE = re.compile(
     r"(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)"
@@ -62,7 +73,7 @@ _CRYPTO_RE = re.compile(
 # Crypto keywords for the "Unknown / Custom Tokens" fallback.
 _CRYPTO_KEYWORD_SET = {s.upper() for s in _CRYPTO_SUFFIXES if s != "USD"}
 _CRYPTO_KEYWORD_RE = re.compile(
-    r'\b(' + '|'.join(re.escape(s) for s in _CRYPTO_KEYWORD_SET) + r')\b',
+    r"\b(" + "|".join(re.escape(s) for s in _CRYPTO_KEYWORD_SET) + r")\b",
     re.IGNORECASE,
 )
 
@@ -74,7 +85,7 @@ def _parse_number(s: str) -> float:
 
 def _proximity_score(text: str, match_start: int, window: int = 300) -> float:
     """Return a 0–1 score based on how close *match_start* is to a bounty keyword."""
-    region = text[max(0, match_start - window):match_start + window]
+    region = text[max(0, match_start - window) : match_start + window]
     hits = _BOUNTY_PROXIMITY_KEYWORDS.findall(region)
     if not hits:
         return 0.0
@@ -197,23 +208,29 @@ def extract_bounty_amount(
     return result
 
 
-_SNIPE_PHRASES = (
+_SNIPE_PHRASES: tuple[str, ...] = (
     "bounty paid",
     "reward sent",
     "bounty claimed",
     "payout complete",
     "payout sent",
     "payment sent",
+    "payment complete",
     "reward delivered",
-    "reward claimed",
     "reward paid",
-    "bounty fulfilled",
+    "bounty awarded",
     "prize awarded",
-    "grant disbursed",
-    "funds released",
+    "funds sent",
+    "funds transferred",
+    "transfer complete",
     "marked as resolved",
-    "closing as paid",
+    "issue resolved",
+    "fix merged",
+    "pr merged",
+    "already claimed",
+    "duplicate submission",
 )
+
 
 def detect_snipe(timeline_nodes: list[dict]) -> bool:
     """Return ``True`` if the timeline shows the bounty has been claimed.

@@ -11,6 +11,7 @@ from github_bounty_scraper.scoring import compute_score
 def config():
     return ScraperConfig()
 
+
 @pytest.mark.parametrize("seed", range(20))
 def test_score_ceiling_never_exceeded(config, seed):
     """Parametrize over 20 random combos of maxed inputs — assert score <= 100.0 every time."""
@@ -31,6 +32,7 @@ def test_score_ceiling_never_exceeded(config, seed):
     )
     assert score <= 100.0, f"Score {score} exceeded 100.0 with seed {seed}"
 
+
 def test_score_floor_never_negative(config):
     """Assert score >= 0.0 for all-zero inputs."""
     score = compute_score(
@@ -46,6 +48,7 @@ def test_score_floor_never_negative(config):
     )
     assert score >= 0.0
 
+
 def test_weight_sum_exactly_one(config):
     """Assert sum of all weight fields in ScraperConfig() == 1.0 (catches future drift immediately)."""
     total = (
@@ -58,9 +61,10 @@ def test_weight_sum_exactly_one(config):
     )
     assert abs(total - 1.0) < 1e-9
 
+
 def test_vibe_zero_and_none(config):
     """
-    Test that vibe_score_int=None redistributes weight (higher score) 
+    Test that vibe_score_int=None redistributes weight (higher score)
     while vibe_score_int=0 actively penalizes (lower score).
     """
     base_args = {
@@ -76,6 +80,7 @@ def test_vibe_zero_and_none(config):
     score_none = compute_score(vibe_score_int=None, **base_args)
     score_zero = compute_score(vibe_score_int=0, **base_args)
     assert score_none > score_zero
+
 
 def test_negative_soft_reduces_score(config):
     """has_negative_soft=True should produce a lower score than False, all else equal."""

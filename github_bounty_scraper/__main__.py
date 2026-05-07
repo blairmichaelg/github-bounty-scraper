@@ -33,6 +33,7 @@ def _verify_model_checksum(model_path: str, checksum_path: str) -> None:
             "The model file may be corrupted or tampered with."
         )
 
+
 async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
     import json
     import os
@@ -51,12 +52,18 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
                 sys.exit(1)
 
     prod_features = meta.get("features") or [
-        'vibe_score','positive_escrow_count','escrow_weight_sum',
-        'has_onchain_escrow','mentions_no_kyc','mentions_wallet_payout',
-        'merges_last_45d','is_closed'
+        "vibe_score",
+        "positive_escrow_count",
+        "escrow_weight_sum",
+        "has_onchain_escrow",
+        "mentions_no_kyc",
+        "mentions_wallet_payout",
+        "merges_last_45d",
+        "is_closed",
     ]
 
     from .db import get_recent_leads
+
     leads = await get_recent_leads(db_path, mode, limit)
     if not leads:
         print(f"No leads found for mode={mode} yet.")
@@ -75,20 +82,19 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         if model:
             try:
                 row = {}
-                row['log_amount']            = np.log10(max(0, float(L.get("numeric_amount") or 0)) + 1)
-                row['vibe_score']            = float(L.get("vibe_score") or 0)
-                row['positive_escrow_count'] = float(L.get("positive_escrow_count") or 0)
-                row['escrow_weight_sum']     = float(L.get("escrow_weight_sum") or 0.0)
-                row['has_onchain_escrow']    = int(L.get("has_onchain_escrow") or 0)
-                row['mentions_no_kyc']       = int(L.get("mentions_no_kyc") or 0)
-                row['mentions_wallet_payout']= int(L.get("mentions_wallet_payout") or 0)
-                row['merges_last_45d']       = float(L.get("merges_last_45d") or 0)
-                row['is_closed']             = 1 if 'closed' in str(L.get('lead_mode', '')).lower() else 0
+                row["log_amount"] = np.log10(max(0, float(L.get("numeric_amount") or 0)) + 1)
+                row["vibe_score"] = float(L.get("vibe_score") or 0)
+                row["positive_escrow_count"] = float(L.get("positive_escrow_count") or 0)
+                row["escrow_weight_sum"] = float(L.get("escrow_weight_sum") or 0.0)
+                row["has_onchain_escrow"] = int(L.get("has_onchain_escrow") or 0)
+                row["mentions_no_kyc"] = int(L.get("mentions_no_kyc") or 0)
+                row["mentions_wallet_payout"] = int(L.get("mentions_wallet_payout") or 0)
+                row["merges_last_45d"] = float(L.get("merges_last_45d") or 0)
+                row["is_closed"] = 1 if "closed" in str(L.get("lead_mode", "")).lower() else 0
 
                 feat_vec = np.array([[row[f] for f in prod_features]])
                 assert feat_vec.shape[1] == len(prod_features), (
-                    f"Feature mismatch: model expects {len(prod_features)} "
-                    f"features, got {feat_vec.shape[1]}"
+                    f"Feature mismatch: model expects {len(prod_features)} features, got {feat_vec.shape[1]}"
                 )
                 L["ml_prob"] = float(model.predict_proba(feat_vec)[0, 1])
             except Exception:
@@ -98,20 +104,22 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
 
     def _rank_key(b):
         return (
-            -b.get("ml_prob", 0),                # 1. ML score descending
-            -int(b.get("has_onchain_escrow", 0)), # 2. on-chain escrow first
-            -int(b.get("mentions_wallet_payout", 0)), # 3. direct wallet payout
-            -int(b.get("mentions_no_kyc", 0)),    # 4. no-KYC payout
-            -float(b.get("numeric_amount") or 0), # 5. larger amounts
+            -b.get("ml_prob", 0),  # 1. ML score descending
+            -int(b.get("has_onchain_escrow", 0)),  # 2. on-chain escrow first
+            -int(b.get("mentions_wallet_payout", 0)),  # 3. direct wallet payout
+            -int(b.get("mentions_no_kyc", 0)),  # 4. no-KYC payout
+            -float(b.get("numeric_amount") or 0),  # 5. larger amounts
         )
 
     leads.sort(key=_rank_key)
 
-    print(f"{'ML%':<5} | {'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'VIBE':<5} | {'REPO/NAME':<30} | URL")
+    print(
+        f"{'ML%':<5} | {'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'VIBE':<5} | {'REPO/NAME':<30} | URL"
+    )
     print("-" * 145)
     for L in leads:
-        ml_prob_str = f"{L.get('ml_prob', 0)*100:3.0f}%"
-        score_val = L['score']
+        ml_prob_str = f"{L.get('ml_prob', 0) * 100:3.0f}%"
+        score_val = L["score"]
         score_str = f"{score_val:.2f}"
 
         prev_val = L.get("prev_score")
@@ -129,21 +137,28 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         else:
             amt = f"${val:,.2f}"
 
-        mode_str = str(L.get('lead_mode', 'strict'))
+        mode_str = str(L.get("lead_mode", "strict"))
         vibe = str(L.get("vibe_score")) if L.get("vibe_score") is not None else "—"
-        repo = str(L.get('repo_name', ''))[:30]
-        url = str(L.get('issue_url', ''))
+        repo = str(L.get("repo_name", ""))[:30]
+        url = str(L.get("issue_url", ""))
 
-        print(f"{ml_prob_str:<5} | {score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {vibe:<5} | {repo:<30} | {url}")
+        print(
+            f"{ml_prob_str:<5} | {score_str:<7} | {delta_str:<6} | {amt:<12} | {mode_str:<14} | {vibe:<5} | {repo:<30} | {url}"
+        )
 
         # Task 3c: Add WHY tags
         why_parts = []
-        if L.get("has_onchain_escrow"):       why_parts.append("on-chain escrow")
-        if L.get("mentions_wallet_payout"):   why_parts.append("wallet payout")
-        if L.get("mentions_no_kyc"):          why_parts.append("no KYC")
+        if L.get("has_onchain_escrow"):
+            why_parts.append("on-chain escrow")
+        if L.get("mentions_wallet_payout"):
+            why_parts.append("wallet payout")
+        if L.get("mentions_no_kyc"):
+            why_parts.append("no KYC")
         vibe_val = L.get("vibe_score")
-        if vibe_val is not None and vibe_val >= 70:  why_parts.append(f"vibe={vibe_val}")
-        if val and val > 0:                   why_parts.append(f"${val:.0f}")
+        if vibe_val is not None and vibe_val >= 70:
+            why_parts.append(f"vibe={vibe_val}")
+        if val and val > 0:
+            why_parts.append(f"${val:.0f}")
 
         why = " · ".join(why_parts) if why_parts else "weak signals"
         print(f"  ↳ {why}")
@@ -152,16 +167,15 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
 def main() -> None:
     command, ns, config = parse_args()
     if command == "scrape":
-        if getattr(ns, 'auto_refresh', False):
+        if getattr(ns, "auto_refresh", False):
             import sqlite3
             import time
-            db_path = getattr(ns, 'db_path', 'bounty_stats.db')
-            refresh_days = getattr(ns, 'refresh_days', 3)
+
+            db_path = getattr(ns, "db_path", "bounty_stats.db")
+            refresh_days = getattr(ns, "refresh_days", 3)
             try:
                 conn = sqlite3.connect(db_path)
-                newest = conn.execute(
-                    'SELECT MAX(last_seen_at) FROM issue_stats'
-                ).fetchone()[0]
+                newest = conn.execute("SELECT MAX(last_seen_at) FROM issue_stats").fetchone()[0]
                 conn.close()
                 if newest and (time.time() - newest) < refresh_days * 86400:
                     age_h = (time.time() - newest) / 3600
@@ -189,6 +203,7 @@ def main() -> None:
         )
     elif command == "dump-dataset":
         from .db import dump_dataset
+
         asyncio.run(
             dump_dataset(
                 db_path=ns.db_path,
