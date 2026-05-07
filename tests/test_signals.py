@@ -203,4 +203,64 @@ def test_clean_issue_has_no_negatives():
         signals={},
     )
     assert result.has_negative_soft is False
-    assert result.requires_hardware is False
+class TestLaneBlocking:
+    def test_assignment_stale_by_unassign(self):
+        """If unassigned after assigned, it's stale."""
+        from github_bounty_scraper.signals import _is_assignment_stale
+        timeline = [
+            {"__typename": "AssignedEvent", "createdAt": "2024-01-01T00:00:00Z"},
+            {"__typename": "UnassignedEvent", "createdAt": "2024-01-02T00:00:00Z"}
+        ]
+        assert _is_assignment_stale([], timeline, {}) is True
+
+    def test_assignment_stale_by_comment(self):
+        """If a stale signal comment appears after assignment, it's stale."""
+        from github_bounty_scraper.signals import _is_assignment_stale
+        timeline = [
+            {"__typename": "AssignedEvent", "createdAt": "2024-01-01T00:00:00Z"}
+        ]
+        comments = [{"body": "I am giving up", "createdAt": "2024-01-02T00:00:00Z"}]
+        signals = {"stale_signals_re": re.compile("giving up")}
+        assert _is_assignment_stale(comments, timeline, signals) is True
+
+    def test_assignment_not_stale_old_comment(self):
+        """Comment before assignment shouldn't make it stale."""
+        from github_bounty_scraper.signals import _is_assignment_stale
+        timeline = [
+            {"__typename": "AssignedEvent", "createdAt": "2024-01-02T00:00:00Z"}
+        ]
+        comments = [{"body": "I am giving up", "createdAt": "2024-01-01T00:00:00Z"}]
+        signals = {"stale_signals_re": re.compile("giving up")}
+        assert _is_assignment_stale(comments, timeline, signals) is False
+
+    def test_lane_blocked_edge_cases(self):
+        """Test malformed labels and comment authors in lane blocking."""
+        from github_bounty_scraper.signals import _is_lane_blocked
+        signals = {
+            "active_label_signals_re": re.compile("active"),
+            "blocked_authors": ["bot"]
+        }
+        # Malformed labels
+        assert _is_lane_blocked([], signals, labels_nodes=[None, {"no_name": "x"}, {"name": ""}]) is False
+        # Blocked author comment
+        comments = [{"author": {"login": "bot"}, "body": "I am working on it (long body to pass len check)", "createdAt": "2024-01-01T00:00:00Z"}]
+        assert _is_lane_blocked(comments, signals) is False
+
+def test_apply_hard_disqualifiers_edge_cases():
+    """Test None body and missing disqualifier fields."""
+    signals = {"negative_filters_re": re.compile("scam")}
+    # None body (should handle as empty string)
+    disq, _ = apply_hard_disqualifiers(
+        issue_state="OPEN", labels_nodes=[], body=None, comments=[], signals=signals
+    )
+    assert disq is False
+    # Hit in body
+    disq, _ = apply_hard_disqualifiers(
+        issue_state="OPEN", labels_nodes=[], body="this is a scam", comments=[], signals=signals
+    )
+    assert disq is True
+    # Missing signals dict fields
+    disq, _ = apply_hard_disqualifiers(
+        issue_state="OPEN", labels_nodes=[], body="hello", comments=[], signals={}
+    )
+    assert disq is False

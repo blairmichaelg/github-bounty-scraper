@@ -15,11 +15,17 @@ def cfg():
 def mock_aiohttp_session():
     """Mock aiohttp.ClientSession with async context manager support."""
     session = MagicMock()
-    mock_response = AsyncMock()
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    
+    mock_response = MagicMock()
     mock_response.status = 200
+    mock_response.ok = True
     mock_response.json = AsyncMock(return_value={})
+    mock_response.text = AsyncMock(return_value="")
     mock_response.__aenter__ = AsyncMock(return_value=mock_response)
     mock_response.__aexit__ = AsyncMock(return_value=False)
+    
     session.post = MagicMock(return_value=mock_response)
     session.get = MagicMock(return_value=mock_response)
     return session

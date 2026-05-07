@@ -114,7 +114,7 @@ def apply_hard_disqualifiers(
 
     # Negative filters
     neg_signals_re = signals.get("negative_filters_re")
-    if neg_signals_re:
+    if neg_signals_re and body:
         body_lower = body.lower()
         if neg_signals_re.search(body_lower):
             return True, "negative filter in body"

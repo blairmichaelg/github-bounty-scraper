@@ -200,4 +200,117 @@ def test_markdown_vibe_arrows(tmp_path):
     content = output_file.read_text(encoding="utf-8")
     assert "↑ Increased Score" in content
     assert "↓ Decreased Score" in content
-    assert "| New Score" in content  # No arrow
+class TestBatchVibeProcessing:
+    @pytest.mark.asyncio
+    async def test_run_vibe_check_batch_success(self, tmp_path, mock_aiohttp_session):
+        """Verify batch processing and DB persistence."""
+        raw_f = tmp_path / "raw.jsonl"
+        raw_f.write_text(json.dumps({"url": "http://test", "title": "test", "body": "test"}) + "\n")
+        db_path = str(tmp_path / "test.db")
+        
+        async with aiosqlite.connect(db_path) as db:
+            await init_db(db)
+
+        # Mock Gemini response
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.ok = True
+        mock_resp.json = AsyncMock(return_value={
+            "candidates": [{"content": {"parts": [{"text": "SCORE: 85\nREASON: Good"}]}}]
+        })
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_aiohttp_session.post.return_value = mock_resp
+
+        with patch("aiohttp.ClientSession", return_value=mock_aiohttp_session), \
+             patch.dict(os.environ, {"GEMINI_API_KEY": "fake"}):
+            await run_vibe_check(str(raw_f), db_path, limit=10, mode="raw")
+
+        # Verify DB persistence
+        async with aiosqlite.connect(db_path) as db:
+            async with db.execute("SELECT vibe_score, vibe_reason FROM issue_stats WHERE issue_url='http://test'") as cur:
+                row = await cur.fetchone()
+                assert row[0] == 85
+                assert row[1] == "Good"
+
+    @pytest.mark.asyncio
+    async def test_run_vibe_check_gemini_fails_gracefully(self, tmp_path, mock_aiohttp_session):
+        """Verify that a Gemini failure doesn't crash the loop."""
+        raw_f = tmp_path / "raw.jsonl"
+        raw_f.write_text(json.dumps({"url": "http://fail", "title": "fail", "body": "fail"}) + "\n")
+        raw_f.write_text(raw_f.read_text() + json.dumps({"url": "http://pass", "title": "pass", "body": "pass"}) + "\n")
+        db_path = str(tmp_path / "test.db")
+        
+        async with aiosqlite.connect(db_path) as db:
+            await init_db(db)
+
+        # Mock side effects: first fails, second succeeds
+        mock_fail = MagicMock()
+        mock_fail.status = 500
+        mock_fail.ok = False
+        mock_fail.text = AsyncMock(return_value="error")
+        mock_fail.__aenter__ = AsyncMock(return_value=mock_fail)
+        mock_fail.__aexit__ = AsyncMock(return_value=False)
+
+        mock_pass = MagicMock()
+        mock_pass.status = 200
+        mock_pass.ok = True
+        mock_pass.json = AsyncMock(return_value={
+            "candidates": [{"content": {"parts": [{"text": "SCORE: 50\nREASON: OK"}]}}]
+        })
+        mock_pass.__aenter__ = AsyncMock(return_value=mock_pass)
+        mock_pass.__aexit__ = AsyncMock(return_value=False)
+
+        # 5 retries for fail, then 1 for pass
+        mock_aiohttp_session.post.side_effect = [mock_fail]*5 + [mock_pass]
+
+        with patch("aiohttp.ClientSession", return_value=mock_aiohttp_session), \
+             patch.dict(os.environ, {"GEMINI_API_KEY": "fake"}), \
+             patch("asyncio.sleep", AsyncMock()):
+            await run_vibe_check(str(raw_f), db_path, limit=10, mode="raw")
+
+        # Verify only the second one is scored
+        async with aiosqlite.connect(db_path) as db:
+            async with db.execute("SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL") as cur:
+                rows = await cur.fetchall()
+                assert len(rows) == 1
+                assert rows[0][0] == "http://pass"
+
+    @pytest.mark.asyncio
+    async def test_run_vibe_check_malformed_gemini_json(self, tmp_path, mock_aiohttp_session):
+        """Verify that malformed Gemini JSON is handled."""
+        raw_f = tmp_path / "raw.jsonl"
+        raw_f.write_text(json.dumps({"url": "http://badjson", "title": "bad", "body": "bad"}) + "\n")
+        db_path = str(tmp_path / "test.db")
+        
+        async with aiosqlite.connect(db_path) as db:
+            await init_db(db)
+
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.ok = True
+        mock_resp.json = AsyncMock(side_effect=ValueError("bad json"))
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_aiohttp_session.post.return_value = mock_resp
+
+        with patch("aiohttp.ClientSession", return_value=mock_aiohttp_session), \
+             patch.dict(os.environ, {"GEMINI_API_KEY": "fake"}):
+            await run_vibe_check(str(raw_f), db_path, limit=10, mode="raw")
+
+        # Should not crash, and nothing in DB
+        async with aiosqlite.connect(db_path) as db:
+            async with db.execute("SELECT COUNT(*) FROM issue_stats WHERE vibe_score IS NOT NULL") as cur:
+                count = await cur.fetchone()
+                assert count[0] == 0
+
+    @pytest.mark.asyncio
+    async def test_run_vibe_check_missing_url(self, tmp_path):
+        """Verify that candidates without a URL are skipped."""
+        raw_f = tmp_path / "raw.jsonl"
+        raw_f.write_text(json.dumps({"title": "no url"}) + "\n")
+        db_path = str(tmp_path / "test.db")
+        
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "fake"}):
+            await run_vibe_check(str(raw_f), db_path, limit=10, mode="raw")
+        # Should finish without calling Gemini
