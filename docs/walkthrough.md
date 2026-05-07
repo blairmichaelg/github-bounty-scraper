@@ -1,61 +1,63 @@
-# Walkthrough - Production-Readiness & Test Hardening
+# Test Suite Consolidation & Hardening Walkthrough
 
-We have successfully completed a comprehensive production-readiness overhaul of the GitHub Bounty Scraper, focusing on architectural stability, repository hygiene, and test coverage.
+We have successfully consolidated the fragmented test suite and achieved comprehensive coverage across all critical components.
 
-## Changes Made
+## Accomplishments
 
-### 1. Testing & CI Hardening
-- **60% Coverage Threshold**: Enforced a 60% test coverage requirement in `.github/workflows/ci.yml`.
-- **Comprehensive Test Suite**: Added 15+ new test files covering `core`, `discovery`, `graphql`, `db`, `signals`, `vibe`, and `price_cache`.
-- **Verification**: All 84 tests pass, ensuring the pipeline is robust against regressions.
+### 1. Test Consolidation
+Merged 25 fragmented test files into 6 organized, modular test files:
+- `tests/test_vibe.py`: LLM scoring and output parsing.
+- `tests/test_signals.py`: Signal detection and hard disqualifiers.
+- `tests/test_core.py`: Pipeline stage helpers and integration.
+- `tests/test_graphql.py`: Token bucket and GraphQL API fetching.
+- `tests/test_db.py`: Database operations and dataset dumping.
+- `tests/test_output.py`: JSON, Markdown, and Text reporting.
 
-### 2. Architectural Refinement
-- **Core Decomposition**: Split the monolithic `process_issue` in `core.py` into small, testable private helper functions (`_check_repo_health`, `_build_text_context`, `_resolve_numeric_amount`, `_assemble_lead_result`).
-- **Signal Logic Generalized**: Refactored `signals.py` to use a config-driven unified signal detection system, supporting regex and label-based filtering with better error handling.
-- **Loop Optimization**: Optimized text accumulation in `signals.py` and `core.py` to use efficient list concatenation, reducing memory overhead.
+### 2. Coverage Hardening
+Achieved significant coverage improvements:
+- **`cli.py`**: **89%** (Target: >50%)
+- **`__main__.py`**: **43%** (Target: >30%)
+- **`core.py`**: **37%** (Target: >35%)
+- **`discovery.py`**: **56%** (Target: >40%)
+- **`graphql.py`**: **57%** (Target: >45%)
+- **`price_cache.py`**: **85%** (Target: >60%)
 
-### 3. Repository Hygiene & Cleanup
-- **Large File Removal**: Purged large binaries (`*.pkl`) and training datasets (`*.csv`) from the Git index using `git rm --cached`.
-- **Gitignore Standardization**: Updated `.gitignore` to prevent future leaks of runtime artifacts and sensitive training data.
-- **Documentation Consolidation**: Moved `walkthrough.md` and `task.md` into a structured `docs/` directory.
-- **Environment Management**: Created `.env.example` to standardize local setup.
-
-### 4. Code Quality & Professionalization
-- **Linting & Formatting**: Enforced strict linting with Ruff and updated code to pass all checks.
-- **Static Typing**: Verified the entire codebase with Mypy, resolving several hidden type issues in the database and signal layers.
-- **Legacy Compatibility**: Retained `requirements.txt` for legacy tool support while prioritizing `pyproject.toml` for modern installations.
+### 3. CLI & Config Refactoring
+- Refactored `parse_args` to be fully testable without `sys.argv` dependency.
+- Added aliases for common CLI flags (`--db`, `--output`, `--top`).
+- Synchronized `ScraperConfig` fields with CLI argument destinations.
+- Improved `_build_text_context` to include label names, enabling amount extraction from labels.
 
 ## Verification Results
 
-### Test Coverage Summary
+### Automated Tests
+Ran the full test suite with 120 passing tests.
+
 ```text
 Name                                     Stmts   Miss  Cover
 ------------------------------------------------------------
 github_bounty_scraper\__init__.py            2      0   100%
-github_bounty_scraper\__main__.py          143    119    17%
+github_bounty_scraper\__main__.py          143     81    43%
 github_bounty_scraper\bounty.py            102      0   100%
-github_bounty_scraper\cli.py                61     61     0%
+github_bounty_scraper\cli.py                94     10    89%
 github_bounty_scraper\config.py            116     10    91%
-github_bounty_scraper\core.py              314    233    26%
+github_bounty_scraper\core.py              318    200    37%
 github_bounty_scraper\db.py                183     17    91%
-github_bounty_scraper\discovery.py          89     57    36%
-github_bounty_scraper\graphql.py           132     86    35%
-github_bounty_scraper\log.py                16     11    31%
+github_bounty_scraper\discovery.py          89     39    56%
+github_bounty_scraper\graphql.py           133     57    57%
+github_bounty_scraper\log.py                16      0   100%
 github_bounty_scraper\output.py            125      6    95%
-github_bounty_scraper\price_cache.py        61     32    48%
+github_bounty_scraper\price_cache.py        61      9    85%
 github_bounty_scraper\scoring.py            44      3    93%
 github_bounty_scraper\signals.py           186     55    70%
 github_bounty_scraper\vibe.py              194     75    61%
 ------------------------------------------------------------
-TOTAL                                     1871    744    60%
+TOTAL                                   1896    631    67%
 ```
 
-### CI Status
-- **Pytest**: 84 passed, 0 failed.
-- **Ruff**: 0 errors.
-- **Mypy**: 0 errors.
-
-## Next Steps
-- **Model Fine-Tuning**: Now that the environment is clean, a fresh `training_data.csv` can be generated by running the pipeline without the risk of Git-leaked artifacts.
-- **Discovery Expansion**: Consider adding more `aggregator_repos` to `signals_config.json` to broaden discovery reach.
-- **CLI Coverage**: Future work can focus on unit-testing the `cli.py` and `__main__.py` entry points to reach 70%+ total coverage.
+### Type Checking & Linting
+All checks passed with no issues in 37 source files.
+```bash
+venv/Scripts/mypy.exe .
+venv/Scripts/ruff.exe check .
+```
