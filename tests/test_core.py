@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from github_bounty_scraper.core import (
-    _assemble_lead_result,
+    _build_lead_result,
     _build_text_context,
     _check_repo_health,
     _resolve_numeric_amount,
@@ -95,7 +95,7 @@ def test_assemble_lead_result_mapping():
         "labels": {"nodes": [{"name": "urgent"}]},
     }
     soft = SignalResult(has_onchain_escrow=True, mentions_wallet_payout=True)
-    res = _assemble_lead_result(issue, 500.0, "$500", "USD", 85.0, 0.0, "a/b", soft)
+    res = _build_lead_result(issue, 500.0, "$500", "USD", 85.0, 0.0, "a/b", soft)
 
     assert res["Title"] == "Bounty 1"
     assert res["Amount"] == "$500"
