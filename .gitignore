@@ -68,12 +68,17 @@ vibe_smoke_test.py
 section*.py
 vibe_test.log
 
-# Scraper run outputs — never commit these
+# Scraper run outputs ?" never commit these
 exploration_raw.jsonl
 results_*.md
 results_*.json
 results*.json
 sweep_*.json
+results.json
+coverage_final.txt
+best_threshold.json
+scrape_run*.log
+vibe_run*.log
 *.db
 *.db-shm
 *.db-wal
