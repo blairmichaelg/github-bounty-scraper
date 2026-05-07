@@ -27,12 +27,20 @@ env/
 .DS_Store
 Thumbs.db
 
-# Model and data files — use Git LFS or GitHub Releases instead
+# Model and data artifacts
 *.pkl
-*.csv
+*.pkl.sha256
+bounty_dataset*.csv
+training_data.csv
+leads_to_label.txt
+results_*.json
+coverage_*.txt
+coverage.xml
+bounty_leads.db
+exploration_raw.jsonl
+vibe_retry.txt
 
 # Project runtime artifacts
-exploration_raw.jsonl
 bounty_stats.db
 output.md
 output.json
