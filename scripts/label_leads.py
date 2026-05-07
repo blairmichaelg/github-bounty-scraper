@@ -104,22 +104,38 @@ def label_leads(limit: int = 100, min_vibe: int = 30, max_vibe: int = 70, unlabe
 
 
 def export_labeled_csv(output_path: str = "bounty_dataset_manual.csv") -> None:
-    """Export issue_stats joined with manual labels to a CSV for training."""
+    """Export issue_stats + repo_stats joined with manual labels for training."""
     conn = sqlite3.connect(DB_PATH)
     ensure_label_table(conn)
-    
     import pandas as pd
     df = pd.read_sql_query(f"""
-        SELECT s.*, m.label as manual_label
+        SELECT
+            s.issue_url,
+            s.repo_name,
+            s.score,
+            s.vibe_score,
+            s.numeric_amount,
+            s.positive_escrow_count,
+            s.escrow_weight_sum,
+            COALESCE(r.merges_last_45d, 0)      AS merges_last_45d,
+            COALESCE(r.total_escrows_seen, 0)   AS total_escrows_seen,
+            COALESCE(r.rugs_seen, 0)            AS rugs_seen,
+            COALESCE(s.is_dead_repo, 0)         AS is_dead_repo,
+            COALESCE(s.escrow_verified, 0)      AS escrow_verified,
+            m.label                             AS manual_label
         FROM issue_stats s
+        LEFT JOIN repo_stats r ON s.repo_name = r.repo_name
         INNER JOIN {MANUAL_LABEL_TABLE} m ON s.issue_url = m.issue_url
     """, conn)
     conn.close()
-    
     df.to_csv(output_path, index=False)
     print(f"Exported {len(df)} manually labeled rows to {output_path}")
+    print(f"Columns: {list(df.columns)}")
     if not df.empty:
         print(f"Label distribution: {df['manual_label'].value_counts().to_dict()}")
+        print(f"Null counts in feature columns:")
+        feat_cols = ["numeric_amount","merges_last_45d","total_escrows_seen","rugs_seen","is_dead_repo","escrow_verified"]
+        print(df[feat_cols].isnull().sum().to_string())
 
 
 def main() -> None:

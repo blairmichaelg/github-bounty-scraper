@@ -30,7 +30,7 @@ FEATURE_COLUMNS = [
     "is_dead_repo",
     "escrow_verified",
 ]
-LABEL_COLUMN = "is_bounty"
+LABEL_COLUMN = "manual_label"
 
 
 def load_and_validate(input_path: Path) -> pd.DataFrame:
