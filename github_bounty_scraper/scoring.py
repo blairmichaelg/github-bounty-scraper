@@ -106,6 +106,8 @@ def compute_score(
     escrow_norm = max(count_norm, weighted_norm)
 
     # High activity trust bonus: if a repo is very active, lack of explicit escrow signals is less suspicious.
+    # We apply this floor BEFORE adding specific payout bonuses (like on-chain escrow),
+    # meaning highly active repos with explicit escrow get the cumulative benefit of both.
     if merges_last_45d >= ACTIVITY_TRUST_THRESHOLD:
         escrow_norm = max(escrow_norm, ACTIVITY_TRUST_FLOOR)
 

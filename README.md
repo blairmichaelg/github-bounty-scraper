@@ -10,7 +10,7 @@ It combines GitHub REST search, GraphQL enrichment, SQLite caching, heuristic sc
 
 ## Current Status
 
-- Package version: `2.4.0`
+- Package version: `2.4.1`
 - CI target: Python 3.11 and 3.12
 - Quality gates: `ruff`, `ruff format --check`, `mypy`, and `pytest --cov-fail-under=80`
 - Local verification baseline: CI-equivalent checks pass with coverage above the 80% gate

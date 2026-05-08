@@ -9,5 +9,6 @@
         "is:closed is:issue \"paid on merge\" OR \"reward on close\"",
         "is:closed is:issue \"escrow\" \"merged\" OR \"completed\" OR \"paid\""
     ],
-    "_description": "Configuration for scraping closed bounty issues to generate training data. Focuses on merged/completed indicators."
+    "_description": "Configuration for scraping closed bounty issues to generate training data. Focuses on merged/completed indicators.",
+    "amount_norm_cap": 100000.0
 }

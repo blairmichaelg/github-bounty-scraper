@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -208,6 +209,9 @@ class ScraperConfig:
     vibe_ttl_hours: int = 480
     """TTL for vibe check results in hours. Default: 480."""
 
+    vibe_retry_file: str = "vibe_retry.txt"
+    """Path to the optional retry list for vibe-check. Default: 'vibe_retry.txt'."""
+
     # ── GraphQL pagination ──
     pr_cap: int = 200
     """Limit on PRs fetched per repo.  Default: 200."""
@@ -259,8 +263,7 @@ class ScraperConfig:
     """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
 
     vibe_check_concurrency: int = 3
-    vibe_check_limit: int = 10
-    limit: int = 0
+    limit: int = 10
     raw_candidates_file: str = field(
         default_factory=lambda: os.environ.get("RAW_CANDIDATES_FILE", "exploration_raw.jsonl")
     )
@@ -270,16 +273,25 @@ class ScraperConfig:
     enable_vibe: bool = True
 
     def __post_init__(self) -> None:
-        weight_total = (
-            self.weight_amount
-            + self.weight_recency
-            + self.weight_activity
-            + self.weight_escrow_strength
-            + self.w_repo_reputation
-            + self.weight_vibe
-        )
+        # Check for pathological weights (negative or extreme drift)
+        weights = [
+            self.weight_amount,
+            self.weight_recency,
+            self.weight_activity,
+            self.weight_escrow_strength,
+            self.w_repo_reputation,
+            self.weight_vibe,
+        ]
+        if any(w < 0 for w in weights):
+            raise ValueError("Scoring weights cannot be negative.")
+
+        weight_total = sum(weights)
         if weight_total <= 0:
             raise ValueError("Scoring weights must sum to a positive number.")
+
+        if not (0.5 <= weight_total <= 2.0):
+            raise ValueError(f"Scoring weights sum to {weight_total:.4f}, which is outside sane bounds [0.5, 2.0].")
+
         if abs(weight_total - 1.0) > 0.001:
             import warnings
 
@@ -317,19 +329,24 @@ def resolve_github_token() -> str:
     )
     if token:
         return token
-    try:
-        res = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        token = res.stdout.strip()
-        if token:
-            return token
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+
+    # Fallback to GitHub CLI if available and explicitly allowed or in developer mode
+    if os.environ.get("USE_GH_CLI", "1") == "1":
+        gh_path = shutil.which("gh")
+        if gh_path:
+            try:
+                res = subprocess.run(
+                    [gh_path, "auth", "token"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=5,
+                )
+                token = res.stdout.strip()
+                if token:
+                    return token
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                pass
     return ""
 
 
@@ -440,6 +457,8 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
             data["raw_candidates_file"] = data.pop("raw_file")
         if "batch_commit_size" in data:
             data["db_batch_size"] = data.pop("batch_commit_size")
+        if "vibe_check_limit" in data:
+            data["limit"] = data.pop("vibe_check_limit")
 
         unknown = set(data) - known
         if unknown:
@@ -464,6 +483,8 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
         overrides["raw_candidates_file"] = overrides.pop("raw_file")
     if "batch_commit_size" in overrides:
         overrides["db_batch_size"] = overrides.pop("batch_commit_size")
+    if "vibe_check_limit" in overrides:
+        overrides["limit"] = overrides.pop("vibe_check_limit")
 
     for k, v in overrides.items():
         if k in known:

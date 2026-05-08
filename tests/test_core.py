@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from github_bounty_scraper.core import (
@@ -381,3 +383,87 @@ class TestRunPipeline:
 
         assert len(results) == 1
         assert mock_process.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_aggregator_repo_skipped_and_added_to_set(cfg, mock_db_conn):
+    """Issues from aggregator repos should be skipped and the repo added to seen_aggregators."""
+    from github_bounty_scraper.config import load_signals
+    from github_bounty_scraper.core import process_issue
+
+    aggregator_issue = {
+        "html_url": "https://github.com/algora-io/some-repo/issues/1",
+    }
+    signals = load_signals()
+    signals["aggregator_repos"] = ["algora-io"]
+    seen_aggregators = set()
+
+    async with aiohttp.ClientSession() as session:
+        committer = MagicMock()
+        committer.tick = AsyncMock()
+        result = await process_issue(
+            session=session,
+            bucket=TokenBucket(100, 10.0),
+            issue_item=aggregator_issue,
+            db_conn=mock_db_conn,
+            sem=asyncio.Semaphore(1),
+            config=cfg,
+            signals=signals,
+            committer=committer,
+            seen_aggregators=seen_aggregators,
+        )
+
+    assert result is None
+    assert "algora-io/some-repo" in seen_aggregators
+
+
+@pytest.mark.asyncio
+async def test_new_repo_grace_period(cfg, mock_db_conn):
+    """New repos (created within grace period) should not be skipped even if they have 0 merges."""
+    from github_bounty_scraper.config import load_signals
+    from github_bounty_scraper.core import process_issue
+
+    # Repo created 10 days ago (well within 90-day grace)
+    created_at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    new_repo_issue = {
+        "html_url": "https://github.com/new/repo/issues/1",
+        "repository": {
+            "nameWithOwner": "new/repo",
+            "createdAt": created_at,
+            "stargazerCount": 100,
+            "isArchived": False,
+            "isDisabled": False,
+            "isFork": False,
+            "owner": {"__typename": "Organization"},
+            "mentionableUsers": {"totalCount": 10},
+            "pullRequests": {"nodes": []}, # 0 merges
+        },
+        "title": "Bounty $1000 escrow",
+        "body": "Fixed it.",
+        "state": "OPEN",
+        "labels": {"nodes": []},
+        "comments": {"nodes": []},
+    }
+
+    with patch("github_bounty_scraper.core.run_graphql_audit", new_callable=AsyncMock) as mock_gql:
+        mock_gql.return_value = {"repository": new_repo_issue["repository"]}
+        mock_gql.return_value["repository"]["issue"] = new_repo_issue
+
+        async with aiohttp.ClientSession() as session:
+            committer = MagicMock()
+            committer.tick = AsyncMock()
+            result = await process_issue(
+                session=session,
+                bucket=TokenBucket(100, 10.0),
+                issue_item=new_repo_issue,
+                db_conn=mock_db_conn,
+                sem=asyncio.Semaphore(1),
+                config=cfg,
+                signals=load_signals(),
+                committer=committer,
+                seen_aggregators=set(),
+            )
+
+    assert result is not None
+    assert result["Repo"] == "new/repo"

@@ -115,6 +115,8 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC);")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_score ON issue_stats(vibe_score);")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_composite ON issue_stats(vibe_score, vibe_scored_at);")
 
     # ── checked_cache ──
     await conn.execute("""

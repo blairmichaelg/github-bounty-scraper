@@ -40,6 +40,10 @@ from .signals import (
 
 log = get_logger()
 
+TITLE_REQUIRED_SIGNALS = frozenset(
+    {"bounty", "reward", "grant", "prize", "paid", "payment", "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"}
+)
+
 
 class LeadResult(TypedDict):
     """Enriched lead data for reporting."""
@@ -68,16 +72,20 @@ def _append_raw(path: str, line: str) -> None:
 def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool:
     """Return True if the repository meets basic health criteria."""
     if repo_data.get("isArchived", False):
+        print("DEBUG: Exiting because archived")
         return False
     if repo_data.get("isDisabled", False):
+        print("DEBUG: Exiting because disabled")
         return False
     if repo_data.get("isFork", False):
+        print("DEBUG: Exiting because fork")
         return False
 
     # Blocklist check
     full_name = repo_data.get("nameWithOwner", "")
     if full_name in (config.repo_blocklist or []):
         log.debug("Skipping blocklisted repo: %s", full_name)
+        print("DEBUG: Exiting because blocklisted")
         return False
 
     # Star threshold
@@ -85,11 +93,13 @@ def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool
     min_stars = max(getattr(config, "min_repo_stars", 0), getattr(config, "min_stars", 0))
     if stars < min_stars:
         log.debug("Skipping low-star repo (%d stars): %s", stars, full_name)
+        print(f"DEBUG: Exiting because low stars: {stars} < {min_stars}")
         return False
 
     owner_type = repo_data.get("owner", {}).get("__typename", "")
     contrib_count = repo_data.get("mentionableUsers", {}).get("totalCount", 0)
     if owner_type.upper() == "USER" and contrib_count < 2:
+        print(f"DEBUG: Exiting because low contrib count for user repo: {contrib_count}")
         return False
     return True
 
@@ -206,6 +216,7 @@ async def _enrich_issue(
     seen_aggregators: set[str],
 ) -> dict[str, Any] | None:
     """Perform GraphQL fetch, health checks, and signal computation."""
+    print(f"DEBUG: Entering _enrich_issue for {issue_item.get('html_url')}")
     url = issue_item.get("html_url", "")
     parts = url.replace("https://github.com/", "").split("/")
     if len(parts) < 4:
@@ -226,6 +237,7 @@ async def _enrich_issue(
         ):
             return None
 
+    print("DEBUG: Proceeding to GraphQL audit")
     # GraphQL Audit
     try:
         async with sem:
@@ -241,10 +253,12 @@ async def _enrich_issue(
                 tl_page_size=config.timeline_page_size,
             )
     except Exception as e:
+        print(f"DEBUG: GraphQL audit failed: {type(e).__name__}: {e}")
         log.error("GraphQL audit failed for %s: %s", url, e)
         return None
 
     if not data or not data.get("repository") or not data["repository"].get("issue"):
+        print(f"DEBUG: Exiting because data is missing: {data is None}")
         return None
 
     repository = data["repository"]
@@ -252,19 +266,18 @@ async def _enrich_issue(
 
     # Health check
     if not _check_repo_health(repository, config) and not config.log_raw_candidates:
+        print("DEBUG: Exiting because health check failed")
         return None
 
     # Title-level bounty signal requirement
     title = (issue.get("title") or "").lower()
-    TITLE_REQUIRED_SIGNALS = frozenset(
-        {"bounty", "reward", "grant", "prize", "paid", "payment", "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"}
-    )
     amount_in_title = any(c.isdigit() for c in title) and (
         "$" in title or any(tok in title for tok in ("usdc", "eth", "xtm", "matic", "sol", "bnb"))
     )
     has_title_signal = any(kw in title for kw in TITLE_REQUIRED_SIGNALS) or amount_in_title
 
     if not has_title_signal:
+        print(f"DEBUG: Exiting because no title signal. Title: {title}")
         log.info("Skipping — no bounty signal in title: %s", issue.get("title", ""))
         return None
 
@@ -273,6 +286,7 @@ async def _enrich_issue(
     lead_mode_override = None
     if issue_state.upper() == "CLOSED":
         if not config.include_closed_for_training:
+            print("DEBUG: Exiting because closed")
             return None
         lead_mode_override = "closed_historical"
 
@@ -284,6 +298,7 @@ async def _enrich_issue(
         if not _is_new_repo_grace(repository, config):
             if not config.dry_run:
                 await mark_issue_checked(db_conn, url, time.time())
+            print("DEBUG: Exiting because dead repo and no grace")
             return None
 
     # Disqualifiers
@@ -293,6 +308,7 @@ async def _enrich_issue(
         issue_state=issue_state, labels_nodes=labels, body=issue.get("body") or "", comments=comments, signals=signals
     )
     if disqualified:
+        print(f"DEBUG: Exiting because disqualified: {reason}")
         if not config.dry_run:
             rug_inc = 1 if ("negative" in reason or "kill label" in reason) else 0
             await upsert_repo_stats(
@@ -511,7 +527,7 @@ async def _get_issue_meta(db_conn, url, config):
         if not row:
             return None, None, 0.0
         score, vibe, vibe_at = row[0], row[1], row[2] or 0.0
-        if vibe is not None and (time.time() - vibe_at) > getattr(config, "vibe_ttl_hours", 48) * 3600:
+        if vibe is not None and (time.time() - vibe_at) > config.vibe_ttl_hours * 3600:
             vibe = None
         return score, vibe, vibe_at
 

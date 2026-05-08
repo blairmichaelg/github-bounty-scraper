@@ -189,7 +189,7 @@ def main() -> None:
 
         asyncio.run(run_pipeline(config))
     elif command == "inspect-leads":
-        asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit))
+        asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n))
     elif command == "vibe-check":
         from .vibe import run_vibe_check
 
@@ -197,10 +197,11 @@ def main() -> None:
             run_vibe_check(
                 raw_candidates_file=ns.raw_candidates_file,
                 db_path=ns.db_path,
-                limit=ns.limit,
+                limit=ns.limit or config.limit,
                 mode=ns.mode,
                 concurrency=ns.concurrency,
                 model=config.gemini_model,
+                retry_file=config.vibe_retry_file,
             )
         )
     elif command == "dump-dataset":

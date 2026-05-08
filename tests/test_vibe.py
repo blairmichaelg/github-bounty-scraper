@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
@@ -12,6 +13,7 @@ from github_bounty_scraper.vibe import (
     _gemini_endpoint,
     call_gemini,
     iter_raw_candidates,
+    iter_unscored_combined,
     parse_vibe_output,
     run_vibe_check,
 )
@@ -40,6 +42,24 @@ def test_gemini_endpoint():
 async def test_call_gemini_missing_key():
     with pytest.raises(RuntimeError):
         await call_gemini(None, "", "title", "body")
+
+
+@pytest.mark.asyncio
+async def test_call_gemini_uses_header_auth(mock_aiohttp_session):
+    """Verify that call_gemini uses the x-goog-api-key header and not query params."""
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.status = 200
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.json = AsyncMock(return_value={
+        "candidates": [{"content": {"parts": [{"text": "SCORE: 90\nREASON: Good"}]}}]
+    })
+
+    await call_gemini(mock_aiohttp_session, "secret-key", "title", "body")
+
+    args, kwargs = mock_aiohttp_session.post.call_args
+    headers = kwargs.get("headers", {})
+    params = kwargs.get("params", {})
+
+    assert headers.get("x-goog-api-key") == "secret-key"
+    assert "key" not in params
 
 
 @pytest.mark.asyncio
@@ -172,6 +192,114 @@ async def test_iter_raw_candidates_missing_file():
     async for item in iter_raw_candidates("nonexistent.jsonl"):
         items.append(item)
     assert items == []
+
+
+@pytest.mark.asyncio
+async def test_iter_unscored_combined_sorting(tmp_path):
+    """Verify unscored items are yielded in descending amount order and scored items are skipped."""
+    raw_file = tmp_path / "unscored.jsonl"
+    db_path = str(tmp_path / "test_vibe.db")
+
+    items = [
+        {"issue_url": "url1", "numeric_amount": 100.0},
+        {"issue_url": "url2", "numeric_amount": 500.0},
+        {"issue_url": "url3", "numeric_amount": 250.0},
+    ]
+    with open(raw_file, "w", encoding="utf-8") as f:
+        for item in items:
+            f.write(json.dumps(item) + "\n")
+
+    async with aiosqlite.connect(db_path) as db:
+        await init_db(db, db_path=db_path)
+        # Mock url1 as already scored
+        await db.execute(
+            "INSERT INTO issue_stats (issue_url, vibe_score, vibe_scored_at) VALUES (?, ?, ?)",
+            ("url1", 80, time.time()),
+        )
+        await db.commit()
+
+        results = []
+        async for obj in iter_unscored_combined(str(raw_file), db_path, db):
+            results.append(obj)
+
+    # Should skip url1, and return url2 then url3 (descending amount)
+    assert len(results) == 2
+    assert results[0]["issue_url"] == "url2"  # 500.0
+    assert results[1]["issue_url"] == "url3"  # 250.0
+
+
+@pytest.mark.asyncio
+async def test_iter_unscored_combined_binary_mode_offsets(tmp_path):
+    """Verify that iter_unscored_combined correctly handles offsets even with multi-byte characters."""
+    raw_file = tmp_path / "unicode.jsonl"
+    db_path = str(tmp_path / "test_unicode.db")
+
+    # Entry 1 has a multi-byte character (rocket emoji)
+    # Entry 2 should be reachable even if Entry 1's byte length != char length
+    items = [
+        {"issue_url": "url1", "numeric_amount": 100.0, "title": "Rocket 🚀"},
+        {"issue_url": "url2", "numeric_amount": 500.0, "title": "Normal"},
+    ]
+    with open(raw_file, "wb") as f:
+        for item in items:
+            f.write((json.dumps(item) + "\n").encode("utf-8"))
+
+    async with aiosqlite.connect(db_path) as db:
+        await init_db(db, db_path=db_path)
+        results = []
+        async for obj in iter_unscored_combined(str(raw_file), db_path, db):
+            results.append(obj)
+
+    assert len(results) == 2
+    # Should be sorted by amount (url2=500, url1=100)
+    assert results[0]["issue_url"] == "url2"
+    assert results[1]["issue_url"] == "url1"
+    assert results[1]["title"] == "Rocket 🚀"
+
+
+@pytest.mark.asyncio
+async def test_iter_unscored_combined_time_filter(tmp_path):
+    """Verify that only issues scored within the last 30 days are skipped."""
+    raw_file = tmp_path / "time_filter.jsonl"
+    db_path = str(tmp_path / "test_time.db")
+
+    items = [
+        {"issue_url": "url_old", "numeric_amount": 100.0},
+        {"issue_url": "url_new", "numeric_amount": 200.0},
+        {"issue_url": "url_unscored", "numeric_amount": 300.0},
+    ]
+    with open(raw_file, "wb") as f:
+        for item in items:
+            f.write((json.dumps(item) + "\n").encode("utf-8"))
+
+    now = time.time()
+    old_time = now - (31 * 86400)  # 31 days ago
+    new_time = now - (5 * 86400)   # 5 days ago
+
+    async with aiosqlite.connect(db_path) as db:
+        await init_db(db, db_path=db_path)
+        # url_old: scored 31 days ago -> should be re-scored (not skipped)
+        await db.execute(
+            "INSERT INTO issue_stats (issue_url, vibe_score, vibe_scored_at) VALUES (?, ?, ?)",
+            ("url_old", 80, old_time),
+        )
+        # url_new: scored 5 days ago -> should be skipped
+        await db.execute(
+            "INSERT INTO issue_stats (issue_url, vibe_score, vibe_scored_at) VALUES (?, ?, ?)",
+            ("url_new", 90, new_time),
+        )
+        await db.commit()
+
+        results = []
+        async for obj in iter_unscored_combined(str(raw_file), db_path, db):
+            results.append(obj)
+
+    # url_new is skipped. url_old (stale) and url_unscored should remain.
+    urls = [r["issue_url"] for r in results]
+    assert "url_new" not in urls
+    assert "url_old" in urls
+    assert "url_unscored" in urls
+    assert len(results) == 2
 
 
 # === Section 5: vibe output formatting ===

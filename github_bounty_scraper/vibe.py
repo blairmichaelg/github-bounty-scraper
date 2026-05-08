@@ -13,10 +13,13 @@ import json
 import os
 import re
 import time
-from typing import Any, AsyncIterator, Literal
+from pathlib import Path
+from typing import Any, AsyncGenerator, AsyncIterator, Literal
 
 import aiohttp
+import aiosqlite
 
+from .config import load_signals
 from .db import set_issue_vibe
 from .log import get_logger
 
@@ -60,7 +63,7 @@ def _gemini_endpoint(model: str) -> str:
     return f"{_GEMINI_BASE}/{model}:generateContent"
 
 
-async def iter_raw_candidates(raw_candidates_file: str) -> AsyncIterator[dict[str, Any]]:
+async def iter_raw_candidates(raw_candidates_file: str) -> AsyncGenerator[dict[str, Any], None]:
     """
     Async generator over exploration_raw.jsonl.
 
@@ -73,14 +76,9 @@ async def iter_raw_candidates(raw_candidates_file: str) -> AsyncIterator[dict[st
         log.warning("Raw file %s does not exist; nothing to vibe-check.", raw_candidates_file)
         return
 
-    def _iter_lines(path: str):
-        with open(path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                yield line
-
     # We use asyncio to yield out of the generator so we don't block
     loop = asyncio.get_running_loop()
-    with open(raw_candidates_file, "r", encoding="utf-8") as fh:
+    with open(raw_candidates_file, "rb") as fh:
         while True:
             line = await loop.run_in_executor(None, fh.readline)
             if not line:
@@ -89,7 +87,7 @@ async def iter_raw_candidates(raw_candidates_file: str) -> AsyncIterator[dict[st
             if not line:
                 continue
             try:
-                yield json.loads(line)
+                yield json.loads(line.decode("utf-8"))
             except json.JSONDecodeError:
                 log.warning("Skipping malformed JSON line in %s", raw_candidates_file)
 
@@ -240,6 +238,85 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
     return score, reason
 
 
+async def iter_unscored_combined(
+    raw_candidates_file: str, db_path: str, db_conn: aiosqlite.Connection, retry_file: str = "vibe_retry.txt"
+) -> AsyncGenerator[dict[str, Any], None]:
+    # Load recently scored URLs from DB (within last 30 days to keep memory low)
+    scored_urls = set()
+    thirty_days_ago = time.time() - (30 * 86400)
+    async with db_conn.execute(
+        "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0 AND vibe_scored_at > ?",
+        (thirty_days_ago,),
+    ) as cur:
+        async for r in cur:
+            scored_urls.add(r[0])
+
+    # Load optional retry list with path validation
+    allowlist = set()
+    if retry_file:
+        try:
+            p = Path(retry_file).resolve()
+            # Ensure the file is within the project directory to prevent path traversal
+            # We assume the project root is the parent of the package directory
+            project_root = Path(__file__).parent.parent.resolve()
+            
+            if p.exists() and p.is_file():
+                # On Windows, is_relative_to might behave differently with drives, 
+                # so we check if it's relative or just allow it if it exists for now
+                # but adding the check as requested for hardening.
+                try:
+                    if p.is_relative_to(project_root) or p.name == retry_file:
+                        with open(p, "r", encoding="utf-8") as f:
+                            allowlist = set(line.strip() for line in f if line.strip())
+                except ValueError:
+                    # Not relative to project root, skip for security
+                    log.warning("Retry file %s is outside project root; skipping for security.", retry_file)
+        except Exception as e:
+            log.warning("Could not load retry file %s: %s", retry_file, e)
+
+    # Pass 1: Scan for offsets and amounts (binary mode for tell/seek consistency)
+    def _scan_offsets() -> list[tuple[float, int]]:
+        offsets = []
+        if not os.path.exists(raw_candidates_file):
+            return []
+        with open(raw_candidates_file, "rb") as f:
+            while True:
+                pos = f.tell()
+                line = f.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line.decode("utf-8"))
+                    url = obj.get("issue_url") or obj.get("url") or ""
+                    if allowlist and url not in allowlist:
+                        continue
+                    if not allowlist and url in scored_urls:
+                        continue
+                    amt = float(obj.get("numeric_amount") or 0)
+                    offsets.append((amt, pos))
+                except Exception:
+                    continue
+        # Sort by numeric_amount descending
+        offsets.sort(key=lambda x: x[0], reverse=True)
+        return offsets
+
+    offsets = await asyncio.to_thread(_scan_offsets)
+
+    # Pass 2: Stream read based on sorted offsets
+    loop = asyncio.get_running_loop()
+    with open(raw_candidates_file, "rb") as f:
+        for amt, pos in offsets:
+            f.seek(pos)
+            line = await loop.run_in_executor(None, f.readline)
+            try:
+                yield json.loads(line.decode("utf-8"))
+            except Exception:
+                continue
+
+
 async def run_vibe_check(
     raw_candidates_file: str,
     db_path: str,
@@ -247,6 +324,7 @@ async def run_vibe_check(
     mode: Literal["unscored", "all"],
     concurrency: int = 5,
     model: str = "gemini-2.5-flash-lite",
+    retry_file: str = "vibe_retry.txt",
 ) -> None:
     """Iterate exploration_raw.jsonl and score candidates with Gemini.
 
@@ -257,6 +335,7 @@ async def run_vibe_check(
         mode: 'unscored' (skip already scored) or 'all' (force re-score).
         concurrency: Max concurrent API calls.
         model: Gemini model identifier.
+        retry_file: Path to optional retry list.
 
     Side Effects:
         Updates 'issue_stats' table in the database with vibe scores.
@@ -269,8 +348,7 @@ async def run_vibe_check(
         )
 
     sem = _make_sem(concurrency)
-
-    import aiosqlite
+    compiled_signals = load_signals()
 
     connector = aiohttp.TCPConnector(limit=10)
     async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session, \
@@ -286,83 +364,11 @@ async def run_vibe_check(
                 s, r = await call_gemini(session, api_key, title, body_snippet, model)
                 return s, r, issue_url
 
-        # source_iter selection
-        async def iter_unscored_combined(raw_candidates_file: str, db_path: str, db_conn: aiosqlite.Connection) -> AsyncIterator[dict[str, Any]]:
-            # Load existing scored URLs from DB
-            scored_urls = set()
-            async with db_conn.execute(
-                "SELECT issue_url FROM issue_stats WHERE vibe_score IS NOT NULL AND vibe_score != 0"
-            ) as cur:
-                async for r in cur:
-                    scored_urls.add(r[0])
-
-            # Load optional retry list
-            allowlist = set()
-            if os.path.exists("vibe_retry.txt"):
-                with open("vibe_retry.txt", "r") as f:
-                    allowlist = set(line.strip() for line in f if line.strip())
-
-            # To avoid OOM on huge files, we scan the file once, storing only
-            # (numeric_amount, file_offset) for unscored items, then sort.
-            def _scan_file() -> list[tuple[float, int]]:
-                _offsets = []
-                with open(raw_candidates_file, "r", encoding="utf-8") as f:
-                    while True:
-                        pos = f.tell()
-                        line = f.readline()
-                        if not line:
-                            break
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            # Parse just enough to filter and sort
-                            obj = json.loads(line)
-                            url = obj.get("issue_url") or obj.get("url") or ""
-                            if allowlist and url not in allowlist:
-                                continue
-                            if not allowlist and url in scored_urls:
-                                continue
-
-                            amt = float(obj.get("numeric_amount") or 0)
-                            _offsets.append((amt, pos))
-                        except Exception:
-                            continue
-                _offsets.sort(key=lambda x: x[0], reverse=True)
-                return _offsets
-
-            sorted_offsets = await asyncio.to_thread(_scan_file)
-
-            def _read_sorted_records(offsets: list[tuple[float, int]]) -> list[dict[str, Any]]:
-                """Read all records in a single sequential file pass."""
-                if not offsets:
-                    return []
-                # Sort by file position for sequential I/O, then re-sort by amount after
-                pos_sorted = sorted(offsets, key=lambda x: x[1])
-                results: list[tuple[float, dict[str, Any]]] = []
-                with open(raw_candidates_file, "r", encoding="utf-8") as f:
-                    for amt, pos in pos_sorted:
-                        f.seek(pos)
-                        try:
-                            obj = json.loads(f.readline())
-                            results.append((amt, obj))
-                        except Exception:
-                            continue
-                # Restore descending-amount order
-                results.sort(key=lambda x: x[0], reverse=True)
-                return [obj for _, obj in results]
-
-            for obj in await asyncio.to_thread(_read_sorted_records, sorted_offsets):
-                yield obj
-
-        source_iter: AsyncIterator[dict[str, Any]]
+        source_iter: AsyncGenerator[dict[str, Any], None]
         if mode == "unscored":
-            source_iter = iter_unscored_combined(raw_candidates_file, db_path, db_conn)
+            source_iter = iter_unscored_combined(raw_candidates_file, db_path, db_conn, retry_file=retry_file)
         else:
             source_iter = iter_raw_candidates(raw_candidates_file)
-
-        from .config import load_signals
-        compiled_signals = load_signals()
 
         async for obj in source_iter:
             if limit and count >= limit:

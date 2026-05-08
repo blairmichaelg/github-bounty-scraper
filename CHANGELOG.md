@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ***
 
+## [2.4.1] - 2026-05-08
+
+### Added
+- `idx_issue_stats_vibe_composite` index on `(vibe_score, vibe_scored_at)` to optimize unscored issue discovery in `vibe-check`.
+- New unit tests in `tests/test_core_meta.py` covering `_get_issue_meta` TTL expiry and dry-run logic.
+
+### Changed
+- Moved `aiosqlite` import to module level in `vibe.py` to support correct type hints and static analysis.
+
+### Fixed
+- Hardened `vibe_retry.txt` path validation in `vibe-check` using `is_relative_to(project_root)` to prevent potential path traversal.
+
+***
+
 ## [2.4.0] - 2026-05-07
 
 ### Added

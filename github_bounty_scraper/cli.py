@@ -194,7 +194,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument(
         "--mode", choices=["strict", "opportunistic", "all"], default="strict", help="Filter by lead mode"
     )
-    inspect_parser.add_argument("--limit", type=int, default=20, help="Number of leads to show")
+    inspect_parser.add_argument("--limit", type=int, help="Number of leads to show (default from config)")
     inspect_parser.add_argument(
         "--db-path",
         type=str,
@@ -210,8 +210,7 @@ def _build_parser() -> argparse.ArgumentParser:
     vibe_parser.add_argument(
         "--limit",
         type=int,
-        default=100,
-        help="Maximum number of raw candidates to score (default: 100).",
+        help="Maximum number of raw candidates to score (default from config).",
     )
     vibe_parser.add_argument(
         "--mode",
