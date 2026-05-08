@@ -11,7 +11,6 @@ from typing import Any
 import aiosqlite
 
 from .log import get_logger
-from .utils import timestamp_to_float
 
 log = get_logger()
 
@@ -153,7 +152,7 @@ async def _run_migrations(conn: aiosqlite.Connection) -> None:
     # if version < 1:
     #    await conn.execute("...")
     #    await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (1);")
-    
+
     pass
 
 
@@ -582,6 +581,7 @@ async def dump_dataset(
     # Load bodies from exploration_raw.jsonl using streaming to save memory
     bodies = {}
     if os.path.exists(raw_candidates_file):
+
         def _stream_read():
             with open(raw_candidates_file, "r", encoding="utf-8") as f:
                 for line in f:
@@ -594,7 +594,7 @@ async def dump_dataset(
                         bodies[key] = (obj.get("body_snippet") or obj.get("body") or "")[:500]
                     except Exception:
                         continue
-        
+
         await asyncio.to_thread(_stream_read)
 
     async with aiosqlite.connect(db_path) as conn:

@@ -131,6 +131,7 @@ class TestDiscoverIssuesStream:
     async def test_yields_items_and_deduplicates(self):
         """Stream yields unique items and skips duplicates."""
         from github_bounty_scraper.config import SearchConfig
+
         cfg = ScraperConfig(
             search=SearchConfig(
                 search_queries=["q1"],
@@ -148,9 +149,9 @@ class TestDiscoverIssuesStream:
         ]
 
         async def mock_fetch(*args, **kwargs):
-            return page_items
+            return page_items, None
 
-        with patch("github_bounty_scraper.discovery.fetch_rest_search", side_effect=mock_fetch):
+        with patch("github_bounty_scraper.discovery.fetch_graphql_search", side_effect=mock_fetch):
             results = []
             async for item in discover_issues_stream(cfg):
                 results.append(item)
@@ -163,6 +164,7 @@ class TestDiscoverIssuesStream:
     async def test_stops_at_max_issues_per_run(self):
         """Stream stops after max_issues_per_run unique items."""
         from github_bounty_scraper.config import SearchConfig
+
         cfg = ScraperConfig(
             search=SearchConfig(
                 search_queries=["q1", "q2"],
@@ -180,9 +182,9 @@ class TestDiscoverIssuesStream:
         async def mock_fetch(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            return page1 if call_count == 1 else page2
+            return (page1 if call_count == 1 else page2), None
 
-        with patch("github_bounty_scraper.discovery.fetch_rest_search", side_effect=mock_fetch):
+        with patch("github_bounty_scraper.discovery.fetch_graphql_search", side_effect=mock_fetch):
             results = []
             async for item in discover_issues_stream(cfg):
                 results.append(item)

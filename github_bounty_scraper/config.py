@@ -32,6 +32,7 @@ ACTIVITY_TRUST_FLOOR: float = 0.4
 @dataclass
 class SearchConfig:
     """Configuration for discovery and GitHub search."""
+
     languages: list[str] = field(default_factory=list)
     min_repo_stars: int = 5
     repo_blocklist: list[str] = field(default_factory=list)
@@ -47,9 +48,11 @@ class SearchConfig:
     tl_max_pages: int = 5
     timeline_page_size: int = 25
 
+
 @dataclass
 class ScoringConfig:
     """Configuration for the composite scoring formula."""
+
     weight_amount: float = 0.30
     weight_recency: float = 0.10
     weight_activity: float = 0.15
@@ -71,26 +74,32 @@ class ScoringConfig:
     opportunistic_allow_no_escrow: bool = True
     opportunistic_allow_dead_repos: bool = True
 
+
 @dataclass
 class ConcurrencyConfig:
     """Configuration for concurrency and rate limiting."""
+
     semaphore_limit: int = 15
     token_bucket_capacity: int = 500
     token_bucket_fill_rate: float = 10.0
     db_batch_size: int = 50
     vibe_check_concurrency: int = 3
 
+
 @dataclass
 class CacheConfig:
     """Configuration for SQLite and repository caching."""
+
     cache_ttl_dead: int = 259200
     cache_ttl_low: int = 43200
     cache_ttl_active: int = 7200
     db_file: str = "bounty_stats.db"
 
+
 @dataclass
 class OutputConfig:
     """Configuration for reports and candidate logging."""
+
     output_format: str = "text"
     output_md_file: str = "output.md"
     output_json_file: str = "output.json"
@@ -102,20 +111,23 @@ class OutputConfig:
     verbose: bool = False
     log_raw_candidates: bool = False
 
+
 @dataclass
 class ScraperConfig:
     """Main configuration orchestrator."""
+
     github_token: str = ""
     mode: str = "strict"
     dry_run: bool = False
     enable_vibe: bool = True
+    vibe_check_enabled: bool = False
     enable_live_prices: bool = False
     live_price_timeout_seconds: int = 5
     signals_config_file: str = DEFAULT_SIGNALS_FILE
     config_file: str = DEFAULT_CONFIG_FILE
     gemini_model: str = "gemini-1.5-flash"
     vibe_retry_file: str = "vibe_retry.json"
-    
+
     # Sub-configs
     search: SearchConfig = field(default_factory=SearchConfig)
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
@@ -124,254 +136,404 @@ class ScraperConfig:
     output: OutputConfig = field(default_factory=OutputConfig)
 
     @property
-    def languages(self): return self.search.languages
+    def languages(self):
+        return self.search.languages
+
     @languages.setter
-    def languages(self, val): self.search.languages = val
+    def languages(self, val):
+        self.search.languages = val
 
     @property
-    def min_repo_stars(self): return self.search.min_repo_stars
+    def min_repo_stars(self):
+        return self.search.min_repo_stars
+
     @min_repo_stars.setter
-    def min_repo_stars(self, val): self.search.min_repo_stars = val
+    def min_repo_stars(self, val):
+        self.search.min_repo_stars = val
 
     @property
-    def repo_blocklist(self): return self.search.repo_blocklist
+    def repo_blocklist(self):
+        return self.search.repo_blocklist
+
     @repo_blocklist.setter
-    def repo_blocklist(self, val): self.search.repo_blocklist = val
+    def repo_blocklist(self, val):
+        self.search.repo_blocklist = val
 
     @property
-    def since(self): return self.search.since
+    def since(self):
+        return self.search.since
+
     @since.setter
-    def since(self, val): self.search.since = val
+    def since(self, val):
+        self.search.since = val
 
     @property
-    def query_override(self): return self.search.query_override
+    def query_override(self):
+        return self.search.query_override
+
     @query_override.setter
-    def query_override(self, val): self.search.query_override = val
+    def query_override(self, val):
+        self.search.query_override = val
 
     @property
-    def max_issues_per_run(self): return self.search.max_issues_per_run
+    def max_issues_per_run(self):
+        return self.search.max_issues_per_run
+
     @max_issues_per_run.setter
-    def max_issues_per_run(self, val): self.search.max_issues_per_run = val
+    def max_issues_per_run(self, val):
+        self.search.max_issues_per_run = val
 
     @property
-    def max_pages_per_query(self): return self.search.max_pages_per_query
+    def max_pages_per_query(self):
+        return self.search.max_pages_per_query
+
     @max_pages_per_query.setter
-    def max_pages_per_query(self, val): self.search.max_pages_per_query = val
+    def max_pages_per_query(self, val):
+        self.search.max_pages_per_query = val
 
     @property
-    def sort_by(self): return self.search.sort_by
+    def sort_by(self):
+        return self.search.sort_by
+
     @sort_by.setter
-    def sort_by(self, val): self.search.sort_by = val
+    def sort_by(self, val):
+        self.search.sort_by = val
 
     @property
-    def max_expanded_queries(self): return self.search.max_expanded_queries
+    def max_expanded_queries(self):
+        return self.search.max_expanded_queries
+
     @max_expanded_queries.setter
-    def max_expanded_queries(self, val): self.search.max_expanded_queries = val
+    def max_expanded_queries(self, val):
+        self.search.max_expanded_queries = val
 
     @property
-    def search_delay_seconds(self): return self.search.search_delay_seconds
+    def search_delay_seconds(self):
+        return self.search.search_delay_seconds
+
     @search_delay_seconds.setter
-    def search_delay_seconds(self, val): self.search.search_delay_seconds = val
+    def search_delay_seconds(self, val):
+        self.search.search_delay_seconds = val
 
     @property
-    def search_queries(self): return self.search.search_queries
+    def search_queries(self):
+        return self.search.search_queries
+
     @search_queries.setter
-    def search_queries(self, val): self.search.search_queries = val
+    def search_queries(self, val):
+        self.search.search_queries = val
 
     @property
-    def pr_cap(self): return self.search.pr_cap
+    def pr_cap(self):
+        return self.search.pr_cap
+
     @pr_cap.setter
-    def pr_cap(self, val): self.search.pr_cap = val
+    def pr_cap(self, val):
+        self.search.pr_cap = val
 
     @property
-    def tl_max_pages(self): return self.search.tl_max_pages
+    def tl_max_pages(self):
+        return self.search.tl_max_pages
+
     @tl_max_pages.setter
-    def tl_max_pages(self, val): self.search.tl_max_pages = val
+    def tl_max_pages(self, val):
+        self.search.tl_max_pages = val
 
     @property
-    def timeline_page_size(self): return self.search.timeline_page_size
+    def timeline_page_size(self):
+        return self.search.timeline_page_size
+
     @timeline_page_size.setter
-    def timeline_page_size(self, val): self.search.timeline_page_size = val
+    def timeline_page_size(self, val):
+        self.search.timeline_page_size = val
 
     @property
-    def weight_amount(self): return self.scoring.weight_amount
+    def weight_amount(self):
+        return self.scoring.weight_amount
+
     @weight_amount.setter
-    def weight_amount(self, val): self.scoring.weight_amount = val
+    def weight_amount(self, val):
+        self.scoring.weight_amount = val
 
     @property
-    def weight_recency(self): return self.scoring.weight_recency
+    def weight_recency(self):
+        return self.scoring.weight_recency
+
     @weight_recency.setter
-    def weight_recency(self, val): self.scoring.weight_recency = val
+    def weight_recency(self, val):
+        self.scoring.weight_recency = val
 
     @property
-    def weight_activity(self): return self.scoring.weight_activity
+    def weight_activity(self):
+        return self.scoring.weight_activity
+
     @weight_activity.setter
-    def weight_activity(self, val): self.scoring.weight_activity = val
+    def weight_activity(self, val):
+        self.scoring.weight_activity = val
 
     @property
-    def weight_escrow_strength(self): return self.scoring.weight_escrow_strength
+    def weight_escrow_strength(self):
+        return self.scoring.weight_escrow_strength
+
     @weight_escrow_strength.setter
-    def weight_escrow_strength(self, val): self.scoring.weight_escrow_strength = val
+    def weight_escrow_strength(self, val):
+        self.scoring.weight_escrow_strength = val
 
     @property
-    def w_repo_reputation(self): return self.scoring.w_repo_reputation
+    def w_repo_reputation(self):
+        return self.scoring.w_repo_reputation
+
     @w_repo_reputation.setter
-    def w_repo_reputation(self, val): self.scoring.w_repo_reputation = val
+    def w_repo_reputation(self, val):
+        self.scoring.w_repo_reputation = val
 
     @property
-    def weight_vibe(self): return self.scoring.weight_vibe
+    def weight_vibe(self):
+        return self.scoring.weight_vibe
+
     @weight_vibe.setter
-    def weight_vibe(self, val): self.scoring.weight_vibe = val
+    def weight_vibe(self, val):
+        self.scoring.weight_vibe = val
 
     @property
-    def hardware_penalty_factor(self): return self.scoring.hardware_penalty_factor
+    def hardware_penalty_factor(self):
+        return self.scoring.hardware_penalty_factor
+
     @hardware_penalty_factor.setter
-    def hardware_penalty_factor(self, val): self.scoring.hardware_penalty_factor = val
+    def hardware_penalty_factor(self, val):
+        self.scoring.hardware_penalty_factor = val
 
     @property
-    def min_bounty_amount(self): return self.scoring.min_bounty_amount
+    def min_bounty_amount(self):
+        return self.scoring.min_bounty_amount
+
     @min_bounty_amount.setter
-    def min_bounty_amount(self, val): self.scoring.min_bounty_amount = val
+    def min_bounty_amount(self, val):
+        self.scoring.min_bounty_amount = val
 
     @property
-    def amount_norm_cap(self): return self.scoring.amount_norm_cap
+    def amount_norm_cap(self):
+        return self.scoring.amount_norm_cap
+
     @amount_norm_cap.setter
-    def amount_norm_cap(self, val): self.scoring.amount_norm_cap = val
+    def amount_norm_cap(self, val):
+        self.scoring.amount_norm_cap = val
 
     @property
-    def max_sane_amount(self): return self.scoring.max_sane_amount
+    def max_sane_amount(self):
+        return self.scoring.max_sane_amount
+
     @max_sane_amount.setter
-    def max_sane_amount(self, val): self.scoring.max_sane_amount = val
+    def max_sane_amount(self, val):
+        self.scoring.max_sane_amount = val
 
     @property
-    def new_repo_grace_days(self): return self.scoring.new_repo_grace_days
+    def new_repo_grace_days(self):
+        return self.scoring.new_repo_grace_days
+
     @new_repo_grace_days.setter
-    def new_repo_grace_days(self, val): self.scoring.new_repo_grace_days = val
+    def new_repo_grace_days(self, val):
+        self.scoring.new_repo_grace_days = val
 
     @property
-    def allow_assigned_if_stale(self): return self.scoring.allow_assigned_if_stale
+    def allow_assigned_if_stale(self):
+        return self.scoring.allow_assigned_if_stale
+
     @allow_assigned_if_stale.setter
-    def allow_assigned_if_stale(self, val): self.scoring.allow_assigned_if_stale = val
+    def allow_assigned_if_stale(self, val):
+        self.scoring.allow_assigned_if_stale = val
 
     @property
-    def active_signal_max_age_days(self): return self.scoring.active_signal_max_age_days
+    def active_signal_max_age_days(self):
+        return self.scoring.active_signal_max_age_days
+
     @active_signal_max_age_days.setter
-    def active_signal_max_age_days(self, val): self.scoring.active_signal_max_age_days = val
+    def active_signal_max_age_days(self, val):
+        self.scoring.active_signal_max_age_days = val
 
     @property
-    def proximity_window(self): return self.scoring.proximity_window
+    def proximity_window(self):
+        return self.scoring.proximity_window
+
     @proximity_window.setter
-    def proximity_window(self, val): self.scoring.proximity_window = val
+    def proximity_window(self, val):
+        self.scoring.proximity_window = val
 
     @property
-    def vibe_ttl_hours(self): return self.scoring.vibe_ttl_hours
+    def vibe_ttl_hours(self):
+        return self.scoring.vibe_ttl_hours
+
     @vibe_ttl_hours.setter
-    def vibe_ttl_hours(self, val): self.scoring.vibe_ttl_hours = val
+    def vibe_ttl_hours(self, val):
+        self.scoring.vibe_ttl_hours = val
 
     @property
-    def opportunistic_min_amount(self): return self.scoring.opportunistic_min_amount
+    def opportunistic_min_amount(self):
+        return self.scoring.opportunistic_min_amount
+
     @opportunistic_min_amount.setter
-    def opportunistic_min_amount(self, val): self.scoring.opportunistic_min_amount = val
+    def opportunistic_min_amount(self, val):
+        self.scoring.opportunistic_min_amount = val
 
     @property
-    def exploration_min_stars_raw(self): return self.scoring.exploration_min_stars_raw
+    def exploration_min_stars_raw(self):
+        return self.scoring.exploration_min_stars_raw
+
     @exploration_min_stars_raw.setter
-    def exploration_min_stars_raw(self, val): self.scoring.exploration_min_stars_raw = val
+    def exploration_min_stars_raw(self, val):
+        self.scoring.exploration_min_stars_raw = val
 
     @property
-    def opportunistic_allow_no_escrow(self): return self.scoring.opportunistic_allow_no_escrow
+    def opportunistic_allow_no_escrow(self):
+        return self.scoring.opportunistic_allow_no_escrow
+
     @opportunistic_allow_no_escrow.setter
-    def opportunistic_allow_no_escrow(self, val): self.scoring.opportunistic_allow_no_escrow = val
+    def opportunistic_allow_no_escrow(self, val):
+        self.scoring.opportunistic_allow_no_escrow = val
 
     @property
-    def opportunistic_allow_dead_repos(self): return self.scoring.opportunistic_allow_dead_repos
+    def opportunistic_allow_dead_repos(self):
+        return self.scoring.opportunistic_allow_dead_repos
+
     @opportunistic_allow_dead_repos.setter
-    def opportunistic_allow_dead_repos(self, val): self.scoring.opportunistic_allow_dead_repos = val
+    def opportunistic_allow_dead_repos(self, val):
+        self.scoring.opportunistic_allow_dead_repos = val
 
     @property
-    def semaphore_limit(self): return self.concurrency.semaphore_limit
+    def semaphore_limit(self):
+        return self.concurrency.semaphore_limit
+
     @semaphore_limit.setter
-    def semaphore_limit(self, val): self.concurrency.semaphore_limit = val
+    def semaphore_limit(self, val):
+        self.concurrency.semaphore_limit = val
 
     @property
-    def token_bucket_capacity(self): return self.concurrency.token_bucket_capacity
+    def token_bucket_capacity(self):
+        return self.concurrency.token_bucket_capacity
+
     @token_bucket_capacity.setter
-    def token_bucket_capacity(self, val): self.concurrency.token_bucket_capacity = val
+    def token_bucket_capacity(self, val):
+        self.concurrency.token_bucket_capacity = val
 
     @property
-    def token_bucket_fill_rate(self): return self.concurrency.token_bucket_fill_rate
+    def token_bucket_fill_rate(self):
+        return self.concurrency.token_bucket_fill_rate
+
     @token_bucket_fill_rate.setter
-    def token_bucket_fill_rate(self, val): self.concurrency.token_bucket_fill_rate = val
+    def token_bucket_fill_rate(self, val):
+        self.concurrency.token_bucket_fill_rate = val
 
     @property
-    def db_batch_size(self): return self.concurrency.db_batch_size
+    def db_batch_size(self):
+        return self.concurrency.db_batch_size
+
     @db_batch_size.setter
-    def db_batch_size(self, val): self.concurrency.db_batch_size = val
+    def db_batch_size(self, val):
+        self.concurrency.db_batch_size = val
 
     @property
-    def vibe_check_concurrency(self): return self.concurrency.vibe_check_concurrency
+    def vibe_check_concurrency(self):
+        return self.concurrency.vibe_check_concurrency
+
     @vibe_check_concurrency.setter
-    def vibe_check_concurrency(self, val): self.concurrency.vibe_check_concurrency = val
+    def vibe_check_concurrency(self, val):
+        self.concurrency.vibe_check_concurrency = val
 
     @property
-    def cache_ttl_dead(self): return self.cache.cache_ttl_dead
+    def cache_ttl_dead(self):
+        return self.cache.cache_ttl_dead
+
     @cache_ttl_dead.setter
-    def cache_ttl_dead(self, val): self.cache.cache_ttl_dead = val
+    def cache_ttl_dead(self, val):
+        self.cache.cache_ttl_dead = val
 
     @property
-    def cache_ttl_low(self): return self.cache.cache_ttl_low
+    def cache_ttl_low(self):
+        return self.cache.cache_ttl_low
+
     @cache_ttl_low.setter
-    def cache_ttl_low(self, val): self.cache.cache_ttl_low = val
+    def cache_ttl_low(self, val):
+        self.cache.cache_ttl_low = val
 
     @property
-    def cache_ttl_active(self): return self.cache.cache_ttl_active
+    def cache_ttl_active(self):
+        return self.cache.cache_ttl_active
+
     @cache_ttl_active.setter
-    def cache_ttl_active(self, val): self.cache.cache_ttl_active = val
+    def cache_ttl_active(self, val):
+        self.cache.cache_ttl_active = val
 
     @property
-    def db_file(self): return self.cache.db_file
+    def db_file(self):
+        return self.cache.db_file
+
     @db_file.setter
-    def db_file(self, val): self.cache.db_file = val
+    def db_file(self, val):
+        self.cache.db_file = val
 
     @property
-    def output_format(self): return self.output.output_format
+    def output_format(self):
+        return self.output.output_format
+
     @output_format.setter
-    def output_format(self, val): self.output.output_format = val
+    def output_format(self, val):
+        self.output.output_format = val
 
     @property
-    def output_md_file(self): return self.output.output_md_file
+    def output_md_file(self):
+        return self.output.output_md_file
+
     @output_md_file.setter
-    def output_md_file(self, val): self.output.output_md_file = val
+    def output_md_file(self, val):
+        self.output.output_md_file = val
 
     @property
-    def output_json_file(self): return self.output.output_json_file
+    def output_json_file(self):
+        return self.output.output_json_file
+
     @output_json_file.setter
-    def output_json_file(self, val): self.output.output_json_file = val
+    def output_json_file(self, val):
+        self.output.output_json_file = val
 
     @property
-    def output_file(self): return self.output.output_file
+    def output_file(self):
+        return self.output.output_file
+
     @output_file.setter
-    def output_file(self, val): self.output.output_file = val
+    def output_file(self, val):
+        self.output.output_file = val
 
     @property
-    def raw_candidates_file(self): return self.output.raw_candidates_file
+    def raw_candidates_file(self):
+        return self.output.raw_candidates_file
+
     @raw_candidates_file.setter
-    def raw_candidates_file(self, val): self.output.raw_candidates_file = val
+    def raw_candidates_file(self, val):
+        self.output.raw_candidates_file = val
 
     @property
-    def progress_every(self): return self.output.progress_every
+    def progress_every(self):
+        return self.output.progress_every
+
     @progress_every.setter
-    def progress_every(self, val): self.output.progress_every = val
+    def progress_every(self, val):
+        self.output.progress_every = val
 
     @property
-    def verbose(self): return self.output.verbose
+    def verbose(self):
+        return self.output.verbose
+
     @verbose.setter
-    def verbose(self, val): self.output.verbose = val
+    def verbose(self, val):
+        self.output.verbose = val
 
     @property
-    def log_raw_candidates(self): return self.output.log_raw_candidates
+    def log_raw_candidates(self):
+        return self.output.log_raw_candidates
+
     @log_raw_candidates.setter
-    def log_raw_candidates(self, val): self.output.log_raw_candidates = val
+    def log_raw_candidates(self, val):
+        self.output.log_raw_candidates = val
 
     # These don't have sub-configs but are often passed via CLI
     no_cache: bool = False
@@ -490,12 +652,32 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "repo_blocklist": [],
     }
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data: dict[str, Any] = json.load(fh)
-        for key in list(defaults.keys()):
-            if key in data and isinstance(data[key], list):
-                defaults[key] = [s.lower() for s in data[key]]
-    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as fh:
+                data: dict[str, Any] = json.load(fh)
+            for key in list(defaults.keys()):
+                if key in data and isinstance(data[key], list):
+                    defaults[key] = [s.lower() for s in data[key]]
+        else:
+            log.debug("Signals file %s not found — using internal defaults.", path)
+            # Add some hardcoded high-value defaults if file is missing
+            defaults["positive_escrow"].extend(
+                [
+                    "escrow",
+                    "safe multisig",
+                    "payout",
+                    "bounty",
+                    "reward",
+                    "hats finance",
+                    "immunefi",
+                    "algora",
+                    "gitcoin",
+                ]
+            )
+            defaults["crypto_keywords"].extend(["usdc", "usdt", "eth", "sol", "dai", "wbtc"])
+            defaults["stablecoin_symbols"].extend(["usdc", "usdt", "dai"])
+
+    except (json.JSONDecodeError, OSError) as exc:
         log.warning("Could not load %s: %s — using empty defaults.", path, exc)
 
     # Compile regexes for text matching optimization
@@ -522,18 +704,18 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
                 prefix = r"\b" if w[0].isalnum() else ""
                 suffix = r"\b" if w[-1].isalnum() else ""
                 escaped_words.append(f"{prefix}{esc}{suffix}")
-            
+
             pattern = "|".join(escaped_words)
             defaults[f"{key}_re"] = re.compile(pattern, flags=re.IGNORECASE)
         else:
             defaults[f"{key}_re"] = None
 
-    # Task H3: Special regexes for bounty.py
+    # Special regexes for bounty.py
     if defaults["crypto_keywords"]:
         # Match "NNN ETH", "NNN USDC", etc.
         pattern = r"([\d,]+(?:\.\d+)?)\s*(" + "|".join(re.escape(s) for s in defaults["crypto_keywords"]) + r")\b"
         defaults["crypto_amounts_re"] = re.compile(pattern, flags=re.IGNORECASE)
-        
+
         # Match standalone keywords for fallback
         pattern = r"\b(" + "|".join(re.escape(s) for s in defaults["crypto_keywords"] if s.upper() != "USD") + r")\b"
         defaults["crypto_keywords_re"] = re.compile(pattern, flags=re.IGNORECASE)
@@ -564,92 +746,68 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     Precedence: CLI flags > config file > dataclass defaults.
     """
-    # 1. Determine config file path (CLI may override).
+    import dataclasses
+
     overrides = cli_overrides or {}
     config_path = overrides.get("config_file", DEFAULT_CONFIG_FILE)
+    file_data = load_config_file(config_path)
 
-    # 2. Load config file and apply.
-    data = load_config_file(config_path)
+    # 1. Start with base config
+    cfg = ScraperConfig()
 
-    from dataclasses import fields as dc_fields
+    def _map_to_sub(source: dict[str, Any], target_cfg: ScraperConfig):
+        """Map flat dictionary keys to appropriate sub-configs."""
+        # Mapping of keys to sub-config names
+        mapping = {
+            "search": {f.name for f in dataclasses.fields(SearchConfig)},
+            "scoring": {f.name for f in dataclasses.fields(ScoringConfig)},
+            "concurrency": {f.name for f in dataclasses.fields(ConcurrencyConfig)},
+            "cache": {f.name for f in dataclasses.fields(CacheConfig)},
+            "output": {f.name for f in dataclasses.fields(OutputConfig)},
+        }
 
-    def _apply_aliases(d: dict[str, Any]):
-        if "db_path" in d:
-            d["db_file"] = d.pop("db_path")
-        if "concurrency" in d:
-            d["semaphore_limit"] = d.pop("concurrency")
-        if "raw_file" in d:
-            d["raw_candidates_file"] = d.pop("raw_file")
-        if "batch_commit_size" in d:
-            d["db_batch_size"] = d.pop("batch_commit_size")
-        if "vibe_check_limit" in d:
-            d["limit"] = d.pop("vibe_check_limit")
-        if "min_stars" in d:
-            d["min_repo_stars"] = d.pop("min_stars")
+        # Key aliases for backward compatibility
+        aliases = {
+            "db_path": "db_file",
+            "concurrency": "semaphore_limit",
+            "raw_file": "raw_candidates_file",
+            "batch_commit_size": "db_batch_size",
+            "vibe_check_limit": "limit",
+            "min_stars": "min_repo_stars",
+        }
 
-    _apply_aliases(data)
-    _apply_aliases(overrides)
+        # Root fields
+        root_fields = {f.name for f in dataclasses.fields(ScraperConfig)}
 
-    from dataclasses import fields as dc_fields
-    known = {f.name for f in dc_fields(ScraperConfig)}
+        for k, v in list(source.items()):
+            actual_k = aliases.get(k, k)
 
-    unknown = set(data) - known
-    if unknown:
-        import warnings
+            # Check root fields first
+            if actual_k in root_fields:
+                setattr(target_cfg, actual_k, v)
+                continue
 
-        warnings.warn(
-            f"scraper_config.json contains unrecognized keys (will be ignored): {unknown}",
-            stacklevel=2,
-        )
-    data = {k: v for k, v in data.items() if k in known}
+            # Check sub-configs
+            found = False
+            for sub_name, fields in mapping.items():
+                if actual_k in fields:
+                    sub_obj = getattr(target_cfg, sub_name)
+                    setattr(sub_obj, actual_k, v)
+                    found = True
+                    break
 
-    # Helper to populate sub-configs from flat data
-    def _extract_sub(data_dict, config_cls):
-        sub_fields = {f.name for f in dc_fields(config_cls)}
-        extracted = {k: data_dict.pop(k) for k in list(data_dict.keys()) if k in sub_fields}
-        return config_cls(**extracted)
+            if not found and k not in ["config_file", "command"]:
+                import warnings
+                warnings.warn(f"scraper_config.json contains unrecognized keys (will be ignored): {k}", UserWarning)
+                pass
 
-    search_sub = _extract_sub(data, SearchConfig)
-    scoring_sub = _extract_sub(data, ScoringConfig)
-    concurrency_sub = _extract_sub(data, ConcurrencyConfig)
-    cache_sub = _extract_sub(data, CacheConfig)
-    output_sub = _extract_sub(data, OutputConfig)
+    # 2. Apply config file
+    _map_to_sub(file_data, cfg)
 
-    # 3. Apply CLI overrides.
-    # We do a similar extraction for CLI overrides
-    cli_search = _extract_sub(overrides, SearchConfig)
-    cli_scoring = _extract_sub(overrides, ScoringConfig)
-    cli_concurrency = _extract_sub(overrides, ConcurrencyConfig)
-    cli_cache = _extract_sub(overrides, CacheConfig)
-    cli_output = _extract_sub(overrides, OutputConfig)
+    # 3. Apply CLI overrides
+    _map_to_sub(overrides, cfg)
 
-    # Merge sub-configs (CLI > File > Default)
-    def _merge_dc(base, file_sub, cli_sub):
-        # This is a bit tricky with dataclasses. We'll just manually update for now or use asdict
-        import dataclasses
-        res = dataclasses.asdict(base)
-        res.update({k: v for k, v in dataclasses.asdict(file_sub).items() if v != getattr(base, k)})
-        res.update({k: v for k, v in dataclasses.asdict(cli_sub).items() if v != getattr(base, k)})
-        return type(base)(**res)
-
-    search_final = _merge_dc(SearchConfig(), search_sub, cli_search)
-    scoring_final = _merge_dc(ScoringConfig(), scoring_sub, cli_scoring)
-    concurrency_final = _merge_dc(ConcurrencyConfig(), concurrency_sub, cli_concurrency)
-    cache_final = _merge_dc(CacheConfig(), cache_sub, cli_cache)
-    output_final = _merge_dc(OutputConfig(), output_sub, cli_output)
-
-    # Final assembly
-    cfg = ScraperConfig(
-        **{k: v for k, v in data.items() if k in known},
-        **{k: v for k, v in overrides.items() if k in known},
-        search=search_final,
-        scoring=scoring_final,
-        concurrency=concurrency_final,
-        cache=cache_final,
-        output=output_final
-    )
-
-    # 4. Resolve token if not already set.
+    # 4. Final resolution
     if not cfg.github_token:
         cfg.github_token = resolve_github_token()
     if not cfg.github_token:

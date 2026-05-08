@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
+import os
 import time
 from typing import Any, TypedDict, cast
 
@@ -39,6 +40,7 @@ from .signals import (
     compute_soft_signals,
 )
 from .utils import parse_github_timestamp, timestamp_to_float
+from .vibe import call_gemini
 
 log = get_logger()
 
@@ -59,6 +61,22 @@ class LeadResult(TypedDict):
     MentionsNoKyc: bool
     MentionsWalletPayout: bool
     ModelScore: float | None
+
+
+async def _log_worker(queue: asyncio.Queue, path: str) -> None:
+    """Async worker to append lines to the raw candidate log from a queue."""
+    while True:
+        line = await queue.get()
+        if line is None:
+            queue.task_done()
+            break
+        try:
+            # We still use a thread for the actual disk I/O to avoid blocking the event loop
+            await asyncio.to_thread(_append_raw, path, line)
+        except Exception as e:
+            log.error("Failed to write raw candidate: %s", e)
+        finally:
+            queue.task_done()
 
 
 def _append_raw(path: str, line: str) -> None:
@@ -117,6 +135,7 @@ def _resolve_numeric_amount(
     """Extract bounty amount, apply cue fallbacks, and return numeric value with display metadata."""
     if signals is None:
         from .config import load_signals
+
         signals = load_signals(config.signals_config_file)
 
     comments = issue.get("comments", {}).get("nodes", [])
@@ -178,6 +197,7 @@ async def process_issue(
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
     seen_aggregators: set[str],
+    log_queue: asyncio.Queue | None = None,
     model_scorer: ModelScorer | None = None,
 ) -> LeadResult | None:
     """Orchestrate the processing of a single issue candidate."""
@@ -191,7 +211,9 @@ async def process_issue(
         return None
 
     # 1. Enrichment & Filtering
-    enriched = await _enrich_issue(session, bucket, issue_item, db_conn, sem, config, signals, seen_aggregators)
+    enriched = await _enrich_issue(
+        session, bucket, issue_item, db_conn, sem, config, signals, seen_aggregators, log_queue=log_queue
+    )
     if not enriched:
         return None
 
@@ -223,6 +245,7 @@ async def _enrich_issue(
     config: ScraperConfig,
     signals: dict[str, Any],
     seen_aggregators: set[str],
+    log_queue: asyncio.Queue | None = None,
 ) -> dict[str, Any] | None:
     """Perform GraphQL fetch, health checks, and signal computation."""
     url = issue_item.get("html_url", "")
@@ -270,7 +293,7 @@ async def _enrich_issue(
     issue = repository["issue"]
 
     if config.log_raw_candidates:
-        await _log_raw_candidate_simple(url, repository, issue, config)
+        await _log_raw_candidate_simple(url, repository, issue, config, log_queue=log_queue)
 
     # Health check
     if not _check_repo_health(repository, config) and not config.log_raw_candidates:
@@ -357,9 +380,7 @@ def _has_title_signal(issue: dict[str, Any], signals: dict[str, Any]) -> bool:
     title_signals = signals.get("title_required_signals", [])
     crypto_keywords = [k.lower() for k in signals.get("crypto_keywords", [])]
 
-    amount_in_title = any(c.isdigit() for c in title) and (
-        "$" in title or any(tok in title for tok in crypto_keywords)
-    )
+    amount_in_title = any(c.isdigit() for c in title) and ("$" in title or any(tok in title for tok in crypto_keywords))
     return any(kw in title for kw in title_signals) or amount_in_title
 
 
@@ -432,6 +453,23 @@ async def _persist_lead(
     repo_rep = await get_repo_reputation(db_conn, repo_name)
     prev_score, vibe_score, vibe_at = await _get_issue_meta(db_conn, url, config)
 
+    # Integrated Vibe Check
+    if config.vibe_check_enabled and vibe_score is None:
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if api_key:
+            try:
+                title = issue.get("title", "")
+                body = (issue.get("body") or "")[:1500]
+                log.info("Integrated Vibe Check for %s ...", url)
+                async with aiohttp.ClientSession() as session:
+                    vibe_score, vibe_reason = await call_gemini(
+                        session, api_key, title, body, model=config.gemini_model
+                    )
+                vibe_at = time.time()
+                # We'll save this below in upsert_issue_stats
+            except Exception as e:
+                log.warning("Integrated vibe check failed for %s: %s", url, e)
+
     # ML Model Scoring
     model_score = None
     if model_scorer:
@@ -446,7 +484,8 @@ async def _persist_lead(
             "is_closed": (enriched["lead_mode_override"] == "closed_historical"),
         }
         model_score = model_scorer.predict_score(model_input)
-        log.debug("Model score for %s: %.2f", url, model_score)
+        reasoning = model_scorer.explain_prediction(model_input)
+        log.debug("Model score for %s: %.2f (%s)", url, model_score, reasoning)
 
     score = compute_score(
         numeric_amount=max(0, num_val),
@@ -489,6 +528,9 @@ async def _persist_lead(
             positive_escrow_count=soft.positive_escrow_count,
             escrow_weight_sum=soft.escrow_weight_sum,
             body_snippet=(issue.get("body") or "")[:300].replace("\n", " "),
+            vibe_score=vibe_score,
+            vibe_reason=vibe_reason if "vibe_reason" in locals() else "",
+            vibe_scored_at=vibe_at,
         )
         await mark_issue_checked(db_conn, url, time.time())
         await committer.tick()
@@ -509,7 +551,9 @@ def _is_qualified_lead(enriched: dict, config: ScraperConfig) -> bool:
         return not (0 < num_val < config.min_bounty_amount)
 
 
-async def _log_raw_candidate_simple(url: str, repository: dict, issue: dict, config: ScraperConfig):
+async def _log_raw_candidate_simple(
+    url: str, repository: dict, issue: dict, config: ScraperConfig, log_queue: asyncio.Queue | None = None
+):
     cand = {
         "url": url,
         "repo_name": repository.get("nameWithOwner", ""),
@@ -520,7 +564,11 @@ async def _log_raw_candidate_simple(url: str, repository: dict, issue: dict, con
         "labels": [lbl.get("name") for lbl in issue.get("labels", {}).get("nodes", [])],
         "body_snippet": (issue.get("body") or "")[:300].replace("\n", " "),
     }
-    await asyncio.to_thread(_append_raw, config.raw_candidates_file, json.dumps(cand) + "\n")
+    line = json.dumps(cand) + "\n"
+    if log_queue:
+        await log_queue.put(line)
+    else:
+        await asyncio.to_thread(_append_raw, config.raw_candidates_file, line)
 
 
 async def _log_raw_candidate(enriched: dict, is_lead: bool, config: ScraperConfig):
@@ -572,6 +620,7 @@ async def _process_with_retry(
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
     seen_aggregators: set[str],
+    log_queue: asyncio.Queue | None = None,
     model_scorer: ModelScorer | None = None,
     max_retries: int = 2,
 ) -> LeadResult | None:
@@ -588,6 +637,7 @@ async def _process_with_retry(
                 signals,
                 committer,
                 seen_aggregators,
+                log_queue=log_queue,
                 model_scorer=model_scorer,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
@@ -630,14 +680,17 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
     signals = load_signals(config.signals_config_file)
 
     # Initialize Model Scorer
-    model_scorer = ModelScorer()
-    if not model_scorer.load():
+    model_scorer: ModelScorer | None = ModelScorer()
+    if model_scorer and not model_scorer.load():
         model_scorer = None
 
     if config.enable_live_prices:
-        from .config import CRYPTO_KEYWORDS
-
-        await refresh_prices(CRYPTO_KEYWORDS)
+        # Use keywords from signals configuration
+        raw_keywords = signals.get("crypto_keywords", [])
+        if isinstance(raw_keywords, list):
+            crypto_words = [str(s).upper() for s in raw_keywords if isinstance(s, (str, bytes))]
+            if crypto_words:
+                await refresh_prices(crypto_words)
 
     async with aiosqlite.connect(config.db_file) as db_conn:
         await init_db(db_conn, db_path=config.db_file)
@@ -646,6 +699,11 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
 
         bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
         seen_aggregators: set[str] = set()
+
+        # Logging Queue
+        log_queue: asyncio.Queue = asyncio.Queue()
+        log_worker_task = asyncio.create_task(_log_worker(log_queue, config.raw_candidates_file))
+
         queue: asyncio.Queue = asyncio.Queue(maxsize=config.semaphore_limit * 3)
 
         results: list[Any] = []
@@ -685,6 +743,7 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
                         signals,
                         committer,
                         seen_aggregators,
+                        log_queue=log_queue,
                         model_scorer=model_scorer,
                     )
                 except Exception as exc:
@@ -712,6 +771,10 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
             prod_task = asyncio.create_task(producer())
             worker_tasks = [asyncio.create_task(worker(session)) for _ in range(config.semaphore_limit)]
             await asyncio.gather(prod_task, *worker_tasks)
+
+            # Shutdown log worker
+            await log_queue.put(None)
+            await log_worker_task
 
         await committer.flush()
 

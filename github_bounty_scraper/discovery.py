@@ -201,42 +201,44 @@ async def fetch_graphql_search(
 
 
 async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
-    """Run all search queries with pagination, dedup by URL.
+    """Run all search queries with pagination using GraphQL Search, dedup by URL.
 
-    Yields issues as they are discovered.
+    Yields issues as they are discovered with basic metadata included.
     Respects ``config.max_pages_per_query`` and ``config.max_issues_per_run``.
-    Stops paginating a query early when a page returns fewer than
-    ``per_page`` results.
     """
     queries = build_search_queries(config)
     log.info(
-        "Discovery: running %d search queries (~%d API calls max, %d min) …",
+        "Discovery (GraphQL): running %d search queries (~%d API calls max, %d min) …",
         len(queries),
         len(queries) * config.max_pages_per_query,
         len(queries),
     )
 
     unique_urls: set[str] = set()
-    per_page = 100
+    first_per_page = 100
+    bucket = TokenBucket(config.token_bucket_capacity, config.token_bucket_fill_rate)
 
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
         for qi, query in enumerate(queries, 1):
             if config.max_issues_per_run and len(unique_urls) >= config.max_issues_per_run:
                 break
-            await asyncio.sleep(config.search_delay_seconds)
 
+            cursor = None
             for page in range(1, config.max_pages_per_query + 1):
                 if config.max_issues_per_run and len(unique_urls) >= config.max_issues_per_run:
                     break
 
-                items = await fetch_rest_search(
+                items, cursor = await fetch_graphql_search(
                     session,
+                    bucket,
                     config.github_token,
                     query,
-                    page,
-                    per_page,
-                    sort_by=config.sort_by,
+                    first=first_per_page,
+                    after=cursor,
                 )
+
+                if not items:
+                    break
 
                 new_count = 0
                 for item in items:
@@ -255,10 +257,9 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
                     new_count,
                 )
 
-                await asyncio.sleep(config.search_delay_seconds / 2)
-
-                # Early stop: page is not full.
-                if len(items) < per_page:
+                if not cursor:
                     break
+
+                await asyncio.sleep(config.search_delay_seconds / 2)
 
     log.info("Discovery complete: %d unique issues found.", len(unique_urls))

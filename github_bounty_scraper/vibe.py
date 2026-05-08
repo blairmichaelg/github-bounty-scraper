@@ -193,7 +193,7 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
     text = raw_text.strip()
     # Remove markdown code blocks
     text = re.sub(r"^```(?:json)?\s*(.*?)\s*```$", r"\1", text, flags=re.S | re.I)
-    
+
     try:
         data = json.loads(text)
         if isinstance(data, dict) and ("score" in data or "reason" in data):

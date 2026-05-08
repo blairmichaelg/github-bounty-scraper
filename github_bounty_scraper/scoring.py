@@ -81,7 +81,7 @@ def compute_score(
         amount_norm = 0.0
     else:
         # Boosted normalization cap to 50k for better differentiation
-        _norm_cap = config.amount_norm_cap
+        _norm_cap = config.scoring.amount_norm_cap
         _log_cap = math.log10(_norm_cap + 1)
         amount_norm = min(math.log10(numeric_amount + 1) / _log_cap, 1.0)
 
@@ -122,17 +122,17 @@ def compute_score(
     # ── Vibe component ──
     if vibe_score_int is not None:
         vibe_norm = vibe_score_int / 100.0
-        w_vibe = config.weight_vibe
+        w_vibe = config.scoring.weight_vibe
     else:
         vibe_norm = 0.0
         w_vibe = 0.0  # exclude vibe from denominator when unavailable
 
-    w_amt = config.weight_amount
-    w_rec = config.weight_recency
-    w_act = config.weight_activity
-    w_esc = config.weight_escrow_strength
-    w_repo = config.w_repo_reputation
-    w_model = config.weight_model if model_score is not None else 0.0
+    w_amt = config.scoring.weight_amount
+    w_rec = config.scoring.weight_recency
+    w_act = config.scoring.weight_activity
+    w_esc = config.scoring.weight_escrow_strength
+    w_repo = config.scoring.w_repo_reputation
+    w_model = config.scoring.weight_model if model_score is not None else 0.0
 
     # Normalize so weights always sum to 1.0 regardless of availability
     total_w = w_amt + w_rec + w_act + w_esc + w_repo + w_vibe + w_model
@@ -162,6 +162,6 @@ def compute_score(
 
     # Hardware penalty halves (by default) the entire score because hardware tasks are highly constrained.
     if requires_hardware:
-        raw_score *= config.hardware_penalty_factor
+        raw_score *= config.scoring.hardware_penalty_factor
 
     return round(max(0.0, min(100.0, raw_score)), 2)

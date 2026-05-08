@@ -7,6 +7,7 @@ from github_bounty_scraper.config import ScraperConfig, build_config, resolve_gi
 
 def test_scraper_config_post_init():
     from github_bounty_scraper.config import ScoringConfig
+
     cfg = ScraperConfig(
         scoring=ScoringConfig(
             weight_amount=0.5,
@@ -21,6 +22,7 @@ def test_scraper_config_post_init():
 
     # Test normalization
     from github_bounty_scraper.config import ScoringConfig
+
     cfg = ScraperConfig(
         scoring=ScoringConfig(
             weight_amount=0.6,
@@ -36,10 +38,12 @@ def test_scraper_config_post_init():
 
     # Test pathological drift (too high)
     from github_bounty_scraper.config import ScoringConfig
+
     with pytest.raises(ValueError, match="outside sane bounds"):
         ScraperConfig(scoring=ScoringConfig(weight_amount=10.0, weight_recency=10.0))
 
     from github_bounty_scraper.config import ScoringConfig
+
     with pytest.raises(ValueError, match="cannot be negative"):
         ScraperConfig(scoring=ScoringConfig(weight_amount=-0.5, weight_recency=1.5))
 
@@ -67,6 +71,7 @@ def test_scraper_config_invalid_weights():
     import pytest
 
     from github_bounty_scraper.config import ScoringConfig
+
     with pytest.raises(ValueError, match="must sum to a positive number"):
         ScraperConfig(
             scoring=ScoringConfig(
@@ -85,7 +90,7 @@ def test_load_signals_missing_file():
 
     # Should not crash, returns defaults
     sigs = load_signals("nonexistent.json")
-    assert sigs["positive_escrow"] == []
+    assert "escrow" in sigs["positive_escrow"]
 
 
 def test_load_config_file_missing():

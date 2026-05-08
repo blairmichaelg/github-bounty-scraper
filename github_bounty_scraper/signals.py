@@ -182,7 +182,7 @@ def compute_soft_signals(
         # Search title, body, and labels for escrow signals
         escrow_hits.update(pos_signals_re.findall(title_lower))
         escrow_hits.update(pos_signals_re.findall(body_lower))
-        
+
         # Also check labels
         labels_text = " ".join([l.get("name", "").lower() for l in labels_nodes if isinstance(l, dict)])
         escrow_hits.update(pos_signals_re.findall(labels_text))
@@ -240,7 +240,8 @@ def compute_soft_signals(
         result.mentions_wallet_payout = True
 
     result.has_onchain_escrow = any(
-        any(k in s for k in ["vault", "escrow", "multisig", "gnosis", "hats", "immunefi", "safe"]) for s in escrow_hits
+        any(k in s for k in ["vault", "escrow", "multisig", "gnosis", "hats", "immunefi", "safe", "algora"])
+        for s in escrow_hits
     )
 
     hw_re = signals.get("hardware_dependency_phrases_re")

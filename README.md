@@ -6,7 +6,7 @@
 
 GitHub Bounty Scraper is an async Python pipeline for discovering, enriching, and ranking GitHub issues that may represent funded crypto or open-source bounty work.
 
-It combines GitHub REST search, GraphQL enrichment, SQLite caching, heuristic scoring, signal detection, and optional Gemini-based review. The repository intentionally does not track generated databases, scrape outputs, datasets, or trained model binaries.
+It combines GitHub GraphQL search, SQLite caching, heuristic scoring, signal detection, and optional integrated Gemini-based review. The repository intentionally does not track generated databases, scrape outputs, datasets, or trained model binaries.
 
 ## Current Status
 
@@ -102,6 +102,7 @@ Useful scrape options:
 | `--since YYYY-MM-DD` | Only search issues updated on or after a date |
 | `--max-issues N` | Cap total issues processed in a run |
 | `--mode strict|opportunistic` | Choose precision-first or recall-first filtering |
+| `--vibe-check` | Run Gemini vibe checks automatically on high-potential leads |
 | `--query TEXT` | Override configured search queries with one query |
 | `--no-cache` | Re-enrich even if TTL caches would skip records |
 | `--output-format text|markdown|json` | Select output format |
@@ -160,7 +161,7 @@ github_bounty_scraper/
   config.py       Runtime configuration and signal loading
   core.py         Async discovery, enrichment, filtering, scoring, persistence
   db.py           SQLite schema, migrations, inspection, dataset export
-  discovery.py    GitHub REST search
+  discovery.py    GitHub GraphQL search
   graphql.py      GitHub GraphQL enrichment and rate limiting
   output.py       Text, Markdown, and JSON output
   scoring.py      Composite scoring model

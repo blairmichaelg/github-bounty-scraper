@@ -179,6 +179,12 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="log_raw_candidates",
         help="Log raw candidate issues to exploration_raw.jsonl",
     )
+    parser.add_argument(
+        "--vibe-check",
+        action="store_true",
+        dest="vibe_check_enabled",
+        help="Run Gemini vibe checks on high-potential candidates during the scrape.",
+    )
 
     # ── Config file ──
     parser.add_argument(

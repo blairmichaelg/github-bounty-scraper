@@ -114,7 +114,7 @@ async def _run_inspect(db_path: str, mode: str, limit: int, min_ml_prob: float =
         )
 
     leads.sort(key=_rank_key)
-    
+
     if min_ml_prob > 0:
         leads = [L for L in leads if L.get("ml_prob", 0) >= min_ml_prob]
         if not leads:
@@ -195,7 +195,9 @@ def main() -> None:
 
         asyncio.run(run_pipeline(config))
     elif command == "inspect-leads":
-        asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n, min_ml_prob=getattr(ns, "min_ml_prob", 0.0)))
+        asyncio.run(
+            _run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n, min_ml_prob=getattr(ns, "min_ml_prob", 0.0))
+        )
     elif command == "vibe-check":
         from .vibe import run_vibe_check
 

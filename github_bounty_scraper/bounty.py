@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from .config import ScraperConfig
 from .price_cache import get_usd_price
@@ -222,7 +223,9 @@ def extract_bounty_amount(
     signals: dict[str, Any] | None = None,
 ) -> BountyResult:
     """Backward-compatible alias for ``parse_numeric_amount``."""
-    return parse_numeric_amount(text, max_sane=max_sane, proximity_window=proximity_window, config=config, signals=signals)
+    return parse_numeric_amount(
+        text, max_sane=max_sane, proximity_window=proximity_window, config=config, signals=signals
+    )
 
 
 _SNIPE_PHRASES: frozenset[str] = frozenset(
