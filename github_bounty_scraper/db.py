@@ -21,8 +21,7 @@ _db_initialized: set[str] = set()
 async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     """Create or migrate the SQLite schema for caching.
 
-    Uses ``ALTER TABLE … ADD COLUMN`` wrapped in try/except so the
-    migration is idempotent and safe to run on every startup.
+    Uses a versioned migration system tracked in the 'schema_meta' table.
     """
     if db_path and db_path in _db_initialized:
         return
@@ -33,104 +32,14 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     await conn.execute("PRAGMA mmap_size = 268435456;")  # 256MB memory-mapped I/O
     await conn.execute("PRAGMA temp_store = MEMORY;")  # Temp tables in RAM
 
-    # ── repo_stats ──
+    # 1. Ensure basic tables exist for the first migration to run
     await conn.execute("""
-        CREATE TABLE IF NOT EXISTS repo_stats (
-            repo_name          TEXT PRIMARY KEY,
-            last_checked_at    REAL,
-            last_merged_pr_at  REAL,
-            merges_last_45d    INTEGER DEFAULT 0,
-            escrows_seen       INTEGER DEFAULT 0,
-            rugs_seen          INTEGER DEFAULT 0,
-            snipes_detected    INTEGER DEFAULT 0,
-            first_seen_at      REAL,
-            last_seen_at       REAL,
-            total_escrows_seen INTEGER DEFAULT 0,
-            max_bounty_amount  REAL DEFAULT 0
+        CREATE TABLE IF NOT EXISTS schema_meta (
+            version INTEGER PRIMARY KEY
         )
     """)
 
-    # Migration columns for repo_stats (safe to call repeatedly)
-    for col_def in [
-        "snipes_detected INTEGER DEFAULT 0",
-        "first_seen_at REAL",
-        "last_seen_at REAL",
-        "total_escrows_seen INTEGER DEFAULT 0",
-        "max_bounty_amount REAL DEFAULT 0",
-    ]:
-        try:
-            await conn.execute(f"ALTER TABLE repo_stats ADD COLUMN {col_def};")
-        except aiosqlite.OperationalError:
-            pass  # Column already exists.
-
-    # ── issue_stats ──
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS issue_stats (
-            issue_url         TEXT PRIMARY KEY,
-            checked_at        REAL,
-            scraped_amount    REAL,
-            first_seen_at     REAL,
-            last_seen_at      REAL,
-            last_updated_at   REAL,
-            numeric_amount    REAL,
-            raw_display_amount TEXT,
-            currency_symbol   TEXT,
-            score             REAL DEFAULT 0,
-            title             TEXT DEFAULT '',
-            repo_name         TEXT DEFAULT ''
-        )
-    """)
-
-    # Migration columns for issue_stats
-    for col_def in [
-        "first_seen_at REAL",
-        "last_seen_at REAL",
-        "last_updated_at REAL",
-        "numeric_amount REAL",
-        "raw_display_amount TEXT",
-        "currency_symbol TEXT",
-        "score REAL DEFAULT 0",
-        "title TEXT DEFAULT ''",
-        "repo_name TEXT DEFAULT ''",
-        "lead_mode TEXT DEFAULT 'strict'",
-        "escrow_verified INTEGER DEFAULT 1",
-        "is_dead_repo INTEGER DEFAULT 0",
-        "vibe_score INTEGER",
-        "vibe_reason TEXT",
-        "vibe_scored_at REAL DEFAULT 0.0",
-        "prev_score REAL",
-        "label INTEGER",
-        "has_onchain_escrow INTEGER DEFAULT 0",
-        "mentions_no_kyc INTEGER DEFAULT 0",
-        "mentions_wallet_payout INTEGER DEFAULT 0",
-        "positive_escrow_count INTEGER DEFAULT 0",
-        "escrow_weight_sum REAL DEFAULT 0.0",
-        "model_score REAL",
-    ]:
-        try:
-            await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
-        except aiosqlite.OperationalError:
-            pass  # Column already exists.
-
-    # ── Indexes ──
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at ON issue_stats(checked_at DESC);")
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode);")
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC);")
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC);")
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_score ON issue_stats(vibe_score);")
-    await conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_composite ON issue_stats(vibe_score, vibe_scored_at);"
-    )
-
-    # ── checked_cache ──
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS checked_cache (
-            issue_url   TEXT PRIMARY KEY,
-            checked_at  REAL NOT NULL
-        );
-    """)
-
-    # ── Migration Runner ──
+    # 2. Run Migrations
     await _run_migrations(conn)
 
     if db_path:
@@ -139,21 +48,115 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
 
 
 async def _run_migrations(conn: aiosqlite.Connection) -> None:
-    """Handle complex schema migrations that require more than just ADD COLUMN."""
-    # Check for current schema version or presence of indicators
-    # For now, this is a placeholder for future complex migrations.
-    # We could use a 'meta' table to track versioning.
-    await conn.execute("CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER PRIMARY KEY);")
+    """Handle schema evolution through a sequence of versioned migration functions."""
     async with conn.execute("SELECT version FROM schema_meta") as cursor:
         row = await cursor.fetchone()
-        version = row[0] if row else 0
+        current_version = row[0] if row else 0
 
-    # Example migration: version 1
-    # if version < 1:
-    #    await conn.execute("...")
-    #    await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (1);")
+    # Migration Sequence
+    # Version 1: Initial schema (baseline)
+    if current_version < 1:
+        log.info("Running DB migration v1 (Baseline)...")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS repo_stats (
+                repo_name          TEXT PRIMARY KEY,
+                last_checked_at    REAL,
+                last_merged_pr_at  REAL,
+                merges_last_45d    INTEGER DEFAULT 0,
+                escrows_seen       INTEGER DEFAULT 0,
+                rugs_seen          INTEGER DEFAULT 0
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS issue_stats (
+                issue_url         TEXT PRIMARY KEY,
+                checked_at        REAL,
+                scraped_amount    REAL
+            )
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS checked_cache (
+                issue_url   TEXT PRIMARY KEY,
+                checked_at  REAL NOT NULL
+            )
+        """)
+        await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (1)")
+        current_version = 1
 
-    pass
+    # Version 2: Add extended stats and ranking columns
+    if current_version < 2:
+        log.info("Running DB migration v2 (Extended stats)...")
+        cols_repo = [
+            "snipes_detected INTEGER DEFAULT 0",
+            "first_seen_at REAL",
+            "last_seen_at REAL",
+            "total_escrows_seen INTEGER DEFAULT 0",
+            "max_bounty_amount REAL DEFAULT 0",
+        ]
+        for col in cols_repo:
+            try:
+                await conn.execute(f"ALTER TABLE repo_stats ADD COLUMN {col}")
+            except aiosqlite.OperationalError:
+                pass
+
+        cols_issue = [
+            "first_seen_at REAL",
+            "last_seen_at REAL",
+            "last_updated_at REAL",
+            "numeric_amount REAL",
+            "raw_display_amount TEXT",
+            "currency_symbol TEXT",
+            "score REAL DEFAULT 0",
+            "title TEXT DEFAULT ''",
+            "repo_name TEXT DEFAULT ''",
+            "lead_mode TEXT DEFAULT 'strict'",
+            "escrow_verified INTEGER DEFAULT 1",
+            "is_dead_repo INTEGER DEFAULT 0",
+        ]
+        for col in cols_issue:
+            try:
+                await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col}")
+            except aiosqlite.OperationalError:
+                pass
+
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at ON issue_stats(checked_at DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC)")
+        await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (2)")
+        current_version = 2
+
+    # Version 3: Add Vibe check and ML columns
+    if current_version < 3:
+        log.info("Running DB migration v3 (Vibe & ML)...")
+        cols_issue = [
+            "vibe_score INTEGER",
+            "vibe_reason TEXT",
+            "vibe_scored_at REAL DEFAULT 0.0",
+            "prev_score REAL",
+            "label INTEGER",
+            "has_onchain_escrow INTEGER DEFAULT 0",
+            "mentions_no_kyc INTEGER DEFAULT 0",
+            "mentions_wallet_payout INTEGER DEFAULT 0",
+            "positive_escrow_count INTEGER DEFAULT 0",
+            "escrow_weight_sum REAL DEFAULT 0.0",
+            "model_score REAL",
+        ]
+        for col in cols_issue:
+            try:
+                await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col}")
+            except aiosqlite.OperationalError:
+                pass
+
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_score ON issue_stats(vibe_score)")
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_composite ON issue_stats(vibe_score, vibe_scored_at)"
+        )
+        await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (3)")
+        current_version = 3
+
+    log.debug("DB schema is up to date at version %d", current_version)
+
 
 
 # ─── Upsert helpers (fixed: no longer reset counters to 0) ──────────

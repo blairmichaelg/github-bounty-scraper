@@ -10,6 +10,11 @@ def cfg():
     """Default ScraperConfig instance for testing."""
     return ScraperConfig()
 
+@pytest.fixture
+def signals():
+    """Default signals dictionary for testing."""
+    from github_bounty_scraper.config import load_signals
+    return load_signals()
 
 @pytest.fixture
 def mock_aiohttp_session():

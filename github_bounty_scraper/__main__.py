@@ -179,7 +179,7 @@ def main() -> None:
             import sqlite3
             import time
 
-            db_path = getattr(ns, "db_path", "bounty_stats.db")
+            db_path = config.db_file
             refresh_days = getattr(ns, "refresh_days", 3)
             try:
                 conn = sqlite3.connect(db_path)
@@ -196,17 +196,17 @@ def main() -> None:
         asyncio.run(run_pipeline(config))
     elif command == "inspect-leads":
         asyncio.run(
-            _run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n, min_ml_prob=getattr(ns, "min_ml_prob", 0.0))
+            _run_inspect(config.db_file, getattr(ns, "mode", "strict"), ns.limit or config.top_n, min_ml_prob=getattr(ns, "min_ml_prob", 0.0))
         )
     elif command == "vibe-check":
         from .vibe import run_vibe_check
 
         asyncio.run(
             run_vibe_check(
-                raw_candidates_file=ns.raw_candidates_file,
-                db_path=ns.db_path,
+                raw_candidates_file=config.raw_candidates_file,
+                db_path=config.db_file,
                 limit=ns.limit or config.limit,
-                mode=ns.mode,
+                mode=getattr(ns, "mode", "unscored"),
                 concurrency=ns.concurrency,
                 model=config.gemini_model,
                 retry_file=config.vibe_retry_file,
@@ -217,9 +217,9 @@ def main() -> None:
 
         asyncio.run(
             dump_dataset(
-                db_path=ns.db_path,
+                db_path=config.db_file,
                 out_path=ns.out_csv,
-                raw_candidates_file=getattr(ns, "raw_candidates_file", "exploration_raw.jsonl"),
+                raw_candidates_file=config.raw_candidates_file,
                 label_threshold=getattr(ns, "label_threshold", 25.0),
             )
         )

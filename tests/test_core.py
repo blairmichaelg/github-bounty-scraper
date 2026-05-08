@@ -66,26 +66,26 @@ def test_build_text_context_concatenation():
 
 # === Section 3: _resolve_numeric_amount ===
 class TestResolveNumericAmount:
-    def test_dollar_amount_extracted(self, cfg):
+    def test_dollar_amount_extracted(self, cfg, signals):
         issue = {"title": "$500 bounty", "body": "Fix this."}
-        amount, disp, cur = _resolve_numeric_amount(issue, cfg)
+        amount, disp, cur = _resolve_numeric_amount(issue, cfg, signals)
         assert amount == pytest.approx(500.0)
         assert disp == "$500"
         assert cur == "USD"
 
-    def test_no_amount_no_cue_returns_zero(self, cfg):
+    def test_no_amount_no_cue_returns_zero(self, cfg, signals):
         issue = {"title": "Bug report", "body": "It crashes."}
-        amount, _, _ = _resolve_numeric_amount(issue, cfg)
+        amount, _, _ = _resolve_numeric_amount(issue, cfg, signals)
         assert amount == 0.0
 
-    def test_no_amount_with_cue_returns_negative_one(self, cfg):
+    def test_no_amount_with_cue_returns_negative_one(self, cfg, signals):
         issue = {"title": "Bounty for fix", "body": "It crashes."}
-        amount, _, _ = _resolve_numeric_amount(issue, cfg)
+        amount, _, _ = _resolve_numeric_amount(issue, cfg, signals)
         assert amount == 0.0
 
-    def test_amount_in_labels_extracted(self, cfg):
+    def test_amount_in_labels_extracted(self, cfg, signals):
         issue = {"title": "Fix", "body": "Help", "labels": {"nodes": [{"name": "bounty: $200"}]}}
-        amount, _, _ = _resolve_numeric_amount(issue, cfg)
+        amount, _, _ = _resolve_numeric_amount(issue, cfg, signals)
         assert amount == 200.0
 
 

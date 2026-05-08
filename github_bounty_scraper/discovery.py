@@ -242,6 +242,11 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
 
                 new_count = 0
                 for item in items:
+                    # Early health check: skip archived or forked repos during discovery
+                    repo_info = item.get("repository", {})
+                    if repo_info.get("isArchived") or repo_info.get("isFork"):
+                        continue
+
                     url = item.get("html_url")
                     if url and url not in unique_urls:
                         unique_urls.add(url)

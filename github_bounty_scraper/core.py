@@ -39,6 +39,7 @@ from .signals import (
     apply_hard_disqualifiers,
     compute_soft_signals,
 )
+from .telemetry import ScrapeStatistics
 from .utils import parse_github_timestamp, timestamp_to_float
 from .vibe import call_gemini
 
@@ -130,14 +131,9 @@ def _build_text_context(issue: dict[str, Any], comments: list[dict[str, Any]]) -
 
 
 def _resolve_numeric_amount(
-    issue: dict[str, Any], config: ScraperConfig, signals: dict[str, Any] | None = None
+    issue: dict[str, Any], config: ScraperConfig, signals: dict[str, Any]
 ) -> tuple[float, str, str]:
     """Extract bounty amount, apply cue fallbacks, and return numeric value with display metadata."""
-    if signals is None:
-        from .config import load_signals
-
-        signals = load_signals(config.signals_config_file)
-
     comments = issue.get("comments", {}).get("nodes", [])
     concat_text = _build_text_context(issue, comments)
 
@@ -199,6 +195,7 @@ async def process_issue(
     seen_aggregators: set[str],
     log_queue: asyncio.Queue | None = None,
     model_scorer: ModelScorer | None = None,
+    stats: ScrapeStatistics | None = None,
 ) -> LeadResult | None:
     """Orchestrate the processing of a single issue candidate."""
     url = issue_item.get("html_url", "")
@@ -212,13 +209,24 @@ async def process_issue(
 
     # 1. Enrichment & Filtering
     enriched = await _enrich_issue(
-        session, bucket, issue_item, db_conn, sem, config, signals, seen_aggregators, log_queue=log_queue
+        session,
+        bucket,
+        issue_item,
+        db_conn,
+        sem,
+        config,
+        signals,
+        seen_aggregators,
+        log_queue=log_queue,
+        stats=stats,
     )
     if not enriched:
         return None
 
     # 2. Persistence & Reputation
-    result_data = await _persist_lead(db_conn, enriched, config, signals, committer, model_scorer=model_scorer)
+    result_data = await _persist_lead(
+        db_conn, enriched, config, signals, committer, model_scorer=model_scorer, stats=stats
+    )
     if not result_data:
         return None
 
@@ -246,6 +254,7 @@ async def _enrich_issue(
     signals: dict[str, Any],
     seen_aggregators: set[str],
     log_queue: asyncio.Queue | None = None,
+    stats: ScrapeStatistics | None = None,
 ) -> dict[str, Any] | None:
     """Perform GraphQL fetch, health checks, and signal computation."""
     url = issue_item.get("html_url", "")
@@ -297,11 +306,15 @@ async def _enrich_issue(
 
     # Health check
     if not _check_repo_health(repository, config) and not config.log_raw_candidates:
+        if stats:
+            stats.record_disqualified("low-star repo or archived")
         return None
 
     # Title-level bounty signal requirement
     if not _has_title_signal(issue, signals) and not config.output.log_raw_candidates:
         log.info("Skipping — no bounty signal in title: %s", issue.get("title", ""))
+        if stats:
+            stats.record_disqualified("no bounty signal in title")
         return None
 
     # State check
@@ -337,6 +350,8 @@ async def _enrich_issue(
                 db_conn, repo_name, last_merged_pr_at=last_merged_ts, merges_last_45d=merges_45d, rug_increment=rug_inc
             )
             await mark_issue_checked(db_conn, url, time.time())
+        if stats:
+            stats.record_disqualified(reason)
         return None
 
     # Soft Signals
@@ -354,6 +369,8 @@ async def _enrich_issue(
     if soft.is_blocked or soft.lane_blocked:
         if not config.dry_run:
             await mark_issue_checked(db_conn, url, time.time())
+        if stats:
+            stats.record_disqualified("lane blocked or blocked author")
         return None
 
     num_val, display, currency = _resolve_numeric_amount(issue, config, signals)
@@ -418,6 +435,7 @@ async def _persist_lead(
     signals: dict[str, Any],
     committer: BatchCommitter,
     model_scorer: ModelScorer | None = None,
+    stats: ScrapeStatistics | None = None,
 ) -> dict[str, Any] | None:
     """Update stats and determine if result should be returned."""
     url, repo_name, soft = enriched["url"], enriched["repo_name"], enriched["soft"]
@@ -535,6 +553,9 @@ async def _persist_lead(
         await mark_issue_checked(db_conn, url, time.time())
         await committer.tick()
 
+    if stats and is_lead:
+        stats.graduated += 1
+
     return {"score": score, "prev_score": prev_score, "model_score": model_score}
 
 
@@ -622,6 +643,7 @@ async def _process_with_retry(
     seen_aggregators: set[str],
     log_queue: asyncio.Queue | None = None,
     model_scorer: ModelScorer | None = None,
+    stats: ScrapeStatistics | None = None,
     max_retries: int = 2,
 ) -> LeadResult | None:
     """Wrap ``process_issue`` with a simple retry for transient errors."""
@@ -639,6 +661,7 @@ async def _process_with_retry(
                 seen_aggregators,
                 log_queue=log_queue,
                 model_scorer=model_scorer,
+                stats=stats,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt < max_retries:
@@ -675,7 +698,7 @@ async def _process_with_retry(
 async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
     """Run the full discovery → enrichment → scoring → output pipeline."""
     log.info("Initiating GitHub Bounty Scraper pipeline …")
-    start_time = time.time()
+    stats = ScrapeStatistics()
 
     signals = load_signals(config.signals_config_file)
 
@@ -708,19 +731,18 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
 
         results: list[Any] = []
         completed = 0
-        discovered = 0
 
         async def producer():
-            nonlocal discovered
             try:
                 async for issue in discover_issues_stream(config):
-                    if config.max_issues_per_run > 0 and discovered >= config.max_issues_per_run:
+                    stats.discovered += 1
+                    await queue.put(issue)
+                    if config.max_issues_per_run > 0 and stats.discovered >= config.max_issues_per_run:
                         log.info("Reached max_issues_per_run limit (%d)", config.max_issues_per_run)
                         break
-                    await queue.put(issue)
-                    discovered += 1
             except Exception as e:
                 log.error("Producer error: %s", e)
+                stats.errors += 1
             finally:
                 await queue.put(None)
 
@@ -733,6 +755,7 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
                     queue.task_done()
                     break
                 try:
+                    stats.processed += 1
                     result = await _process_with_retry(
                         session,
                         bucket,
@@ -745,9 +768,11 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
                         seen_aggregators,
                         log_queue=log_queue,
                         model_scorer=model_scorer,
+                        stats=stats,
                     )
                 except Exception as exc:
                     log.error("Unhandled error processing issue: %s", exc)
+                    stats.errors += 1
                     result = None
 
                 if result:
@@ -779,10 +804,9 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
         await committer.flush()
 
     all_leads = [r for r in results if r]
-    elapsed = time.time() - start_time
-    log.info("Pipeline complete: %d leads from %d issues in %.1fs.", len(all_leads), discovered, elapsed)
+    log.info("Pipeline complete: %d leads from %d issues in %.1fs.", len(all_leads), stats.discovered, stats.elapsed)
 
     if not config.dry_run and config.output_file:
-        write_output(all_leads, elapsed, config)
+        write_output(all_leads, stats.elapsed, config, stats=stats)
 
     return all_leads

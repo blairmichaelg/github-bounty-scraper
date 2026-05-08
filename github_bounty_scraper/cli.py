@@ -305,13 +305,13 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
 
     # Filter out command-specific flags that aren't in ScraperConfig
     if command == "vibe-check":
-        for k in ["limit", "concurrency", "db_path", "raw_candidates_file", "mode"]:
+        for k in ["limit", "concurrency"]:
             overrides.pop(k, None)
     elif command == "inspect-leads":
-        for k in ["mode", "limit", "db_path", "min_ml_prob"]:
+        for k in ["limit", "min_ml_prob"]:
             overrides.pop(k, None)
     elif command == "dump-dataset":
-        for k in ["db_path", "out_csv", "raw_candidates_file", "label_threshold"]:
+        for k in ["out_csv", "label_threshold"]:
             overrides.pop(k, None)
 
     # build_config handles this by ignoring unknown keys.

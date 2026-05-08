@@ -10,6 +10,7 @@ from typing import Any
 
 from .config import ScraperConfig
 from .log import get_logger
+from .telemetry import ScrapeStatistics
 
 log = get_logger()
 
@@ -18,6 +19,7 @@ def write_output(
     leads: list[dict[str, Any]],
     elapsed: float,
     config: ScraperConfig,
+    stats: ScrapeStatistics | None = None,
 ) -> None:
     """Dispatch output based on ``config.output_format``.
 
@@ -51,13 +53,13 @@ def write_output(
     )
 
     suppress_console = config.output_format == "json"
-    write_text_output(verified, unknown, elapsed, suppress_console=suppress_console)
+    write_text_output(verified, unknown, elapsed, stats=stats, suppress_console=suppress_console)
 
     md_path = f"{config.output_file}.md" if config.output_file else config.output_md_file
     json_path = f"{config.output_file}.json" if config.output_file else config.output_json_file
 
     if config.output_format == "markdown":
-        write_markdown_output(verified, unknown, elapsed, md_path)
+        write_markdown_output(verified, unknown, elapsed, md_path, stats=stats)
 
     if config.output_format == "json":
         write_json_output(leads, elapsed, json_path)
@@ -69,6 +71,7 @@ def write_text_output(
     unknown: list[dict],
     elapsed: float,
     *,
+    stats: ScrapeStatistics | None = None,
     suppress_console: bool = False,
 ) -> None:
     if suppress_console:
@@ -129,7 +132,10 @@ def write_text_output(
                 print(f"ML Prob : {lead['ModelScore']:.1f}%")
             print("-" * 60)
 
-    print(f"Pipeline executed in {elapsed:.2f} seconds.")
+    if stats:
+        print("\n" + stats.summary())
+    else:
+        print(f"\nPipeline executed in {elapsed:.2f} seconds.")
 
 
 # ─── Markdown output ─────────────────────────────────────────────────
@@ -138,6 +144,7 @@ def write_markdown_output(
     unknown: list[dict],
     elapsed: float,
     path: str,
+    stats: ScrapeStatistics | None = None,
 ) -> None:
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + " UTC"
     lines = [
@@ -146,8 +153,15 @@ def write_markdown_output(
         f"**Verified leads:** {len(verified)}  ",
         f"**Unknown/Custom Token leads:** {len(unknown)}  ",
         f"**Pipeline time:** {elapsed:.2f}s\n",
-        "---\n",
     ]
+
+    if stats:
+        lines.append("### Scrape Summary\n")
+        lines.append("```text")
+        lines.append(stats.summary())
+        lines.append("```\n")
+
+    lines.append("---\n")
 
     if verified:
         lines.append("## Verified Bounty Leads\n")
