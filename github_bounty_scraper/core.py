@@ -78,14 +78,12 @@ def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool
         print("DEBUG: Exiting because disabled")
         return False
     if repo_data.get("isFork", False):
-        print("DEBUG: Exiting because fork")
         return False
 
     # Blocklist check
     full_name = repo_data.get("nameWithOwner", "")
     if full_name in (config.repo_blocklist or []):
         log.debug("Skipping blocklisted repo: %s", full_name)
-        print("DEBUG: Exiting because blocklisted")
         return False
 
     # Star threshold
@@ -93,13 +91,11 @@ def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool
     min_stars = max(getattr(config, "min_repo_stars", 0), getattr(config, "min_stars", 0))
     if stars < min_stars:
         log.debug("Skipping low-star repo (%d stars): %s", stars, full_name)
-        print(f"DEBUG: Exiting because low stars: {stars} < {min_stars}")
         return False
 
     owner_type = repo_data.get("owner", {}).get("__typename", "")
     contrib_count = repo_data.get("mentionableUsers", {}).get("totalCount", 0)
     if owner_type.upper() == "USER" and contrib_count < 2:
-        print(f"DEBUG: Exiting because low contrib count for user repo: {contrib_count}")
         return False
     return True
 
@@ -216,7 +212,6 @@ async def _enrich_issue(
     seen_aggregators: set[str],
 ) -> dict[str, Any] | None:
     """Perform GraphQL fetch, health checks, and signal computation."""
-    print(f"DEBUG: Entering _enrich_issue for {issue_item.get('html_url')}")
     url = issue_item.get("html_url", "")
     parts = url.replace("https://github.com/", "").split("/")
     if len(parts) < 4:
@@ -237,7 +232,6 @@ async def _enrich_issue(
         ):
             return None
 
-    print("DEBUG: Proceeding to GraphQL audit")
     # GraphQL Audit
     try:
         async with sem:
@@ -253,20 +247,20 @@ async def _enrich_issue(
                 tl_page_size=config.timeline_page_size,
             )
     except Exception as e:
-        print(f"DEBUG: GraphQL audit failed: {type(e).__name__}: {e}")
         log.error("GraphQL audit failed for %s: %s", url, e)
         return None
 
     if not data or not data.get("repository") or not data["repository"].get("issue"):
-        print(f"DEBUG: Exiting because data is missing: {data is None}")
         return None
 
     repository = data["repository"]
     issue = repository["issue"]
 
+    if config.log_raw_candidates:
+        await _log_raw_candidate_simple(url, repository, issue, config)
+
     # Health check
     if not _check_repo_health(repository, config) and not config.log_raw_candidates:
-        print("DEBUG: Exiting because health check failed")
         return None
 
     # Title-level bounty signal requirement
@@ -276,8 +270,7 @@ async def _enrich_issue(
     )
     has_title_signal = any(kw in title for kw in TITLE_REQUIRED_SIGNALS) or amount_in_title
 
-    if not has_title_signal:
-        print(f"DEBUG: Exiting because no title signal. Title: {title}")
+    if not has_title_signal and not config.log_raw_candidates:
         log.info("Skipping — no bounty signal in title: %s", issue.get("title", ""))
         return None
 
@@ -286,7 +279,6 @@ async def _enrich_issue(
     lead_mode_override = None
     if issue_state.upper() == "CLOSED":
         if not config.include_closed_for_training:
-            print("DEBUG: Exiting because closed")
             return None
         lead_mode_override = "closed_historical"
 
@@ -308,7 +300,6 @@ async def _enrich_issue(
         issue_state=issue_state, labels_nodes=labels, body=issue.get("body") or "", comments=comments, signals=signals
     )
     if disqualified:
-        print(f"DEBUG: Exiting because disqualified: {reason}")
         if not config.dry_run:
             rug_inc = 1 if ("negative" in reason or "kill label" in reason) else 0
             await upsert_repo_stats(
@@ -396,9 +387,6 @@ async def _persist_lead(
     last_merged_ts, issue = enriched["last_merged_ts"], enriched["issue"]
 
     is_lead = _is_qualified_lead(enriched, config)
-
-    if config.log_raw_candidates and not soft.ghost_squatter:
-        await _log_raw_candidate(enriched, is_lead, config)
 
     if not is_lead and not enriched["lead_mode_override"]:
         if not config.dry_run:
@@ -494,6 +482,20 @@ def _is_qualified_lead(enriched: dict, config: ScraperConfig) -> bool:
         return not (0 < num_val < config.min_bounty_amount)
 
 
+async def _log_raw_candidate_simple(url: str, repository: dict, issue: dict, config: ScraperConfig):
+    cand = {
+        "url": url,
+        "repo_name": repository.get("nameWithOwner", ""),
+        "issue_number": issue.get("number", 0),
+        "title": issue.get("title") or "",
+        "stars": repository.get("stargazerCount", 0),
+        "is_org_owner": repository.get("owner", {}).get("__typename", "").upper() == "ORGANIZATION",
+        "labels": [lbl.get("name") for lbl in issue.get("labels", {}).get("nodes", [])],
+        "body_snippet": (issue.get("body") or "")[:300].replace("\n", " "),
+    }
+    await asyncio.to_thread(_append_raw, config.raw_candidates_file, json.dumps(cand) + "\n")
+
+
 async def _log_raw_candidate(enriched: dict, is_lead: bool, config: ScraperConfig):
     repository, issue = enriched["repository"], enriched["issue"]
     cand = {
@@ -585,6 +587,12 @@ async def _process_with_retry(
             )
             return None
     return None
+
+
+def _append_raw(path: str, line: str):
+    """Thread-safe append to a text file."""
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(line)
 
 
 # ─── Main pipeline ──────────────────────────────────────────────────

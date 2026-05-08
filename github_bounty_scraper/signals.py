@@ -179,7 +179,14 @@ def compute_soft_signals(
     pos_signals_re = signals.get("positive_escrow_re")
     escrow_hits: set[str] = set()
     if pos_signals_re:
+        # Search title, body, and labels for escrow signals
+        escrow_hits.update(pos_signals_re.findall(title_lower))
         escrow_hits.update(pos_signals_re.findall(body_lower))
+        
+        # Also check labels
+        labels_text = " ".join([l.get("name", "").lower() for l in labels_nodes if isinstance(l, dict)])
+        escrow_hits.update(pos_signals_re.findall(labels_text))
+
         for c in comments:
             c_lower = c.get("body", "").lower()
             escrow_hits.update(pos_signals_re.findall(c_lower))

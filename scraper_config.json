@@ -1,5 +1,6 @@
 {
-    "min_stars": 10,
+    "min_stars": 1,
+    "min_repo_stars": 1,
     "max_pages_per_query": 10,
     "sort_by": "updated",
     "max_expanded_queries": 50,
@@ -29,7 +30,7 @@
     "opportunistic_min_amount": 50.0,
     "exploration_min_stars_raw": 100,
     "opportunistic_allow_no_escrow": true,
-    "opportunistic_allow_dead_repos": false,
+    "opportunistic_allow_dead_repos": true,
     "gemini_model": "gemini-2.5-flash",
     "vibe_check_concurrency": 3,
     "max_issues_per_run": 3000,

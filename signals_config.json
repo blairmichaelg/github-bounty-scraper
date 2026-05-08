@@ -102,7 +102,9 @@
     "on-chain bug bounty",
     "escrowed funds",
     "locked in contract",
-    "bug bounty vault"
+    "bug bounty vault",
+    "price:",
+    "ubiquity"
   ],
   "negative_filters": [
     "bounty cancelled",

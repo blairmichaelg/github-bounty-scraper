@@ -424,8 +424,13 @@ async def test_new_repo_grace_period(cfg, mock_db_conn):
     from github_bounty_scraper.core import process_issue
 
     # Repo created 10 days ago (well within 90-day grace)
-    created_at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+    cfg.min_bounty_amount = 0
+    cfg.min_repo_stars = 0
+    cfg.mode = "opportunistic"
+    created_at = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=10)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
     new_repo_issue = {
         "html_url": "https://github.com/new/repo/issues/1",
         "repository": {
@@ -437,7 +442,7 @@ async def test_new_repo_grace_period(cfg, mock_db_conn):
             "isFork": False,
             "owner": {"__typename": "Organization"},
             "mentionableUsers": {"totalCount": 10},
-            "pullRequests": {"nodes": []}, # 0 merges
+            "pullRequests": {"nodes": []},  # 0 merges
         },
         "title": "Bounty $1000 escrow",
         "body": "Fixed it.",

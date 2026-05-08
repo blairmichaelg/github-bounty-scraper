@@ -400,15 +400,16 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
     ]
     for key in regex_keys:
         if defaults[key]:
-            # Use \b for single words to avoid substring matches.
-            single_words = [re.escape(w) for w in defaults[key] if " " not in w]
-            multi_words = [re.escape(w) for w in defaults[key] if " " in w]
-            parts = []
-            if single_words:
-                parts.append(r"\b(?:" + "|".join(single_words) + r")\b")
-            if multi_words:
-                parts.append("|".join(multi_words))
-            pattern = "|".join(parts)
+            # Use \b for single words to avoid substring matches, but ONLY if they are alphanumeric.
+            escaped_words = []
+            for w in defaults[key]:
+                esc = re.escape(w)
+                # Only wrap in \b if word is alphanumeric at boundaries
+                prefix = r"\b" if w[0].isalnum() else ""
+                suffix = r"\b" if w[-1].isalnum() else ""
+                escaped_words.append(f"{prefix}{esc}{suffix}")
+            
+            pattern = "|".join(escaped_words)
             defaults[f"{key}_re"] = re.compile(pattern, flags=re.IGNORECASE)
         else:
             defaults[f"{key}_re"] = None
@@ -473,7 +474,7 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
     # 3. Apply CLI overrides.
     cli_data = {}
     cli_unknown = set()
-    
+
     # Backward compat aliases for CLI
     if "db_path" in overrides:
         overrides["db_file"] = overrides.pop("db_path")

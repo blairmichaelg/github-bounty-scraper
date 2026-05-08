@@ -14,7 +14,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, AsyncGenerator, AsyncIterator, Literal
+from typing import Any, AsyncGenerator, Literal
 
 import aiohttp
 import aiosqlite
@@ -259,9 +259,9 @@ async def iter_unscored_combined(
             # Ensure the file is within the project directory to prevent path traversal
             # We assume the project root is the parent of the package directory
             project_root = Path(__file__).parent.parent.resolve()
-            
+
             if p.exists() and p.is_file():
-                # On Windows, is_relative_to might behave differently with drives, 
+                # On Windows, is_relative_to might behave differently with drives,
                 # so we check if it's relative or just allow it if it exists for now
                 # but adding the check as requested for hardening.
                 try:
@@ -307,12 +307,14 @@ async def iter_unscored_combined(
 
     # Pass 2: Stream read based on sorted offsets
     loop = asyncio.get_running_loop()
-    with open(raw_candidates_file, "rb") as f:
+    with open(raw_candidates_file, "rb") as fh_read:
         for amt, pos in offsets:
-            f.seek(pos)
-            line = await loop.run_in_executor(None, f.readline)
+            fh_read.seek(pos)
+            line_bytes = await loop.run_in_executor(None, fh_read.readline)
+            if not isinstance(line_bytes, bytes):
+                continue
             try:
-                yield json.loads(line.decode("utf-8"))
+                yield json.loads(line_bytes.decode("utf-8"))
             except Exception:
                 continue
 
@@ -351,8 +353,10 @@ async def run_vibe_check(
     compiled_signals = load_signals()
 
     connector = aiohttp.TCPConnector(limit=10)
-    async with aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session, \
-               aiosqlite.connect(db_path) as db_conn:
+    async with (
+        aiohttp.ClientSession(connector=connector, timeout=aiohttp.ClientTimeout(total=35)) as session,
+        aiosqlite.connect(db_path) as db_conn,
+    ):
         count = 0
 
         async def _guarded_vibe(obj: dict[str, Any]) -> tuple[int, str, str]:

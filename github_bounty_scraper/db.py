@@ -16,6 +16,7 @@ log = get_logger()
 
 _db_initialized: set[str] = set()
 
+
 # ─── Schema creation & migration ────────────────────────────────────
 async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     """Create or migrate the SQLite schema for caching.
@@ -116,7 +117,9 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC);")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_score ON issue_stats(vibe_score);")
-    await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_composite ON issue_stats(vibe_score, vibe_scored_at);")
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_issue_stats_vibe_composite ON issue_stats(vibe_score, vibe_scored_at);"
+    )
 
     # ── checked_cache ──
     await conn.execute("""
@@ -478,9 +481,23 @@ async def set_issue_vibe(
     reason_lower = (vibe_reason or "").lower()
 
     if compiled_signals:
-        has_onchain_escrow = int(bool(compiled_signals.get("positive_escrow_re") and compiled_signals["positive_escrow_re"].search(reason_lower)))
-        mentions_no_kyc = int(bool(compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)))
-        mentions_wallet_payout = int(bool(compiled_signals.get("wallet_payout_phrases_re") and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)))
+        has_onchain_escrow = int(
+            bool(
+                compiled_signals.get("positive_escrow_re")
+                and compiled_signals["positive_escrow_re"].search(reason_lower)
+            )
+        )
+        mentions_no_kyc = int(
+            bool(
+                compiled_signals.get("no_kyc_phrases_re") and compiled_signals["no_kyc_phrases_re"].search(reason_lower)
+            )
+        )
+        mentions_wallet_payout = int(
+            bool(
+                compiled_signals.get("wallet_payout_phrases_re")
+                and compiled_signals["wallet_payout_phrases_re"].search(reason_lower)
+            )
+        )
     else:
         has_onchain_escrow = 0
         mentions_no_kyc = 0
