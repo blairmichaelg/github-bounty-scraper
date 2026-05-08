@@ -650,6 +650,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "crypto_keywords": [],
         "stablecoin_symbols": [],
         "repo_blocklist": [],
+        "snipe_phrases": [],
     }
     try:
         if os.path.exists(path):
@@ -693,6 +694,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "hardware_dependency_phrases",
         "completion_signals",
         "title_required_signals",
+        "snipe_phrases",
     ]
     for key in regex_keys:
         if defaults[key]:

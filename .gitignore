@@ -67,4 +67,6 @@ scratch/
 temp_*.py
 scripts/temp_*.py
 docs/task.md
+task.md
+walkthrough.md
 run_scrapes.py

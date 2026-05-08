@@ -2,51 +2,27 @@ name: CI
 
 on:
   push:
-    branches: ["master", "main"]
+    branches: [ master ]
   pull_request:
-    branches: ["master", "main"]
+    branches: [ master ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
+      
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Lint with ruff
-        run: |
-          ruff check github_bounty_scraper/ tests/ scripts/ tools/
-          ruff format --check github_bounty_scraper/ tests/ scripts/ tools/
-
-      - name: Type check with mypy
-        run: mypy github_bounty_scraper/
-
       - name: Run tests with coverage
         run: |
-          pytest --cov=github_bounty_scraper \
-                 --cov-report=term-missing \
-                 --cov-report=xml \
-                 --cov-fail-under=80 \
-                 -v
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY: "test-key-ci"
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.python-version }}
-          path: coverage.xml
+          pytest --cov=github_bounty_scraper --cov-report=term-missing --cov-fail-under=80

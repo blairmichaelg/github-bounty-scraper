@@ -97,56 +97,6 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
     return expanded
 
 
-# ─── REST search fetch ───────────────────────────────────────────────
-async def fetch_rest_search(
-    session: aiohttp.ClientSession,
-    token: str,
-    query: str,
-    page: int,
-    per_page: int = 100,
-    sort_by: str = "updated",
-    retries: int = 3,
-) -> list[dict]:
-    """Fetch one page of GitHub issue search results via the REST API."""
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "github-bounty-scraper",
-    }
-    params: dict[str, str | int] = {
-        "q": query,
-        "sort": sort_by,
-        "order": "desc",
-        "per_page": per_page,
-        "page": page,
-    }
-
-    attempt = 0
-    while attempt <= retries:
-        try:
-            async with session.get(
-                "https://api.github.com/search/issues",
-                headers=headers,
-                params=params,
-            ) as resp:
-                if resp.status in (403, 429):
-                    retry_delays = [5, 10, 20, 40]
-                    wait_t = retry_delays[attempt] if attempt < len(retry_delays) else 40
-                    log.warning("Rate limit — sleeping %ds (attempt %d/%d)…", wait_t, attempt + 1, retries + 1)
-                    await asyncio.sleep(wait_t)
-                    attempt += 1
-                    continue
-                if not resp.ok:
-                    log.warning("Search HTTP %d page %d", resp.status, page)
-                    return []
-                data = await resp.json()
-                return data.get("items", [])
-        except aiohttp.ClientError as exc:
-            log.warning("Search error (attempt %d): %s", attempt, exc)
-            await asyncio.sleep(2 * (attempt + 1))
-            attempt += 1
-    log.error("Search failed after %d retries.", retries + 1)
-    return []
 
 
 async def fetch_graphql_search(
@@ -242,9 +192,11 @@ async def discover_issues_stream(config: ScraperConfig) -> AsyncIterator[dict]:
 
                 new_count = 0
                 for item in items:
-                    # Early health check: skip archived or forked repos during discovery
+                    # Early health check: skip archived, forked, or low-star repos during discovery
                     repo_info = item.get("repository", {})
                     if repo_info.get("isArchived") or repo_info.get("isFork"):
+                        continue
+                    if repo_info.get("stargazerCount", 0) < config.min_repo_stars:
                         continue
 
                     url = item.get("html_url")

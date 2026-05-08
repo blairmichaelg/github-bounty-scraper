@@ -228,53 +228,15 @@ def extract_bounty_amount(
     )
 
 
-_SNIPE_PHRASES: frozenset[str] = frozenset(
-    {
-        # Original 3
-        "bounty paid",
-        "reward sent",
-        "bounty claimed",
-        # Payment completion
-        "payout complete",
-        "payment sent",
-        "payment complete",
-        "payment processed",
-        "reward delivered",
-        "funds sent",
-        "funds transferred",
-        "tokens sent",
-        "tokens transferred",
-        # Claim/assignment
-        "i am working on this",
-        "i'm working on this",
-        "taking this",
-        "claiming this",
-        "assigned to me",
-        "already claimed",
-        "pr submitted",
-        "pr merged",
-        "fix merged",
-        "patch merged",
-        # Resolution
-        "marked as resolved",
-        "marked resolved",
-        "closing as completed",
-        "closing as fixed",
-        "this has been fixed",
-        "this is fixed",
-        "resolved in",
-        "fixed in",
-    }
-)
 
 
-def detect_snipe(issue: dict | list[dict], timeline_nodes: list[dict] | None = None) -> bool:
+def detect_snipe(issue: dict | list[dict], timeline_nodes: list[dict] | None = None, signals: dict | None = None) -> bool:
     """Return ``True`` if the timeline shows the bounty has been claimed.
-
-    Checks for claim-completion language (e.g. "bounty paid", "reward
-    sent") in comment bodies.  A ``True`` result hard-disqualifies the
-    issue regardless of mode.
     """
+    if signals is None:
+        signals = {}
+    snipe_re = signals.get("snipe_phrases_re")
+
     if timeline_nodes is None:
         timeline_nodes = issue if isinstance(issue, list) else []
         issue_obj: dict = {}
@@ -297,6 +259,7 @@ def detect_snipe(issue: dict | list[dict], timeline_nodes: list[dict] | None = N
                 return True
         elif typename == "IssueComment":
             body = node.get("body", "").lower()
-            if any(s in body for s in _SNIPE_PHRASES):
+            if snipe_re and snipe_re.search(body):
+                return True
                 return True
     return False

@@ -116,8 +116,9 @@ async def _run_migrations(conn: aiosqlite.Connection) -> None:
         for col in cols_issue:
             try:
                 await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col}")
-            except aiosqlite.OperationalError:
-                pass
+            except aiosqlite.OperationalError as e:
+                if "duplicate column name" not in str(e).lower():
+                    raise
 
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_checked_at ON issue_stats(checked_at DESC)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_score ON issue_stats(score DESC)")
@@ -143,8 +144,9 @@ async def _run_migrations(conn: aiosqlite.Connection) -> None:
         for col in cols_issue:
             try:
                 await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col}")
-            except aiosqlite.OperationalError:
-                pass
+            except aiosqlite.OperationalError as e:
+                if "duplicate column name" not in str(e).lower():
+                    raise
 
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_lead_mode ON issue_stats(lead_mode)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_issue_stats_mode_score ON issue_stats(lead_mode, score DESC)")
@@ -688,3 +690,27 @@ async def dump_dataset(
                 writer.writerow(d)
 
         log.info("dump-dataset: exported %d rows to %s (enriched with %d bodies)", len(rows), out_path, len(bodies))
+
+
+async def insert_scrape_run(conn: aiosqlite.Connection, stats: dict[str, Any]) -> None:
+    """Persist a completed scrape run's statistics to the DB."""
+    await conn.execute(
+        """
+        INSERT INTO scrape_runs (
+            started_at, elapsed, discovered, processed, graduated,
+            disqualified_json, errors, skipped_cache, vibe_checks
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            stats.get("started_at", time.time()),
+            stats.get("elapsed", 0.0),
+            stats.get("discovered", 0),
+            stats.get("processed", 0),
+            stats.get("graduated", 0),
+            stats.get("disqualified_json", "{}"),
+            stats.get("errors", 0),
+            stats.get("skipped_cache", 0),
+            stats.get("vibe_checks", 0),
+        ),
+    )
+    await conn.commit()

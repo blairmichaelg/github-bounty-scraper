@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from github_bounty_scraper.bounty import detect_snipe, extract_bounty_amount
+from github_bounty_scraper.config import load_signals
 
 
 @pytest.mark.parametrize(
@@ -37,16 +38,18 @@ def test_extract_amount(text: str, expected: float):
 )
 def test_detect_snipe_positive(comment_body: str):
     timeline_nodes = [{"__typename": "IssueComment", "body": comment_body}]
-    assert detect_snipe(timeline_nodes) is True, f"Should detect snipe for: {comment_body!r}"
+    signals = load_signals()
+    assert detect_snipe(timeline_nodes, signals=signals) is True, f"Should detect snipe for: {comment_body!r}"
 
 
 def test_detect_snipe_negative():
     timeline_nodes = [{"__typename": "IssueComment", "body": "Still open, working on a fix."}]
-    assert detect_snipe(timeline_nodes) is False
+    signals = load_signals()
+    assert detect_snipe(timeline_nodes, signals=signals) is False
 
 
 def test_detect_snipe_empty_comments():
-    assert detect_snipe([]) is False
+    assert detect_snipe([], signals={}) is False
 
 
 def test_extract_amount_with_live_prices(cfg):
@@ -92,7 +95,7 @@ def test_detect_snipe_cross_ref():
     nodes = [
         {"__typename": "CrossReferencedEvent", "source": {"state": "OPEN", "isDraft": False}, "willCloseTarget": True}
     ]
-    assert detect_snipe(nodes) is True
+    assert detect_snipe(nodes, signals={}) is True
 
 
 def test_extract_amount_generic_bounty_cue():

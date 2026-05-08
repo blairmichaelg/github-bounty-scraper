@@ -58,25 +58,40 @@ class ModelScorer:
             return 0.0
 
     def explain_prediction(self, data: dict) -> str:
-        """Provide a simple natural language explanation for the model score."""
+        """Provide a dynamic natural language explanation using feature importances."""
         if self.model is None:
             return "Model not loaded."
+        
+        try:
+            # Get feature importances from the Random Forest model
+            importances = self.model.feature_importances_
+            # Pair them with feature names and sort
+            top_indices = np.argsort(importances)[-3:][::-1]
+            
+            reasons = []
+            for i in top_indices:
+                feat = self.features[i]
+                val = data.get(feat, 0)
+                if val:
+                    # Map feature names to user-friendly reasons
+                    mapping = {
+                        "vibe_score": f"vibe check ({val})",
+                        "positive_escrow_count": f"escrow signals ({val})",
+                        "escrow_weight_sum": "strong escrow weight",
+                        "has_onchain_escrow": "on-chain escrow",
+                        "mentions_no_kyc": "mentions No-KYC",
+                        "mentions_wallet_payout": "wallet payout details",
+                        "merges_last_45d": "repo activity",
+                        "is_closed": "historical context",
+                    }
+                    reasons.append(mapping.get(feat, feat))
 
-        reasons = []
-        if data.get("vibe_score", 0) > 80:
-            reasons.append("high LLM vibe score")
-        if data.get("has_onchain_escrow"):
-            reasons.append("on-chain escrow detected")
-        if data.get("escrow_weight_sum", 0) > 3:
-            reasons.append("multiple strong escrow signals")
-        if data.get("merges_last_45d", 0) > 5:
-            reasons.append("highly active repository")
-        if data.get("mentions_no_kyc"):
-            reasons.append("mentions No-KYC")
-
-        if not reasons:
-            return "No dominant positive signals."
-        return "Signals: " + ", ".join(reasons)
+            if not reasons:
+                return "Neutral or combined weak signals."
+            return "Key factors: " + ", ".join(reasons)
+        except Exception as e:
+            log.debug("Explanation generation failed: %s", e)
+            return "Composite signal score."
 
     def _prepare_input(self, data: dict) -> np.ndarray:
         vals = []

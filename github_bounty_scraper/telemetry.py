@@ -4,9 +4,11 @@ ScrapeStatistics - Tracks metrics and funnel efficiency for a scraper run.
 
 from __future__ import annotations
 
+import json
 import time
+from collections import Counter
 from dataclasses import dataclass, field
-from typing import Counter
+from typing import Any
 
 
 @dataclass
@@ -66,3 +68,16 @@ class ScrapeStatistics:
         lines.append(f"Elapsed:         {self.elapsed:.1f}s")
         
         return "\n".join(lines)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert statistics to a serializable dictionary for DB storage."""
+        return {
+            "discovered": self.discovered,
+            "processed": self.processed,
+            "graduated": self.graduated,
+            "skipped_cache": self.skipped_cache,
+            "vibe_checks": self.vibe_checks,
+            "vibe_cache_hits": self.vibe_cache_hits,
+            "errors": self.errors,
+            "disqualified_json": json.dumps(dict(self.disqualified)),
+        }

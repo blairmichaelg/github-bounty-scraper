@@ -23,6 +23,7 @@ from .db import (
     BatchCommitter,
     get_repo_reputation,
     init_db,
+    insert_scrape_run,
     mark_issue_checked,
     repo_cache_check,
     upsert_issue_stats,
@@ -450,7 +451,7 @@ async def _persist_lead(
         return None
 
     escrow_inc = 1 if soft.has_positive_escrow else 0
-    snipe_inc = 1 if detect_snipe(issue, issue.get("timelineItems", {}).get("nodes", [])) else 0
+    snipe_inc = 1 if detect_snipe(issue, issue.get("timelineItems", {}).get("nodes", []), signals=signals) else 0
 
     if not config.dry_run:
         await upsert_repo_stats(
@@ -805,6 +806,13 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
 
     all_leads = [r for r in results if r]
     log.info("Pipeline complete: %d leads from %d issues in %.1fs.", len(all_leads), stats.discovered, stats.elapsed)
+
+    if not config.dry_run:
+        try:
+            async with aiosqlite.connect(config.db_file) as conn:
+                await insert_scrape_run(conn, stats.to_dict())
+        except Exception as e:
+            log.warning("Failed to persist telemetry to DB: %s", e)
 
     if not config.dry_run and config.output_file:
         write_output(all_leads, stats.elapsed, config, stats=stats)
