@@ -112,7 +112,8 @@ def test_write_markdown_output():
 
 
 def test_write_output():
-    config = ScraperConfig(output_format="text")
+    from github_bounty_scraper.config import OutputConfig
+    config = ScraperConfig(output=OutputConfig(output_format="text"))
     verified = [
         {
             "Score": 1.0,

@@ -24,263 +24,371 @@ load_dotenv()
 DEFAULT_CONFIG_FILE = "scraper_config.json"
 DEFAULT_SIGNALS_FILE = "signals_config.json"
 
-CRYPTO_KEYWORDS = [
-    "USDC",
-    "ETH",
-    "SOL",
-    "OP",
-    "ARB",
-    "MATIC",
-    "DAI",
-    "WETH",
-    "STRK",
-    "ROXN",
-]
-
-# Stablecoins treated as 1:1 USD
-STABLECOIN_SYMBOLS = {"USDC", "USDT", "DAI", "BUSD"}
-
 ESCROW_WEIGHT_CAP: float = 5.0
-ACTIVITY_TRUST_THRESHOLD: int = 40  # If an issue has >= this many merges, lack of explicit escrow is less suspicious
-ACTIVITY_TRUST_FLOOR: float = 0.4  # Minimum escrow score given to repos crossing the activity threshold
+ACTIVITY_TRUST_THRESHOLD: int = 40
+ACTIVITY_TRUST_FLOOR: float = 0.4
 
 
 @dataclass
-class ScraperConfig:
-    """Runtime configuration for the GitHub Bounty Scraper.
-
-    Configuration is assembled with the following precedence:
-    1.  CLI arguments (highest priority)
-    2.  `scraper_config.json` file
-    3.  Dataclass defaults (lowest priority)
-
-    Sections:
-        - Authentication: GitHub PAT resolution.
-        - Search: API filters (stars, since, languages).
-        - Thresholds: Bounty amount and repo activity limits.
-        - Caching: TTLs for SQLite repo metadata cache.
-        - Concurrency: Semaphores and rate-limit token buckets.
-        - Scoring: Weights for the composite score formula.
-        - Output: File paths and formats.
-    """
-
-    # ── Authentication ──
-    github_token: str = ""
-    """GitHub Personal Access Token.  Required for GraphQL API calls."""
-
-    # ── Search / discovery ──
+class SearchConfig:
+    """Configuration for discovery and GitHub search."""
     languages: list[str] = field(default_factory=list)
-    """Filter by programming language.  Repeatable.  Default: []."""
-
     min_repo_stars: int = 5
-    """Minimum repository star count for inclusion in any mode. Default: 5."""
-
-    repo_blocklist: list[str] = field(
-        default_factory=lambda: [
-            "josix/awesome-claude-md",
-            "Jamie-BitFlight/claude_skills",
-            "awesome-selfhosted/awesome-selfhosted",
-            "sindresorhus/awesome",
-            "vinta/awesome-python",
-            "topics/bounty",
-        ]
-    )
-    """Repos to permanently exclude regardless of score."""
-
-    since: str = ""  # YYYY-MM-DD — override in scraper_config.json; recommend "2026-01-01"
-    """Only consider issues updated on or after this date.  Default: ''."""
-
+    repo_blocklist: list[str] = field(default_factory=list)
+    since: str = ""
     query_override: str | None = None
-    """Override config queries with a single custom search query."""
-
     max_issues_per_run: int = 1000
-    """Hard upper bound on total issues processed per run.  Default: 1000."""
-
     max_pages_per_query: int = 5
-    """Max pages to fetch per search query.  Default: 5."""
-
     sort_by: str = "updated"
-    """GitHub search sort criteria.  Default: 'updated'."""
-
     max_expanded_queries: int = 40
-    """Limit on the number of generated search queries.  Default: 40."""
-
     search_delay_seconds: float = 1.0
-    """Delay between search queries to avoid rate limits.  Default: 1.0."""
-
-    # ── Thresholds ──
-    min_bounty_amount: float = 25.0
-    """Override minimum bounty amount threshold (strict).  Default: 25.0."""
-
-    amount_norm_cap: float = 100_000.0  # USD cap for amount normalization log scale
-
-    max_sane_amount: float = 1e7
-    """Upper sanity bound for bounty amounts (default: $10M)."""
-
-    new_repo_grace_days: int = 90
-    """Grace period before dead-repo check.  Default: 90."""
-
-    # ── Caching ──
-    cache_ttl_dead: int = 259200  # 3 days  (merges=0)
-    """Cache TTL for dead repos.  Default: 3 days."""
-
-    cache_ttl_low: int = 43200  # 12 hours (merges 1-2)
-    """Cache TTL for low-activity repos.  Default: 12 hours."""
-
-    cache_ttl_active: int = 7200  # 2 hours  (merges >= 3)
-    """Cache TTL for active repos.  Default: 2 hours."""
-
-    no_cache: bool = False
-    """Skip cache checks — re-enrich every issue.  Default: False."""
-
-    include_closed_for_training: bool = False
-    """Allow enrichment of CLOSED issues for training data.  Default: False."""
-
-    # ── Concurrency ──
-    semaphore_limit: int = 15
-    """Max concurrent GraphQL enrichments.  Default: 15."""
-
-    token_bucket_capacity: int = 500
-    """Token bucket capacity for rate limiting.  Default: 500."""
-
-    token_bucket_fill_rate: float = 10.0
-    """Token bucket fill rate (tokens/sec).  Default: 10.0."""
-
-    db_batch_size: int = 50
-    """Number of DB ops before commit.  Default: 50."""
-
-    # ── Scoring weights ──
-    weight_amount: float = 0.30
-    """Weight for bounty amount in score calculation.  Default: 0.30."""
-
-    weight_recency: float = 0.10
-    """Weight for issue recency.  Default: 0.10."""
-
-    weight_activity: float = 0.15
-    """Weight for repo activity.  Default: 0.15."""
-
-    weight_escrow_strength: float = 0.15
-    """Weight for escrow signal strength.  Default: 0.15."""
-
-    w_repo_reputation: float = 0.10
-    """Weight for repo reputation term (escrows vs rugs). Default: 0.10."""
-
-    weight_vibe: float = 0.20
-    """Weight for LLM vibe score term. Default: 0.20."""
-
-    hardware_penalty_factor: float = 0.5
-    """Multiplier applied to final score for issues requiring physical hardware. Default: 0.5."""
-
-    # ── Output ──
-    output_format: str = "text"  # text | markdown | json
-    """Output format.  Default: 'text'."""
-
-    dry_run: bool = False
-    """Run pipeline without writing to DB.  Default: False."""
-
-    verbose: bool = False
-    """Enable DEBUG-level logging.  Default: False."""
-
-    output_md_file: str = "output.md"
-    """Path to Markdown report.  Default: 'output.md'."""
-
-    output_json_file: str = "output.json"
-    """Path to JSON report.  Default: 'output.json'."""
-
-    output_file: str = ""  # Base name for output files (e.g. 'results' -> results.md, results.json)
-    """Base name for output files.  Default: ''."""
-
-    enable_live_prices: bool = False
-    """Toggle live crypto price normalization. Default: False (use static)."""
-
-    live_price_timeout_seconds: int = 5
-    """Timeout for live price fetching. Default: 5."""
-
-    # ── Filtering behaviour ──
-    allow_assigned_if_stale: bool = True
-    """Include assigned issues when assignment is stale.  Default: True."""
-
-    active_signal_max_age_days: int = 90
-    """Max age for active claim signals.  Default: 90 days."""
-
-    proximity_window: int = 300
-    """Window size for proximity scoring.  Default: 300."""
-
-    vibe_ttl_hours: int = 480
-    """TTL for vibe check results in hours. Default: 480."""
-
-    vibe_retry_file: str = "vibe_retry.txt"
-    """Path to the optional retry list for vibe-check. Default: 'vibe_retry.txt'."""
-
-    # ── GraphQL pagination ──
-    pr_cap: int = 200
-    """Limit on PRs fetched per repo.  Default: 200."""
-
-    tl_max_pages: int = 5
-    """Max pages for timeline items.  Default: 5."""
-
-    timeline_page_size: int = 25
-    """Page size for timelineItems in GraphQL; 25 is a safe default."""
-
-    # ── Paths ──
-    db_file: str = "bounty_stats.db"
-    """Path to SQLite database.  Default: 'bounty_stats.db'."""
-
-    signals_config_file: str = DEFAULT_SIGNALS_FILE
-    """Path to signals config.  Default: 'signals_config.json'."""
-
-    config_file: str = DEFAULT_CONFIG_FILE
-    """Path to main scraper config.  Default: 'scraper_config.json'."""
-
-    # ── Search queries (loaded from config JSON) ──
     search_queries: list[str] = field(default_factory=list)
-    """List of search query strings.  Default: []."""
+    pr_cap: int = 200
+    tl_max_pages: int = 5
+    timeline_page_size: int = 25
 
-    # ── Progress ──
-    progress_every: int = 20
-    """Report progress every N issues.  Default: 20."""
-
-    # ── Exploration / Runtime Mode ──
-    mode: str = "strict"  # "strict" or "opportunistic"
-    """Runtime mode.  Default: 'strict'."""
-
-    log_raw_candidates: bool = False
-    """Log rejected candidates to raw file.  Default: False."""
-
-    opportunistic_allow_dead_repos: bool = True
-    """Allow dead repos in opportunistic mode.  Default: True."""
-
+@dataclass
+class ScoringConfig:
+    """Configuration for the composite scoring formula."""
+    weight_amount: float = 0.30
+    weight_recency: float = 0.10
+    weight_activity: float = 0.15
+    weight_escrow_strength: float = 0.15
+    w_repo_reputation: float = 0.10
+    weight_vibe: float = 0.20
+    weight_model: float = 0.0  # Default to 0.0 unless model is enabled
+    hardware_penalty_factor: float = 0.5
+    min_bounty_amount: float = 25.0
+    amount_norm_cap: float = 100_000.0
+    max_sane_amount: float = 1e7
+    new_repo_grace_days: int = 90
+    allow_assigned_if_stale: bool = True
+    active_signal_max_age_days: int = 90
+    proximity_window: int = 300
+    vibe_ttl_hours: int = 480
+    opportunistic_min_amount: float = 50.0
+    exploration_min_stars_raw: int = 100
     opportunistic_allow_no_escrow: bool = True
-    """Allow no escrow signals if cue present.  Default: True."""
+    opportunistic_allow_dead_repos: bool = True
 
-    opportunistic_min_amount: float = 10.0
-    """Minimum amount for opportunistic leads.  Default: 10.0."""
-
-    exploration_min_stars_raw: int = 1
-    """Min stars for exploration logging.  Default: 1."""
-
-    gemini_model: str = "gemini-2.5-flash-lite"  # Gemini model ID; swap to gemini-2.5-pro for higher accuracy
-    """Gemini model for vibe checks.  Default: 'gemini-2.5-flash'."""
-
+@dataclass
+class ConcurrencyConfig:
+    """Configuration for concurrency and rate limiting."""
+    semaphore_limit: int = 15
+    token_bucket_capacity: int = 500
+    token_bucket_fill_rate: float = 10.0
+    db_batch_size: int = 50
     vibe_check_concurrency: int = 3
-    limit: int = 10
+
+@dataclass
+class CacheConfig:
+    """Configuration for SQLite and repository caching."""
+    cache_ttl_dead: int = 259200
+    cache_ttl_low: int = 43200
+    cache_ttl_active: int = 7200
+    db_file: str = "bounty_stats.db"
+
+@dataclass
+class OutputConfig:
+    """Configuration for reports and candidate logging."""
+    output_format: str = "text"
+    output_md_file: str = "output.md"
+    output_json_file: str = "output.json"
+    output_file: str = ""
     raw_candidates_file: str = field(
         default_factory=lambda: os.environ.get("RAW_CANDIDATES_FILE", "exploration_raw.jsonl")
     )
+    progress_every: int = 20
+    verbose: bool = False
+    log_raw_candidates: bool = False
 
-    # ── CLI Compat Fields ──
-    top_n: int = 20
+@dataclass
+class ScraperConfig:
+    """Main configuration orchestrator."""
+    github_token: str = ""
+    mode: str = "strict"
+    dry_run: bool = False
     enable_vibe: bool = True
+    enable_live_prices: bool = False
+    live_price_timeout_seconds: int = 5
+    signals_config_file: str = DEFAULT_SIGNALS_FILE
+    config_file: str = DEFAULT_CONFIG_FILE
+    gemini_model: str = "gemini-1.5-flash"
+    vibe_retry_file: str = "vibe_retry.json"
+    
+    # Sub-configs
+    search: SearchConfig = field(default_factory=SearchConfig)
+    scoring: ScoringConfig = field(default_factory=ScoringConfig)
+    concurrency: ConcurrencyConfig = field(default_factory=ConcurrencyConfig)
+    cache: CacheConfig = field(default_factory=CacheConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
+
+    @property
+    def languages(self): return self.search.languages
+    @languages.setter
+    def languages(self, val): self.search.languages = val
+
+    @property
+    def min_repo_stars(self): return self.search.min_repo_stars
+    @min_repo_stars.setter
+    def min_repo_stars(self, val): self.search.min_repo_stars = val
+
+    @property
+    def repo_blocklist(self): return self.search.repo_blocklist
+    @repo_blocklist.setter
+    def repo_blocklist(self, val): self.search.repo_blocklist = val
+
+    @property
+    def since(self): return self.search.since
+    @since.setter
+    def since(self, val): self.search.since = val
+
+    @property
+    def query_override(self): return self.search.query_override
+    @query_override.setter
+    def query_override(self, val): self.search.query_override = val
+
+    @property
+    def max_issues_per_run(self): return self.search.max_issues_per_run
+    @max_issues_per_run.setter
+    def max_issues_per_run(self, val): self.search.max_issues_per_run = val
+
+    @property
+    def max_pages_per_query(self): return self.search.max_pages_per_query
+    @max_pages_per_query.setter
+    def max_pages_per_query(self, val): self.search.max_pages_per_query = val
+
+    @property
+    def sort_by(self): return self.search.sort_by
+    @sort_by.setter
+    def sort_by(self, val): self.search.sort_by = val
+
+    @property
+    def max_expanded_queries(self): return self.search.max_expanded_queries
+    @max_expanded_queries.setter
+    def max_expanded_queries(self, val): self.search.max_expanded_queries = val
+
+    @property
+    def search_delay_seconds(self): return self.search.search_delay_seconds
+    @search_delay_seconds.setter
+    def search_delay_seconds(self, val): self.search.search_delay_seconds = val
+
+    @property
+    def search_queries(self): return self.search.search_queries
+    @search_queries.setter
+    def search_queries(self, val): self.search.search_queries = val
+
+    @property
+    def pr_cap(self): return self.search.pr_cap
+    @pr_cap.setter
+    def pr_cap(self, val): self.search.pr_cap = val
+
+    @property
+    def tl_max_pages(self): return self.search.tl_max_pages
+    @tl_max_pages.setter
+    def tl_max_pages(self, val): self.search.tl_max_pages = val
+
+    @property
+    def timeline_page_size(self): return self.search.timeline_page_size
+    @timeline_page_size.setter
+    def timeline_page_size(self, val): self.search.timeline_page_size = val
+
+    @property
+    def weight_amount(self): return self.scoring.weight_amount
+    @weight_amount.setter
+    def weight_amount(self, val): self.scoring.weight_amount = val
+
+    @property
+    def weight_recency(self): return self.scoring.weight_recency
+    @weight_recency.setter
+    def weight_recency(self, val): self.scoring.weight_recency = val
+
+    @property
+    def weight_activity(self): return self.scoring.weight_activity
+    @weight_activity.setter
+    def weight_activity(self, val): self.scoring.weight_activity = val
+
+    @property
+    def weight_escrow_strength(self): return self.scoring.weight_escrow_strength
+    @weight_escrow_strength.setter
+    def weight_escrow_strength(self, val): self.scoring.weight_escrow_strength = val
+
+    @property
+    def w_repo_reputation(self): return self.scoring.w_repo_reputation
+    @w_repo_reputation.setter
+    def w_repo_reputation(self, val): self.scoring.w_repo_reputation = val
+
+    @property
+    def weight_vibe(self): return self.scoring.weight_vibe
+    @weight_vibe.setter
+    def weight_vibe(self, val): self.scoring.weight_vibe = val
+
+    @property
+    def hardware_penalty_factor(self): return self.scoring.hardware_penalty_factor
+    @hardware_penalty_factor.setter
+    def hardware_penalty_factor(self, val): self.scoring.hardware_penalty_factor = val
+
+    @property
+    def min_bounty_amount(self): return self.scoring.min_bounty_amount
+    @min_bounty_amount.setter
+    def min_bounty_amount(self, val): self.scoring.min_bounty_amount = val
+
+    @property
+    def amount_norm_cap(self): return self.scoring.amount_norm_cap
+    @amount_norm_cap.setter
+    def amount_norm_cap(self, val): self.scoring.amount_norm_cap = val
+
+    @property
+    def max_sane_amount(self): return self.scoring.max_sane_amount
+    @max_sane_amount.setter
+    def max_sane_amount(self, val): self.scoring.max_sane_amount = val
+
+    @property
+    def new_repo_grace_days(self): return self.scoring.new_repo_grace_days
+    @new_repo_grace_days.setter
+    def new_repo_grace_days(self, val): self.scoring.new_repo_grace_days = val
+
+    @property
+    def allow_assigned_if_stale(self): return self.scoring.allow_assigned_if_stale
+    @allow_assigned_if_stale.setter
+    def allow_assigned_if_stale(self, val): self.scoring.allow_assigned_if_stale = val
+
+    @property
+    def active_signal_max_age_days(self): return self.scoring.active_signal_max_age_days
+    @active_signal_max_age_days.setter
+    def active_signal_max_age_days(self, val): self.scoring.active_signal_max_age_days = val
+
+    @property
+    def proximity_window(self): return self.scoring.proximity_window
+    @proximity_window.setter
+    def proximity_window(self, val): self.scoring.proximity_window = val
+
+    @property
+    def vibe_ttl_hours(self): return self.scoring.vibe_ttl_hours
+    @vibe_ttl_hours.setter
+    def vibe_ttl_hours(self, val): self.scoring.vibe_ttl_hours = val
+
+    @property
+    def opportunistic_min_amount(self): return self.scoring.opportunistic_min_amount
+    @opportunistic_min_amount.setter
+    def opportunistic_min_amount(self, val): self.scoring.opportunistic_min_amount = val
+
+    @property
+    def exploration_min_stars_raw(self): return self.scoring.exploration_min_stars_raw
+    @exploration_min_stars_raw.setter
+    def exploration_min_stars_raw(self, val): self.scoring.exploration_min_stars_raw = val
+
+    @property
+    def opportunistic_allow_no_escrow(self): return self.scoring.opportunistic_allow_no_escrow
+    @opportunistic_allow_no_escrow.setter
+    def opportunistic_allow_no_escrow(self, val): self.scoring.opportunistic_allow_no_escrow = val
+
+    @property
+    def opportunistic_allow_dead_repos(self): return self.scoring.opportunistic_allow_dead_repos
+    @opportunistic_allow_dead_repos.setter
+    def opportunistic_allow_dead_repos(self, val): self.scoring.opportunistic_allow_dead_repos = val
+
+    @property
+    def semaphore_limit(self): return self.concurrency.semaphore_limit
+    @semaphore_limit.setter
+    def semaphore_limit(self, val): self.concurrency.semaphore_limit = val
+
+    @property
+    def token_bucket_capacity(self): return self.concurrency.token_bucket_capacity
+    @token_bucket_capacity.setter
+    def token_bucket_capacity(self, val): self.concurrency.token_bucket_capacity = val
+
+    @property
+    def token_bucket_fill_rate(self): return self.concurrency.token_bucket_fill_rate
+    @token_bucket_fill_rate.setter
+    def token_bucket_fill_rate(self, val): self.concurrency.token_bucket_fill_rate = val
+
+    @property
+    def db_batch_size(self): return self.concurrency.db_batch_size
+    @db_batch_size.setter
+    def db_batch_size(self, val): self.concurrency.db_batch_size = val
+
+    @property
+    def vibe_check_concurrency(self): return self.concurrency.vibe_check_concurrency
+    @vibe_check_concurrency.setter
+    def vibe_check_concurrency(self, val): self.concurrency.vibe_check_concurrency = val
+
+    @property
+    def cache_ttl_dead(self): return self.cache.cache_ttl_dead
+    @cache_ttl_dead.setter
+    def cache_ttl_dead(self, val): self.cache.cache_ttl_dead = val
+
+    @property
+    def cache_ttl_low(self): return self.cache.cache_ttl_low
+    @cache_ttl_low.setter
+    def cache_ttl_low(self, val): self.cache.cache_ttl_low = val
+
+    @property
+    def cache_ttl_active(self): return self.cache.cache_ttl_active
+    @cache_ttl_active.setter
+    def cache_ttl_active(self, val): self.cache.cache_ttl_active = val
+
+    @property
+    def db_file(self): return self.cache.db_file
+    @db_file.setter
+    def db_file(self, val): self.cache.db_file = val
+
+    @property
+    def output_format(self): return self.output.output_format
+    @output_format.setter
+    def output_format(self, val): self.output.output_format = val
+
+    @property
+    def output_md_file(self): return self.output.output_md_file
+    @output_md_file.setter
+    def output_md_file(self, val): self.output.output_md_file = val
+
+    @property
+    def output_json_file(self): return self.output.output_json_file
+    @output_json_file.setter
+    def output_json_file(self, val): self.output.output_json_file = val
+
+    @property
+    def output_file(self): return self.output.output_file
+    @output_file.setter
+    def output_file(self, val): self.output.output_file = val
+
+    @property
+    def raw_candidates_file(self): return self.output.raw_candidates_file
+    @raw_candidates_file.setter
+    def raw_candidates_file(self, val): self.output.raw_candidates_file = val
+
+    @property
+    def progress_every(self): return self.output.progress_every
+    @progress_every.setter
+    def progress_every(self, val): self.output.progress_every = val
+
+    @property
+    def verbose(self): return self.output.verbose
+    @verbose.setter
+    def verbose(self, val): self.output.verbose = val
+
+    @property
+    def log_raw_candidates(self): return self.output.log_raw_candidates
+    @log_raw_candidates.setter
+    def log_raw_candidates(self, val): self.output.log_raw_candidates = val
+
+    # These don't have sub-configs but are often passed via CLI
+    no_cache: bool = False
+    include_closed_for_training: bool = False
+    limit: int = 10
+    top_n: int = 20
 
     def __post_init__(self) -> None:
-        # Check for pathological weights (negative or extreme drift)
+        # Check for pathological weights
         weights = [
-            self.weight_amount,
-            self.weight_recency,
-            self.weight_activity,
-            self.weight_escrow_strength,
-            self.w_repo_reputation,
-            self.weight_vibe,
+            self.scoring.weight_amount,
+            self.scoring.weight_recency,
+            self.scoring.weight_activity,
+            self.scoring.weight_escrow_strength,
+            self.scoring.w_repo_reputation,
+            self.scoring.weight_vibe,
+            self.scoring.weight_model,
         ]
         if any(w < 0 for w in weights):
             raise ValueError("Scoring weights cannot be negative.")
@@ -300,12 +408,13 @@ class ScraperConfig:
                 stacklevel=2,
             )
             # Normalize in-place
-            self.weight_amount /= weight_total
-            self.weight_recency /= weight_total
-            self.weight_activity /= weight_total
-            self.weight_escrow_strength /= weight_total
-            self.w_repo_reputation /= weight_total
-            self.weight_vibe /= weight_total
+            self.scoring.weight_amount /= weight_total
+            self.scoring.weight_recency /= weight_total
+            self.scoring.weight_activity /= weight_total
+            self.scoring.weight_escrow_strength /= weight_total
+            self.scoring.w_repo_reputation /= weight_total
+            self.scoring.weight_vibe /= weight_total
+            self.scoring.weight_model /= weight_total
 
     def __repr__(self) -> str:
         import dataclasses
@@ -375,6 +484,10 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "wallet_payout_phrases": [],
         "hardware_dependency_phrases": [],
         "completion_signals": [],
+        "title_required_signals": [],
+        "crypto_keywords": [],
+        "stablecoin_symbols": [],
+        "repo_blocklist": [],
     }
     try:
         with open(path, "r", encoding="utf-8") as fh:
@@ -397,6 +510,7 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
         "wallet_payout_phrases",
         "hardware_dependency_phrases",
         "completion_signals",
+        "title_required_signals",
     ]
     for key in regex_keys:
         if defaults[key]:
@@ -413,6 +527,19 @@ def load_signals(path: str = DEFAULT_SIGNALS_FILE) -> dict[str, list[str] | list
             defaults[f"{key}_re"] = re.compile(pattern, flags=re.IGNORECASE)
         else:
             defaults[f"{key}_re"] = None
+
+    # Task H3: Special regexes for bounty.py
+    if defaults["crypto_keywords"]:
+        # Match "NNN ETH", "NNN USDC", etc.
+        pattern = r"([\d,]+(?:\.\d+)?)\s*(" + "|".join(re.escape(s) for s in defaults["crypto_keywords"]) + r")\b"
+        defaults["crypto_amounts_re"] = re.compile(pattern, flags=re.IGNORECASE)
+        
+        # Match standalone keywords for fallback
+        pattern = r"\b(" + "|".join(re.escape(s) for s in defaults["crypto_keywords"] if s.upper() != "USD") + r")\b"
+        defaults["crypto_keywords_re"] = re.compile(pattern, flags=re.IGNORECASE)
+    else:
+        defaults["crypto_amounts_re"] = None
+        defaults["crypto_keywords_re"] = None
 
     return defaults
 
@@ -446,66 +573,81 @@ def build_config(cli_overrides: dict[str, Any] | None = None) -> ScraperConfig:
 
     from dataclasses import fields as dc_fields
 
+    def _apply_aliases(d: dict[str, Any]):
+        if "db_path" in d:
+            d["db_file"] = d.pop("db_path")
+        if "concurrency" in d:
+            d["semaphore_limit"] = d.pop("concurrency")
+        if "raw_file" in d:
+            d["raw_candidates_file"] = d.pop("raw_file")
+        if "batch_commit_size" in d:
+            d["db_batch_size"] = d.pop("batch_commit_size")
+        if "vibe_check_limit" in d:
+            d["limit"] = d.pop("vibe_check_limit")
+        if "min_stars" in d:
+            d["min_repo_stars"] = d.pop("min_stars")
+
+    _apply_aliases(data)
+    _apply_aliases(overrides)
+
+    from dataclasses import fields as dc_fields
     known = {f.name for f in dc_fields(ScraperConfig)}
 
-    if data:
-        # Backward compat aliases
-        if "db_path" in data:
-            data["db_file"] = data.pop("db_path")
-        if "concurrency" in data:
-            data["semaphore_limit"] = data.pop("concurrency")
-        if "raw_file" in data:
-            data["raw_candidates_file"] = data.pop("raw_file")
-        if "batch_commit_size" in data:
-            data["db_batch_size"] = data.pop("batch_commit_size")
-        if "vibe_check_limit" in data:
-            data["limit"] = data.pop("vibe_check_limit")
-
-        unknown = set(data) - known
-        if unknown:
-            import warnings
-
-            warnings.warn(
-                f"scraper_config.json contains unrecognized keys (will be ignored): {unknown}",
-                stacklevel=2,
-            )
-        data = {k: v for k, v in data.items() if k in known}
-
-    # 3. Apply CLI overrides.
-    cli_data = {}
-    cli_unknown = set()
-
-    # Backward compat aliases for CLI
-    if "db_path" in overrides:
-        overrides["db_file"] = overrides.pop("db_path")
-    if "concurrency" in overrides:
-        overrides["semaphore_limit"] = overrides.pop("concurrency")
-    if "raw_file" in overrides:
-        overrides["raw_candidates_file"] = overrides.pop("raw_file")
-    if "batch_commit_size" in overrides:
-        overrides["db_batch_size"] = overrides.pop("batch_commit_size")
-    if "vibe_check_limit" in overrides:
-        overrides["limit"] = overrides.pop("vibe_check_limit")
-
-    for k, v in overrides.items():
-        if k in known:
-            cli_data[k] = v
-        else:
-            # config_file is a known override but not in ScraperConfig
-            if k != "config_file":
-                cli_unknown.add(k)
-
-    if cli_unknown:
+    unknown = set(data) - known
+    if unknown:
         import warnings
 
         warnings.warn(
-            f"CLI provided unrecognized keys (will be ignored): {cli_unknown}",
+            f"scraper_config.json contains unrecognized keys (will be ignored): {unknown}",
             stacklevel=2,
         )
+    data = {k: v for k, v in data.items() if k in known}
 
-    # Merge: defaults (in dataclass) < config file < CLI
-    combined = {**data, **cli_data}
-    cfg = ScraperConfig(**combined)
+    # Helper to populate sub-configs from flat data
+    def _extract_sub(data_dict, config_cls):
+        sub_fields = {f.name for f in dc_fields(config_cls)}
+        extracted = {k: data_dict.pop(k) for k in list(data_dict.keys()) if k in sub_fields}
+        return config_cls(**extracted)
+
+    search_sub = _extract_sub(data, SearchConfig)
+    scoring_sub = _extract_sub(data, ScoringConfig)
+    concurrency_sub = _extract_sub(data, ConcurrencyConfig)
+    cache_sub = _extract_sub(data, CacheConfig)
+    output_sub = _extract_sub(data, OutputConfig)
+
+    # 3. Apply CLI overrides.
+    # We do a similar extraction for CLI overrides
+    cli_search = _extract_sub(overrides, SearchConfig)
+    cli_scoring = _extract_sub(overrides, ScoringConfig)
+    cli_concurrency = _extract_sub(overrides, ConcurrencyConfig)
+    cli_cache = _extract_sub(overrides, CacheConfig)
+    cli_output = _extract_sub(overrides, OutputConfig)
+
+    # Merge sub-configs (CLI > File > Default)
+    def _merge_dc(base, file_sub, cli_sub):
+        # This is a bit tricky with dataclasses. We'll just manually update for now or use asdict
+        import dataclasses
+        res = dataclasses.asdict(base)
+        res.update({k: v for k, v in dataclasses.asdict(file_sub).items() if v != getattr(base, k)})
+        res.update({k: v for k, v in dataclasses.asdict(cli_sub).items() if v != getattr(base, k)})
+        return type(base)(**res)
+
+    search_final = _merge_dc(SearchConfig(), search_sub, cli_search)
+    scoring_final = _merge_dc(ScoringConfig(), scoring_sub, cli_scoring)
+    concurrency_final = _merge_dc(ConcurrencyConfig(), concurrency_sub, cli_concurrency)
+    cache_final = _merge_dc(CacheConfig(), cache_sub, cli_cache)
+    output_final = _merge_dc(OutputConfig(), output_sub, cli_output)
+
+    # Final assembly
+    cfg = ScraperConfig(
+        **{k: v for k, v in data.items() if k in known},
+        **{k: v for k, v in overrides.items() if k in known},
+        search=search_final,
+        scoring=scoring_final,
+        concurrency=concurrency_final,
+        cache=cache_final,
+        output=output_final
+    )
 
     # 4. Resolve token if not already set.
     if not cfg.github_token:

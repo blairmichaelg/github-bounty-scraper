@@ -30,6 +30,7 @@ from .db import (
 from .discovery import discover_issues_stream
 from .graphql import TokenBucket, fetch_graphql, run_graphql_audit
 from .log import get_logger
+from .model_scorer import ModelScorer
 from .output import write_output
 from .price_cache import refresh_prices
 from .scoring import compute_score
@@ -37,12 +38,9 @@ from .signals import (
     apply_hard_disqualifiers,
     compute_soft_signals,
 )
+from .utils import parse_github_timestamp, timestamp_to_float
 
 log = get_logger()
-
-TITLE_REQUIRED_SIGNALS = frozenset(
-    {"bounty", "reward", "grant", "prize", "paid", "payment", "$", "usdc", "eth", "xtm", "matic", "sol", "bnb"}
-)
 
 
 class LeadResult(TypedDict):
@@ -60,6 +58,7 @@ class LeadResult(TypedDict):
     HasOnchainEscrow: bool
     MentionsNoKyc: bool
     MentionsWalletPayout: bool
+    ModelScore: float | None
 
 
 def _append_raw(path: str, line: str) -> None:
@@ -72,10 +71,10 @@ def _append_raw(path: str, line: str) -> None:
 def _check_repo_health(repo_data: dict[str, Any], config: ScraperConfig) -> bool:
     """Return True if the repository meets basic health criteria."""
     if repo_data.get("isArchived", False):
-        print("DEBUG: Exiting because archived")
+        log.debug("Exiting because archived")
         return False
     if repo_data.get("isDisabled", False):
-        print("DEBUG: Exiting because disabled")
+        log.debug("Exiting because disabled")
         return False
     if repo_data.get("isFork", False):
         return False
@@ -112,13 +111,23 @@ def _build_text_context(issue: dict[str, Any], comments: list[dict[str, Any]]) -
     return concat_text
 
 
-def _resolve_numeric_amount(issue: dict[str, Any], config: ScraperConfig) -> tuple[float, str, str]:
+def _resolve_numeric_amount(
+    issue: dict[str, Any], config: ScraperConfig, signals: dict[str, Any] | None = None
+) -> tuple[float, str, str]:
     """Extract bounty amount, apply cue fallbacks, and return numeric value with display metadata."""
+    if signals is None:
+        from .config import load_signals
+        signals = load_signals(config.signals_config_file)
+
     comments = issue.get("comments", {}).get("nodes", [])
     concat_text = _build_text_context(issue, comments)
 
     bounty = parse_numeric_amount(
-        concat_text, max_sane=config.max_sane_amount, proximity_window=config.proximity_window, config=config
+        concat_text,
+        max_sane=config.scoring.max_sane_amount,
+        proximity_window=config.scoring.proximity_window,
+        config=config,
+        signals=signals,
     )
     num_val = bounty.numeric_amount
     return num_val, bounty.raw_display, bounty.currency_symbol
@@ -133,6 +142,7 @@ def _build_lead_result(
     prev_score: float | None,
     repo_name: str,
     soft: Any,
+    model_score: float | None = None,
 ) -> LeadResult:
     """Construct the final LeadResult dict for verified bounties."""
     title = issue.get("title") or ""
@@ -153,6 +163,7 @@ def _build_lead_result(
         "HasOnchainEscrow": soft.has_onchain_escrow,
         "MentionsNoKyc": soft.mentions_no_kyc,
         "MentionsWalletPayout": soft.mentions_wallet_payout,
+        "ModelScore": model_score,
     }
 
 
@@ -167,6 +178,7 @@ async def process_issue(
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
     seen_aggregators: set[str],
+    model_scorer: ModelScorer | None = None,
 ) -> LeadResult | None:
     """Orchestrate the processing of a single issue candidate."""
     url = issue_item.get("html_url", "")
@@ -184,7 +196,7 @@ async def process_issue(
         return None
 
     # 2. Persistence & Reputation
-    result_data = await _persist_lead(db_conn, enriched, config, signals, committer)
+    result_data = await _persist_lead(db_conn, enriched, config, signals, committer, model_scorer=model_scorer)
     if not result_data:
         return None
 
@@ -198,6 +210,7 @@ async def process_issue(
         prev_score=result_data["prev_score"],
         repo_name=enriched["repo_name"],
         soft=enriched["soft"],
+        model_score=result_data.get("model_score"),
     )
 
 
@@ -264,13 +277,7 @@ async def _enrich_issue(
         return None
 
     # Title-level bounty signal requirement
-    title = (issue.get("title") or "").lower()
-    amount_in_title = any(c.isdigit() for c in title) and (
-        "$" in title or any(tok in title for tok in ("usdc", "eth", "xtm", "matic", "sol", "bnb"))
-    )
-    has_title_signal = any(kw in title for kw in TITLE_REQUIRED_SIGNALS) or amount_in_title
-
-    if not has_title_signal and not config.log_raw_candidates:
+    if not _has_title_signal(issue, signals) and not config.output.log_raw_candidates:
         log.info("Skipping — no bounty signal in title: %s", issue.get("title", ""))
         return None
 
@@ -290,7 +297,7 @@ async def _enrich_issue(
         if not _is_new_repo_grace(repository, config):
             if not config.dry_run:
                 await mark_issue_checked(db_conn, url, time.time())
-            print("DEBUG: Exiting because dead repo and no grace")
+            log.debug("Exiting because dead repo and no grace")
             return None
 
     # Disqualifiers
@@ -301,6 +308,7 @@ async def _enrich_issue(
     )
     if disqualified:
         if not config.dry_run:
+            log.info("Disqualified %s: %s", url, reason)
             rug_inc = 1 if ("negative" in reason or "kill label" in reason) else 0
             await upsert_repo_stats(
                 db_conn, repo_name, last_merged_pr_at=last_merged_ts, merges_last_45d=merges_45d, rug_increment=rug_inc
@@ -325,7 +333,7 @@ async def _enrich_issue(
             await mark_issue_checked(db_conn, url, time.time())
         return None
 
-    num_val, display, currency = _resolve_numeric_amount(issue, config)
+    num_val, display, currency = _resolve_numeric_amount(issue, config, signals)
 
     return {
         "url": url,
@@ -343,6 +351,18 @@ async def _enrich_issue(
     }
 
 
+def _has_title_signal(issue: dict[str, Any], signals: dict[str, Any]) -> bool:
+    """Return True if the issue title contains a bounty signal."""
+    title = (issue.get("title") or "").lower()
+    title_signals = signals.get("title_required_signals", [])
+    crypto_keywords = [k.lower() for k in signals.get("crypto_keywords", [])]
+
+    amount_in_title = any(c.isdigit() for c in title) and (
+        "$" in title or any(tok in title for tok in crypto_keywords)
+    )
+    return any(kw in title for kw in title_signals) or amount_in_title
+
+
 def _get_repo_activity(repository: dict, prs: list) -> tuple[int, float]:
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=45)
     merges_45d = 0
@@ -350,27 +370,23 @@ def _get_repo_activity(repository: dict, prs: list) -> tuple[int, float]:
     for pr in prs:
         m_raw = pr.get("mergedAt")
         if m_raw:
-            try:
-                dt = datetime.datetime.strptime(m_raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+            dt = parse_github_timestamp(m_raw)
+            if dt:
                 ts = dt.timestamp()
                 if ts > last_merged_ts:
                     last_merged_ts = ts
                 if dt >= cutoff:
                     merges_45d += 1
-            except ValueError:
-                pass
     return merges_45d, last_merged_ts
 
 
 def _is_new_repo_grace(repository: dict, config: ScraperConfig) -> bool:
     created_raw = repository.get("createdAt")
     if created_raw:
-        try:
-            dt = datetime.datetime.strptime(created_raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+        dt = parse_github_timestamp(created_raw)
+        if dt:
             age = (datetime.datetime.now(datetime.timezone.utc) - dt).days
             return age < config.new_repo_grace_days
-        except ValueError:
-            pass
     return False
 
 
@@ -380,6 +396,7 @@ async def _persist_lead(
     config: ScraperConfig,
     signals: dict[str, Any],
     committer: BatchCommitter,
+    model_scorer: ModelScorer | None = None,
 ) -> dict[str, Any] | None:
     """Update stats and determine if result should be returned."""
     url, repo_name, soft = enriched["url"], enriched["repo_name"], enriched["soft"]
@@ -415,6 +432,22 @@ async def _persist_lead(
     repo_rep = await get_repo_reputation(db_conn, repo_name)
     prev_score, vibe_score, vibe_at = await _get_issue_meta(db_conn, url, config)
 
+    # ML Model Scoring
+    model_score = None
+    if model_scorer:
+        model_input = {
+            "vibe_score": vibe_score,
+            "positive_escrow_count": soft.positive_escrow_count,
+            "escrow_weight_sum": soft.escrow_weight_sum,
+            "has_onchain_escrow": soft.has_onchain_escrow,
+            "mentions_no_kyc": soft.mentions_no_kyc,
+            "mentions_wallet_payout": soft.mentions_wallet_payout,
+            "merges_last_45d": merges_45d,
+            "is_closed": (enriched["lead_mode_override"] == "closed_historical"),
+        }
+        model_score = model_scorer.predict_score(model_input)
+        log.debug("Model score for %s: %.2f", url, model_score)
+
     score = compute_score(
         numeric_amount=max(0, num_val),
         issue_updated_at=issue.get("updatedAt", ""),
@@ -429,18 +462,12 @@ async def _persist_lead(
         mentions_no_kyc=soft.mentions_no_kyc,
         mentions_wallet_payout=soft.mentions_wallet_payout,
         requires_hardware=soft.requires_hardware,
+        model_score=model_score,
     )
 
     if not config.dry_run:
         updated_at = issue.get("updatedAt", "")
-        try:
-            _ts = (
-                datetime.datetime.strptime(updated_at, "%Y-%m-%dT%H:%M:%SZ")
-                .replace(tzinfo=datetime.timezone.utc)
-                .timestamp()
-            )
-        except ValueError:
-            _ts = 0.0
+        _ts = timestamp_to_float(parse_github_timestamp(updated_at))
 
         await upsert_issue_stats(
             db_conn,
@@ -466,7 +493,7 @@ async def _persist_lead(
         await mark_issue_checked(db_conn, url, time.time())
         await committer.tick()
 
-    return {"score": score, "prev_score": prev_score}
+    return {"score": score, "prev_score": prev_score, "model_score": model_score}
 
 
 def _is_qualified_lead(enriched: dict, config: ScraperConfig) -> bool:
@@ -545,6 +572,7 @@ async def _process_with_retry(
     signals: dict[str, list[str] | list[dict[str, Any]]],
     committer: BatchCommitter,
     seen_aggregators: set[str],
+    model_scorer: ModelScorer | None = None,
     max_retries: int = 2,
 ) -> LeadResult | None:
     """Wrap ``process_issue`` with a simple retry for transient errors."""
@@ -560,6 +588,7 @@ async def _process_with_retry(
                 signals,
                 committer,
                 seen_aggregators,
+                model_scorer=model_scorer,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             if attempt < max_retries:
@@ -589,10 +618,7 @@ async def _process_with_retry(
     return None
 
 
-def _append_raw(path: str, line: str):
-    """Thread-safe append to a text file."""
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line)
+# Redundant definition removed.
 
 
 # ─── Main pipeline ──────────────────────────────────────────────────
@@ -602,6 +628,11 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
     start_time = time.time()
 
     signals = load_signals(config.signals_config_file)
+
+    # Initialize Model Scorer
+    model_scorer = ModelScorer()
+    if not model_scorer.load():
+        model_scorer = None
 
     if config.enable_live_prices:
         from .config import CRYPTO_KEYWORDS
@@ -645,7 +676,16 @@ async def run_pipeline(config: ScraperConfig) -> list[dict[str, Any]]:
                     break
                 try:
                     result = await _process_with_retry(
-                        session, bucket, item, db_conn, sem, config, signals, committer, seen_aggregators
+                        session,
+                        bucket,
+                        item,
+                        db_conn,
+                        sem,
+                        config,
+                        signals,
+                        committer,
+                        seen_aggregators,
+                        model_scorer=model_scorer,
                     )
                 except Exception as exc:
                     log.error("Unhandled error processing issue: %s", exc)

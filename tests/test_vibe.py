@@ -48,9 +48,9 @@ async def test_call_gemini_missing_key():
 async def test_call_gemini_uses_header_auth(mock_aiohttp_session):
     """Verify that call_gemini uses the x-goog-api-key header and not query params."""
     mock_aiohttp_session.post.return_value.__aenter__.return_value.status = 200
-    mock_aiohttp_session.post.return_value.__aenter__.return_value.json = AsyncMock(return_value={
-        "candidates": [{"content": {"parts": [{"text": "SCORE: 90\nREASON: Good"}]}}]
-    })
+    mock_aiohttp_session.post.return_value.__aenter__.return_value.json = AsyncMock(
+        return_value={"candidates": [{"content": {"parts": [{"text": "SCORE: 90\nREASON: Good"}]}}]}
+    )
 
     await call_gemini(mock_aiohttp_session, "secret-key", "title", "body")
 
@@ -159,14 +159,15 @@ async def test_iter_raw_candidates_streaming(tmp_path):
     with open(raw_file, "w", encoding="utf-8") as f:
         for item in items:
             f.write(json.dumps(item) + "\n")
-    
+
     found = []
     async for item in iter_raw_candidates(str(raw_file)):
         found.append(item)
-    
+
     assert len(found) == 5
     assert found[0]["url"] == "http://0"
     assert found[4]["url"] == "http://4"
+
 
 @pytest.mark.asyncio
 async def test_iter_raw_candidates_malformed():
@@ -274,7 +275,7 @@ async def test_iter_unscored_combined_time_filter(tmp_path):
 
     now = time.time()
     old_time = now - (31 * 86400)  # 31 days ago
-    new_time = now - (5 * 86400)   # 5 days ago
+    new_time = now - (5 * 86400)  # 5 days ago
 
     async with aiosqlite.connect(db_path) as db:
         await init_db(db, db_path=db_path)

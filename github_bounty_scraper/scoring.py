@@ -31,7 +31,7 @@ from __future__ import annotations
 import datetime
 import math
 
-from .config import ESCROW_WEIGHT_CAP, ACTIVITY_TRUST_THRESHOLD, ACTIVITY_TRUST_FLOOR, ScraperConfig
+from .config import ACTIVITY_TRUST_FLOOR, ACTIVITY_TRUST_THRESHOLD, ESCROW_WEIGHT_CAP, ScraperConfig
 from .log import get_logger
 
 log = get_logger()
@@ -52,6 +52,7 @@ def compute_score(
     mentions_no_kyc: bool = False,
     mentions_wallet_payout: bool = False,
     requires_hardware: bool = False,
+    model_score: float | None = None,
 ) -> float:
     """Compute a composite score in [0, 100] for an issue.
 
@@ -131,12 +132,15 @@ def compute_score(
     w_act = config.weight_activity
     w_esc = config.weight_escrow_strength
     w_repo = config.w_repo_reputation
+    w_model = config.weight_model if model_score is not None else 0.0
 
-    # Normalize so weights always sum to 1.0 regardless of vibe availability
-    total_w = w_amt + w_rec + w_act + w_esc + w_repo + w_vibe
+    # Normalize so weights always sum to 1.0 regardless of availability
+    total_w = w_amt + w_rec + w_act + w_esc + w_repo + w_vibe + w_model
     if total_w <= 0:
         total_w = 1.0
     scale = 1.0 / total_w
+
+    m_norm = (model_score / 100.0) if model_score is not None else 0.0
 
     raw_score = (
         (
@@ -146,6 +150,7 @@ def compute_score(
             + escrow_norm * w_esc
             + repo_reputation * w_repo
             + vibe_norm * w_vibe
+            + m_norm * w_model
         )
         * scale
         * 100.0

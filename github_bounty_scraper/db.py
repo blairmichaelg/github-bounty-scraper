@@ -11,6 +11,7 @@ from typing import Any
 import aiosqlite
 
 from .log import get_logger
+from .utils import timestamp_to_float
 
 log = get_logger()
 
@@ -105,6 +106,7 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
         "mentions_wallet_payout INTEGER DEFAULT 0",
         "positive_escrow_count INTEGER DEFAULT 0",
         "escrow_weight_sum REAL DEFAULT 0.0",
+        "model_score REAL",
     ]:
         try:
             await conn.execute(f"ALTER TABLE issue_stats ADD COLUMN {col_def};")
@@ -129,46 +131,30 @@ async def init_db(conn: aiosqlite.Connection, db_path: str = "") -> None:
         );
     """)
 
-    # ── Migration: Ghost row cleanup ──
-    # Ghost-row cleanup — runs once only (guarded by user_version migration flag)
-    async with conn.execute("PRAGMA user_version") as _uv_cur:
-        _uv_row = await _uv_cur.fetchone()
-        _uv = _uv_row[0] if _uv_row else 0
-    if _uv < 1:
-        async with conn.execute("SELECT COUNT(*) FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL") as c2:
-            ghost_row = await c2.fetchone()
-            ghost_count = ghost_row[0] if ghost_row else 0
-            if ghost_count > 0:
-                log.info("Migration v1: Purging %d zero-score ghost rows …", ghost_count)
-                await conn.execute("DELETE FROM issue_stats WHERE score = 0 AND numeric_amount IS NULL")
-        await conn.execute("PRAGMA user_version = 1")
-        _uv = 1
-
-    if _uv < 2:
-        await conn.execute(
-            """
-            UPDATE issue_stats
-            SET lead_mode = 'vibe_only',
-                escrow_verified = 0,
-                score = 0
-            WHERE numeric_amount IS NULL
-              AND COALESCE(title, '') = ''
-              AND COALESCE(repo_name, '') = ''
-            """
-        )
-        await conn.execute("PRAGMA user_version = 2")
-        _uv = 2
-
-    if _uv < 3:
-        try:
-            await conn.execute("ALTER TABLE issue_stats DROP COLUMN vibe_checked_at;")
-        except aiosqlite.OperationalError:
-            pass  # Already dropped or not supported
-        await conn.execute("PRAGMA user_version = 3")
+    # ── Migration Runner ──
+    await _run_migrations(conn)
 
     if db_path:
         _db_initialized.add(db_path)
     await conn.commit()
+
+
+async def _run_migrations(conn: aiosqlite.Connection) -> None:
+    """Handle complex schema migrations that require more than just ADD COLUMN."""
+    # Check for current schema version or presence of indicators
+    # For now, this is a placeholder for future complex migrations.
+    # We could use a 'meta' table to track versioning.
+    await conn.execute("CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER PRIMARY KEY);")
+    async with conn.execute("SELECT version FROM schema_meta") as cursor:
+        row = await cursor.fetchone()
+        version = row[0] if row else 0
+
+    # Example migration: version 1
+    # if version < 1:
+    #    await conn.execute("...")
+    #    await conn.execute("INSERT OR REPLACE INTO schema_meta (version) VALUES (1);")
+    
+    pass
 
 
 # ─── Upsert helpers (fixed: no longer reset counters to 0) ──────────
@@ -244,6 +230,7 @@ async def upsert_issue_stats(
     vibe_score: int | None = None,
     vibe_reason: str = "",
     vibe_scored_at: float = 0.0,
+    model_score: float | None = None,
 ) -> None:
     """Insert or update issue_stats, preserving first_seen_at."""
     now = time.time()
@@ -256,8 +243,8 @@ async def upsert_issue_stats(
              numeric_amount, raw_display_amount, currency_symbol, score,
             title, repo_name, lead_mode, escrow_verified, is_dead_repo, prev_score,
             has_onchain_escrow, mentions_no_kyc, mentions_wallet_payout,
-            positive_escrow_count, escrow_weight_sum, vibe_score, vibe_reason, vibe_scored_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            positive_escrow_count, escrow_weight_sum, vibe_score, vibe_reason, vibe_scored_at, model_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(issue_url) DO UPDATE SET
             prev_score         = issue_stats.score,
             checked_at         = excluded.checked_at,
@@ -281,7 +268,8 @@ async def upsert_issue_stats(
             escrow_weight_sum = excluded.escrow_weight_sum,
             vibe_score         = COALESCE(excluded.vibe_score, issue_stats.vibe_score),
             vibe_reason        = COALESCE(excluded.vibe_reason, issue_stats.vibe_reason),
-            vibe_scored_at     = COALESCE(excluded.vibe_scored_at, issue_stats.vibe_scored_at)
+            vibe_scored_at     = COALESCE(excluded.vibe_scored_at, issue_stats.vibe_scored_at),
+            model_score        = COALESCE(excluded.model_score, issue_stats.model_score)
         """,
         (
             issue_url,
@@ -308,6 +296,7 @@ async def upsert_issue_stats(
             vibe_score,
             vibe_reason,
             vibe_scored_at,
+            model_score,
         ),
     )
 
@@ -590,24 +579,23 @@ async def dump_dataset(
     import json
     import os
 
-    # Load bodies from exploration_raw.jsonl to enrich the dataset
+    # Load bodies from exploration_raw.jsonl using streaming to save memory
     bodies = {}
     if os.path.exists(raw_candidates_file):
-
-        def _read():
+        def _stream_read():
             with open(raw_candidates_file, "r", encoding="utf-8") as f:
-                return f.read().splitlines()
-
-        lines = await asyncio.to_thread(_read)
-        for line in lines:
-            if not line.strip():
-                continue
-            try:
-                obj = json.loads(line)
-                key = obj.get("issue_url") or obj.get("url") or ""
-                bodies[key] = obj.get("body_snippet") or obj.get("body") or ""
-            except Exception:
-                pass
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        key = obj.get("issue_url") or obj.get("url") or ""
+                        # Only keep snippet to save RAM
+                        bodies[key] = (obj.get("body_snippet") or obj.get("body") or "")[:500]
+                    except Exception:
+                        continue
+        
+        await asyncio.to_thread(_stream_read)
 
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row

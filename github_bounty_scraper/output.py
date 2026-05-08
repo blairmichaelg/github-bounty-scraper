@@ -100,6 +100,9 @@ def write_text_output(
                 tags.append("NO KYC")
             if tags:
                 print(f"Payout  : {' | '.join(tags)}")
+            if lead.get("ModelScore") is not None:
+                print(f"ML Prob : {lead['ModelScore']:.1f}%")
+
             print("-" * 60)
 
     if unknown:
@@ -122,6 +125,8 @@ def write_text_output(
                 tags.append("NO KYC")
             if tags:
                 print(f"Payout  : {' | '.join(tags)}")
+            if lead.get("ModelScore") is not None:
+                print(f"ML Prob : {lead['ModelScore']:.1f}%")
             print("-" * 60)
 
     print(f"Pipeline executed in {elapsed:.2f} seconds.")
@@ -146,8 +151,8 @@ def write_markdown_output(
 
     if verified:
         lines.append("## Verified Bounty Leads\n")
-        lines.append("| Score | Amount | Currency | Repo | Title | Labels | Payout | Link |")
-        lines.append("|-------|--------|----------|------|-------|--------|--------|------|")
+        lines.append("| Score | ML Prob | Amount | Currency | Repo | Title | Labels | Payout | Link |")
+        lines.append("|-------|---------|--------|----------|------|-------|--------|--------|------|")
         for lead in verified:
             score = lead.get("Score", 0.0)
             prev = lead.get("PrevScore")
@@ -168,9 +173,12 @@ def write_markdown_output(
                 badges.append("🆓")
             badge_str = " ".join(badges) if badges else "—"
 
+            m_score = lead.get("ModelScore")
+            m_str = f"{m_score:.1f}%" if m_score is not None else "—"
+
             safe_title = (prefix + lead["Title"]).replace("|", "\\|")[:75]
             lines.append(
-                f"| {score} | {lead['Amount']} "
+                f"| {score} | {m_str} | {lead['Amount']} "
                 f"| {lead.get('Currency', 'USD')} | {lead['Repo']} | {safe_title} "
                 f"| {lead['Labels']} | {badge_str} | [link]({lead['Link']}) |"
             )
@@ -234,6 +242,7 @@ def write_json_output(
                 "has_onchain_escrow": lead.get("HasOnchainEscrow", False),
                 "mentions_wallet_payout": lead.get("MentionsWalletPayout", False),
                 "mentions_no_kyc": lead.get("MentionsNoKyc", False),
+                "model_score": lead.get("ModelScore"),
             }
             for lead in leads
         ],

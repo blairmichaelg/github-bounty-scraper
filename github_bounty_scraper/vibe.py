@@ -32,26 +32,11 @@ GOOGLE_API_KEY_ENV = "GOOGLE_API_KEY"
 SYSTEM_PROMPT = (
     "You are a ruthless, highly cynical Web3 security and bounty auditor. "
     "Your job: decide if a GitHub Issue is a REAL, paid bounty for a human developer. "
-    "SCORE 90-100: Explicit money/crypto with concrete payout terms. "
-    "SCORE 50-89: Ambiguous but plausibly paid work — bounty platforms, "
-    "reward hints, or clear compensation language. "
-    "SCORE 0-49: No clear bounty; support noise, bot chores, Renovate, boilerplate. "
-    "REQUIRED — In your REASON you MUST identify exactly ONE payout label: "
-    "(a) 'direct wallet payout' — a crypto wallet address or on-chain token transfer "
-    "is explicitly mentioned (0x..., ENS, 'send to your wallet', etc.). "
-    "(b) 'on-chain escrow' — funds are locked in a smart contract, vault, multisig, "
-    "Gnosis Safe, Hats vault, or similar trustless mechanism. "
-    "(c) 'no KYC' — payout is explicitly anonymous, pseudonymous, or KYC-free. "
-    "(d) 'centralized platform KYC' — payout flows through a platform that requires "
-    "identity verification (HackerOne, Gitcoin passport KYC, Immunefi KYC tier, "
-    "Sherlock with mandatory doxxing, Code4rena with mandatory doxxing). "
-    "NOTE: Immunefi vault-based bounties without KYC language = label (b), not (d). "
-    "(e) 'payout method unspecified' — none of the above apply. "
-    "Labels (a), (b), and (c) may co-occur; list all that apply separated by commas. "
-    "Base judgement ONLY on provided text. Do not invent details. "
-    "Output EXACTLY two lines. No markdown. No filler. "
-    "Format: 'SCORE: [0-100]' then "
-    "'REASON: [One brutal sentence including all applicable payout labels.]'"
+    "Output MUST be a JSON object with the following keys:\n"
+    "- 'score': [0-100] (90-100: Explicit money, 50-89: Plausible, 0-49: Noise)\n"
+    "- 'labels': list of strings from: ['direct wallet payout', 'on-chain escrow', 'no KYC', 'centralized platform KYC', 'unspecified']\n"
+    "- 'reason': one brutal, cynical sentence explaining the score and labels.\n"
+    "Output ONLY the JSON object. No markdown, no filler."
 )
 
 
@@ -197,7 +182,7 @@ async def call_gemini(
 
 
 def parse_vibe_output(raw_text: str) -> tuple[int, str]:
-    """Parse SCORE and REASON from model output with regex fallbacks.
+    """Parse JSON or text SCORE and REASON from model output.
 
     Args:
         raw_text: Raw text output from the LLM.
@@ -206,10 +191,22 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
         A tuple of (score, reason).
     """
     text = raw_text.strip()
-    # Remove obvious markdown artifacts if they appear
-    text = re.sub(r"^```.*?```$", "", text, flags=re.S)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Remove markdown code blocks
+    text = re.sub(r"^```(?:json)?\s*(.*?)\s*```$", r"\1", text, flags=re.S | re.I)
+    
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and ("score" in data or "reason" in data):
+            score = int(data.get("score", 0))
+            reason = data.get("reason", "").strip() or "No reason provided."
+            labels = data.get("labels", [])
+            if labels:
+                reason = f"[{', '.join(labels)}] {reason}"
+            return max(0, min(score, 100)), reason
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
 
+    # Fallback to legacy line-based parsing
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     score_line = next((ln for ln in lines if ln.upper().startswith("SCORE:")), None)
     reason_line = next((ln for ln in lines if ln.upper().startswith("REASON:")), None)
@@ -222,18 +219,13 @@ def parse_vibe_output(raw_text: str) -> tuple[int, str]:
                 score = int(m.group(1))
             except ValueError:
                 score = 0
-
-    # Clamp to [0, 100]
     score = max(0, min(score, 100))
 
     if reason_line:
-        reason = re.sub(r"^REASON:\s*", "", reason_line, flags=re.I).strip()
+        reason = re.sub(r"^REASON:\s*", "", reason_line, flags=re.I).strip() or "No reason provided."
     else:
         reason_candidates = [ln for ln in lines if not ln.upper().startswith("SCORE:")]
-        reason = " ".join(reason_candidates) if reason_candidates else "No reason provided."
-
-    if not reason:
-        reason = "No reason provided."
+        reason = " ".join(reason_candidates).strip() or "No reason provided."
 
     return score, reason
 

@@ -201,6 +201,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="bounty_stats.db",
         help="Path to the SQLite DB (default: bounty_stats.db)",
     )
+    inspect_parser.add_argument(
+        "--min-ml-prob",
+        type=float,
+        default=0.0,
+        help="Filter leads by minimum ML probability [0.0, 1.0] (default: 0.0)",
+    )
 
     # ── Vibe Check Command ──
     vibe_parser = subparsers.add_parser(
@@ -296,7 +302,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, argparse.Namespace, 
         for k in ["limit", "concurrency", "db_path", "raw_candidates_file", "mode"]:
             overrides.pop(k, None)
     elif command == "inspect-leads":
-        for k in ["mode", "limit", "db_path"]:
+        for k in ["mode", "limit", "db_path", "min_ml_prob"]:
             overrides.pop(k, None)
     elif command == "dump-dataset":
         for k in ["db_path", "out_csv", "raw_candidates_file", "label_threshold"]:

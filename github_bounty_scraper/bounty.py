@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .config import STABLECOIN_SYMBOLS, ScraperConfig
+from .config import ScraperConfig
 from .price_cache import get_usd_price
 
 # ─── Result container ────────────────────────────────────────────────
@@ -36,7 +36,6 @@ _BOUNTY_PROXIMITY_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
-# Generic bounty value: bounty: 500, reward: 1000
 _BOUNTY_VALUE_RE = re.compile(
     r"\b(?:bounty|reward|price|pays?|paid):\s?\$?([\d,]+(?:\.\d+)?)\b",
     re.IGNORECASE,
@@ -46,36 +45,14 @@ _BOUNTY_VALUE_RE = re.compile(
 # Dollar amounts: $1,000  $500.50  $10,000.00
 _DOLLAR_RE = re.compile(r"\$\s*([\d,]+(?:\.\d+)?)")
 
-# Crypto/Fiat amounts: 1000 USDC, 0.5 ETH, 10,000 USD
-_CRYPTO_SUFFIXES = (
-    "USDC",
-    "USDT",
-    "ETH",
-    "SOL",
-    "OP",
-    "ARB",
-    "MATIC",
-    "ROXN",
-    "XDC",
-    "DAI",
-    "WETH",
-    "STRK",
-    "BUSD",
-    "USD",
-    "XTM",
-    "BNB",
-)
-_CRYPTO_RE = re.compile(
-    r"([\d,]+(?:\.\d+)?)"
-    r"\s*"
-    r"(" + "|".join(re.escape(s) for s in _CRYPTO_SUFFIXES) + r")\b",
+# Generic fallback regexes if signals are missing
+_DEFAULT_CRYPTO_SUFFIXES = ("USDC", "ETH", "SOL", "DAI", "USD")
+_DEFAULT_CRYPTO_RE = re.compile(
+    r"([\d,]+(?:\.\d+)?)\s*(" + "|".join(re.escape(s) for s in _DEFAULT_CRYPTO_SUFFIXES) + r")\b",
     re.IGNORECASE,
 )
-
-# Crypto keywords for the "Unknown / Custom Tokens" fallback.
-_CRYPTO_KEYWORD_SET = {s.upper() for s in _CRYPTO_SUFFIXES if s != "USD"}
-_CRYPTO_KEYWORD_RE = re.compile(
-    r"\b(" + "|".join(re.escape(s) for s in _CRYPTO_KEYWORD_SET) + r")\b",
+_DEFAULT_KEYWORD_RE = re.compile(
+    r"\b(" + "|".join(re.escape(s) for s in _DEFAULT_CRYPTO_SUFFIXES if s != "USD") + r")\b",
     re.IGNORECASE,
 )
 
@@ -99,6 +76,7 @@ def parse_numeric_amount(
     max_sane: float = 1e7,
     proximity_window: int = 300,
     config: ScraperConfig | None = None,
+    signals: dict[str, Any] | None = None,
 ) -> BountyResult:
     """Parse ``text`` for an explicit bounty dollar or token amount.
 
@@ -167,7 +145,10 @@ def parse_numeric_amount(
         candidates.append((val, raw.strip(), "USD", prox))
 
     # ── Crypto matches ──
-    for m in _CRYPTO_RE.finditer(text):
+    crypto_re = (signals or {}).get("crypto_amounts_re") or _DEFAULT_CRYPTO_RE
+    stablecoins = set((signals or {}).get("stablecoin_symbols") or ["USDC", "DAI"])
+
+    for m in crypto_re.finditer(text):
         raw = m.group(0)
         if raw in seen:
             continue
@@ -180,7 +161,7 @@ def parse_numeric_amount(
             continue
         symbol = m.group(2).upper()
         # Normalise stablecoins to USD value.
-        if symbol in STABLECOIN_SYMBOLS or symbol == "USD":
+        if symbol in stablecoins or symbol == "USD":
             currency = "USD"
             norm_val = val
         else:
@@ -214,7 +195,8 @@ def parse_numeric_amount(
 
     if not candidates:
         # Fallback: bounty cue detected but no parseable amount.
-        if _CRYPTO_KEYWORD_RE.search(text) or _proximity_score(text, 0, len(text)) > 0:
+        keyword_re = (signals or {}).get("crypto_keywords_re") or _DEFAULT_KEYWORD_RE
+        if keyword_re.search(text) or _proximity_score(text, 0, len(text)) > 0:
             result.numeric_amount = 0.0
             result.raw_display = "Unknown / Custom Tokens"
             result.currency_symbol = ""
@@ -237,9 +219,10 @@ def extract_bounty_amount(
     max_sane: float = 1e7,
     proximity_window: int = 300,
     config: ScraperConfig | None = None,
+    signals: dict[str, Any] | None = None,
 ) -> BountyResult:
     """Backward-compatible alias for ``parse_numeric_amount``."""
-    return parse_numeric_amount(text, max_sane=max_sane, proximity_window=proximity_window, config=config)
+    return parse_numeric_amount(text, max_sane=max_sane, proximity_window=proximity_window, config=config, signals=signals)
 
 
 _SNIPE_PHRASES: frozenset[str] = frozenset(

@@ -362,5 +362,46 @@
     "successfully claimed",
     "pr merged and paid",
     "payment released"
+  ],
+  "title_required_signals": [
+    "bounty",
+    "reward",
+    "grant",
+    "prize",
+    "paid",
+    "payment",
+    "$",
+    "usdc",
+    "eth",
+    "xtm",
+    "matic",
+    "sol",
+    "bnb"
+  ],
+  "crypto_keywords": [
+    "USDC",
+    "ETH",
+    "SOL",
+    "OP",
+    "ARB",
+    "MATIC",
+    "DAI",
+    "WETH",
+    "STRK",
+    "ROXN"
+  ],
+  "stablecoin_symbols": [
+    "USDC",
+    "USDT",
+    "DAI",
+    "BUSD"
+  ],
+  "repo_blocklist": [
+    "josix/awesome-claude-md",
+    "Jamie-BitFlight/claude_skills",
+    "awesome-selfhosted/awesome-selfhosted",
+    "sindresorhus/awesome",
+    "vinta/awesome-python",
+    "topics/bounty"
   ]
 }

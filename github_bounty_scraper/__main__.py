@@ -45,7 +45,7 @@ def _verify_model_checksum(model_path: str, checksum_path: str) -> None:
         )
 
 
-async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
+async def _run_inspect(db_path: str, mode: str, limit: int, min_ml_prob: float = 0.0) -> None:
     import json
     import os
 
@@ -114,6 +114,12 @@ async def _run_inspect(db_path: str, mode: str, limit: int) -> None:
         )
 
     leads.sort(key=_rank_key)
+    
+    if min_ml_prob > 0:
+        leads = [L for L in leads if L.get("ml_prob", 0) >= min_ml_prob]
+        if not leads:
+            print(f"No leads found with ML probability >= {min_ml_prob:.2f}")
+            return
 
     print(
         f"{'ML%':<5} | {'SCORE':<7} | {'Δ':<6} | {'AMOUNT':<12} | {'MODE':<14} | {'VIBE':<5} | {'REPO/NAME':<30} | URL"
@@ -189,7 +195,7 @@ def main() -> None:
 
         asyncio.run(run_pipeline(config))
     elif command == "inspect-leads":
-        asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n))
+        asyncio.run(_run_inspect(ns.db_path, ns.mode, ns.limit or config.top_n, min_ml_prob=getattr(ns, "min_ml_prob", 0.0)))
     elif command == "vibe-check":
         from .vibe import run_vibe_check
 

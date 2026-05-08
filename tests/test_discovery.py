@@ -22,7 +22,6 @@ def test_build_search_queries_with_filters(cfg):
     cfg.languages = ["Python", "Go"]
     queries = build_search_queries(cfg)
     for q in queries:
-        assert "stars:>=100" in q
         assert "updated:>=2024-01-01" in q
         # Languages are combined in chunks of 3, so with 2 languages it should be one clause
         assert "language:Python OR language:Go" in q
@@ -131,12 +130,15 @@ class TestDiscoverIssuesStream:
     @pytest.mark.asyncio
     async def test_yields_items_and_deduplicates(self):
         """Stream yields unique items and skips duplicates."""
+        from github_bounty_scraper.config import SearchConfig
         cfg = ScraperConfig(
-            search_queries=["q1"],
-            languages=[],
-            max_pages_per_query=1,
-            max_issues_per_run=0,
-            search_delay_seconds=0,
+            search=SearchConfig(
+                search_queries=["q1"],
+                languages=[],
+                max_pages_per_query=1,
+                max_issues_per_run=0,
+                search_delay_seconds=0,
+            )
         )
 
         page_items = [
@@ -160,12 +162,15 @@ class TestDiscoverIssuesStream:
     @pytest.mark.asyncio
     async def test_stops_at_max_issues_per_run(self):
         """Stream stops after max_issues_per_run unique items."""
+        from github_bounty_scraper.config import SearchConfig
         cfg = ScraperConfig(
-            search_queries=["q1", "q2"],
-            languages=[],
-            max_pages_per_query=1,
-            max_issues_per_run=3,
-            search_delay_seconds=0,
+            search=SearchConfig(
+                search_queries=["q1", "q2"],
+                languages=[],
+                max_pages_per_query=1,
+                max_issues_per_run=3,
+                search_delay_seconds=0,
+            )
         )
 
         page1 = [{"html_url": f"http://{i}", "id": i} for i in range(3)]

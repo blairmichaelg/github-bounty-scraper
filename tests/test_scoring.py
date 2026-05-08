@@ -58,7 +58,7 @@ def test_weight_sum_exactly_one(cfg):
 
 def test_score_no_vibe_excludes_weight(cfg):
     """
-    Test that vibe_score_int=None correctly renormalizes weights, 
+    Test that vibe_score_int=None correctly renormalizes weights,
     unlike vibe_score_int=0 which actively penalizes by keeping the denominator the same.
     """
     base_args = {
@@ -74,10 +74,10 @@ def test_score_no_vibe_excludes_weight(cfg):
     score_none = compute_score(vibe_score_int=None, **base_args)
     score_zero = compute_score(vibe_score_int=0, **base_args)
     score_middle = compute_score(vibe_score_int=50, **base_args)
-    
-    # When vibe is None, remaining weights sum to 0.8 (since vibe=0.2), 
+
+    # When vibe is None, remaining weights sum to 0.8 (since vibe=0.2),
     # so the score gets a 1/0.8 = 1.25x boost compared to vibe=0.
-    # Therefore score_none should be higher than score_zero, and it 
+    # Therefore score_none should be higher than score_zero, and it
     # should be correctly renormalized.
     assert score_none > score_zero
     # With a middle vibe score (e.g. 50%), the score_none could be higher or lower
@@ -85,17 +85,49 @@ def test_score_no_vibe_excludes_weight(cfg):
     # But it proves renormalization happens rather than treating None as 0 or 100.
     assert score_none != score_middle
 
-@pytest.mark.parametrize("weight_dist", [
-    {"weight_amount": 1.0, "weight_recency": 0.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 0.0},
-    {"weight_amount": 0.0, "weight_recency": 1.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 0.0},
-    {"weight_amount": 0.0, "weight_recency": 0.0, "weight_activity": 0.0, "weight_escrow_strength": 0.0, "w_repo_reputation": 0.0, "weight_vibe": 1.0},
-    {"weight_amount": 0.2, "weight_recency": 0.2, "weight_activity": 0.2, "weight_escrow_strength": 0.2, "w_repo_reputation": 0.2, "weight_vibe": 0.0},
-])
+
+@pytest.mark.parametrize(
+    "weight_dist",
+    [
+        {
+            "weight_amount": 1.0,
+            "weight_recency": 0.0,
+            "weight_activity": 0.0,
+            "weight_escrow_strength": 0.0,
+            "w_repo_reputation": 0.0,
+            "weight_vibe": 0.0,
+        },
+        {
+            "weight_amount": 0.0,
+            "weight_recency": 1.0,
+            "weight_activity": 0.0,
+            "weight_escrow_strength": 0.0,
+            "w_repo_reputation": 0.0,
+            "weight_vibe": 0.0,
+        },
+        {
+            "weight_amount": 0.0,
+            "weight_recency": 0.0,
+            "weight_activity": 0.0,
+            "weight_escrow_strength": 0.0,
+            "w_repo_reputation": 0.0,
+            "weight_vibe": 1.0,
+        },
+        {
+            "weight_amount": 0.2,
+            "weight_recency": 0.2,
+            "weight_activity": 0.2,
+            "weight_escrow_strength": 0.2,
+            "w_repo_reputation": 0.2,
+            "weight_vibe": 0.0,
+        },
+    ],
+)
 def test_score_renormalization_edge_weights(cfg, weight_dist):
     """Test that score stays in [0, 100] even with extreme weight distributions and vibe=None."""
     for k, v in weight_dist.items():
         setattr(cfg, k, v)
-    
+
     score = compute_score(
         numeric_amount=1000.0,
         issue_updated_at="2026-05-01T12:00:00Z",
@@ -109,6 +141,7 @@ def test_score_renormalization_edge_weights(cfg, weight_dist):
     )
     assert 0.0 <= score <= 100.0
 
+
 def test_score_all_weights_zero_except_vibe(cfg):
     """Test the edge case where all non-vibe weights are zero and vibe is None."""
     cfg.weight_amount = 0.0
@@ -117,7 +150,7 @@ def test_score_all_weights_zero_except_vibe(cfg):
     cfg.weight_escrow_strength = 0.0
     cfg.w_repo_reputation = 0.0
     cfg.weight_vibe = 0.2
-    
+
     score = compute_score(
         numeric_amount=1000.0,
         issue_updated_at="2026-05-01T12:00:00Z",
@@ -131,6 +164,7 @@ def test_score_all_weights_zero_except_vibe(cfg):
     )
     # total_w will be 0.0, scale becomes 1.0, raw_score becomes 0.0
     assert score == 0.0
+
 
 def test_vibe_zero_and_none(cfg):
     """

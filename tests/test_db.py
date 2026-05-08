@@ -128,7 +128,9 @@ async def test_get_recent_leads_excludes_vibe_only_rows(tmp_path):
     db_path = str(tmp_path / "test_recent_vibe_only.db")
 
     async with aiosqlite.connect(db_path) as conn:
-        await set_issue_vibe(conn, db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time(), compiled_signals=None)
+        await set_issue_vibe(
+            conn, db_path, "url_vibe_only", 90, "On-chain escrow vault.", time.time(), compiled_signals=None
+        )
         await init_db(conn, db_path=db_path)
         await conn.execute(
             """
@@ -264,8 +266,12 @@ async def test_set_issue_vibe_signal_extraction(tmp_path):
     compiled_signals = load_signals()
 
     async with aiosqlite.connect(db_path) as conn:
-        await set_issue_vibe(conn, db_path, "url1", 80, "payout in eth. No KYC.", now, compiled_signals=compiled_signals)
-        await set_issue_vibe(conn, db_path, "url2", 90, "On-chain escrow vault.", now, compiled_signals=compiled_signals)
+        await set_issue_vibe(
+            conn, db_path, "url1", 80, "payout in eth. No KYC.", now, compiled_signals=compiled_signals
+        )
+        await set_issue_vibe(
+            conn, db_path, "url2", 90, "On-chain escrow vault.", now, compiled_signals=compiled_signals
+        )
 
     async with aiosqlite.connect(db_path) as conn:
         conn.row_factory = aiosqlite.Row

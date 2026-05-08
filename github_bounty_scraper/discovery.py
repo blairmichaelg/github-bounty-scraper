@@ -12,6 +12,7 @@ from typing import AsyncIterator
 import aiohttp
 
 from .config import ScraperConfig
+from .graphql import TokenBucket, fetch_graphql
 from .log import get_logger
 
 log = get_logger()
@@ -54,8 +55,8 @@ def build_search_queries(config: ScraperConfig) -> list[str]:
 
     # Build suffix fragments.
     suffixes: list[str] = []
-    if getattr(config, "min_repo_stars", 0) > 0:
-        suffixes.append(f"stars:>={config.min_repo_stars}")
+    # Note: GitHub issue search does not support the 'stars' qualifier for repo stars.
+    # This must be handled downstream during enrichment (repo health check).
     if config.since:
         suffixes.append(f"updated:>={config.since}")
 
@@ -146,6 +147,54 @@ async def fetch_rest_search(
             attempt += 1
     log.error("Search failed after %d retries.", retries + 1)
     return []
+
+
+async def fetch_graphql_search(
+    session: aiohttp.ClientSession,
+    bucket: TokenBucket,
+    token: str,
+    query: str,
+    first: int = 100,
+    after: str | None = None,
+) -> tuple[list[dict], str | None]:
+    """Fetch issues via GraphQL Search API for more data-dense discovery."""
+    gql_query = """
+    query($q: String!, $first: Int!, $after: String) {
+      search(query: $q, type: ISSUE, first: $first, after: $after) {
+        issueCount
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ... on Issue {
+            html_url: url
+            number
+            title
+            state
+            updatedAt
+            repository {
+              nameWithOwner
+              stargazerCount
+              isArchived
+              isFork
+            }
+          }
+        }
+      }
+    }
+    """
+    variables = {"q": query, "first": first, "after": after}
+    data = await fetch_graphql(session, bucket, token, gql_query, variables)
+    if not data or "search" not in data:
+        return [], None
+
+    search = data["search"]
+    items = search.get("nodes", [])
+    has_next = search.get("pageInfo", {}).get("hasNextPage", False)
+    cursor = search.get("pageInfo", {}).get("endCursor") if has_next else None
+
+    return items, cursor
 
 
 # ─── Discovery orchestrator ─────────────────────────────────────────
